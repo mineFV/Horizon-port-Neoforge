@@ -74,6 +74,13 @@ record ModJar(Path path, boolean neoforge, boolean fabric, boolean legacyForge, 
         return base.contains("LICEN") || base.startsWith("COPYING");
     }
 
+    /** The first `cap` bytes of an entry, at most: enough of a licence file to tell which licence it is. */
+    static byte[] head(ZipFile zip, ZipEntry entry, int cap) throws IOException {
+        try (InputStream in = zip.getInputStream(entry)) {
+            return in.readNBytes(cap);
+        }
+    }
+
     /** All of an entry, refused when it unpacks to more than `cap` bytes. */
     static byte[] read(ZipFile zip, ZipEntry entry, int cap) throws IOException {
         try (InputStream in = zip.getInputStream(entry)) {

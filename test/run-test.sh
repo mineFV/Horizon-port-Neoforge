@@ -2,6 +2,8 @@
 # Builds the tool and the fixture jars, then checks what the tool says about them.
 #   bash test/run-test.sh
 # Needs a JDK 21 or newer. No real mod and no game file is used, and nothing is downloaded.
+# The licence checks run Horizon-Translator's horizon-port.jar: HORIZON_PORT_JAR, or the one built in
+# a Horizon-Translator clone beside this folder (bash mod-converter/build.sh there).
 set -euo pipefail
 cd "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
@@ -52,12 +54,29 @@ fixture_jar() {
   jar --create --file "$B/jars/$1.jar" --manifest "$F/MANIFEST.MF" -C "$dir" .
 }
 
+# lacks <file> <text>: the file doesn't hold the text.
+lacks() {
+  if grep -qF -- "$2" "$1"; then
+    echo "  FAIL: '$2' is in $1"
+    failures=$((failures + 1))
+  else
+    echo "  ok: no $2"
+  fi
+}
+
 # plain_jar <name> <folder>: a jar of that folder alone.
 plain_jar() { jar --create --file "$B/jars/$1.jar" -C "$2" .; }
 
+# relicensed <name> <a `license = ...` line, or nothing>: $B/over/<name> holds the fixture's metadata
+# with that line as its licence (with none, when the line is empty).
+relicensed() {
+  mkdir -p "$B/over/$1/META-INF"
+  sed "s|^license = .*|$2|" "$F/resources/META-INF/neoforge.mods.toml" > "$B/over/$1/META-INF/neoforge.mods.toml"
+}
+
 echo; echo "== unit tests"
 javac --release 21 -Xlint:all -Werror -cp build/classes -d "$B/classes" test/java/horizonneo/*.java
-for t in TomlTest MetadataTest; do
+for t in TomlTest MetadataTest LicenceCheckTest; do
   java -cp "build/classes:$B/classes" "horizonneo.$t" || failures=$((failures + 1))
 done
 
@@ -109,7 +128,7 @@ says "$ERR" "isn't a NeoForge or Fabric mod"
 echo "not a zip" > "$B/jars/text.jar"
 exits 1 tool metadata "$B/jars/text.jar"
 says "$ERR" "isn't a jar"
-exits 1 tool metadata "$B/jars/missing.jar"
+exits 1 tool metadata "$B/jars/no-such.jar"
 says "$ERR" "isn't a file"
 
 mkdir -p "$B/over/broken/META-INF"
@@ -117,6 +136,86 @@ printf 'license = "MIT"\n[[mods]]\nmodId = pocketcompass\n' > "$B/over/broken/ME
 fixture_jar broken "$B/over/broken"
 exits 1 tool metadata "$B/jars/broken.jar"
 says "$ERR" 'META-INF/neoforge.mods.toml, line 3:'
+
+echo; echo "== licence"
+PORT_JAR=${HORIZON_PORT_JAR:-../Horizon-Translator/mod-converter/build/horizon-port.jar}
+if [ ! -f "$PORT_JAR" ]; then
+  echo "  FAIL: no horizon-port.jar at $PORT_JAR: build it in Horizon-Translator's clone (bash mod-converter/build.sh) or set HORIZON_PORT_JAR"
+  failures=$((failures + 1))
+else
+  HORIZON_PORT_JAR="$(cd "$(dirname "$PORT_JAR")" && pwd)/$(basename "$PORT_JAR")"
+  export HORIZON_PORT_JAR
+
+  # An open licence: allowed, and the report names the mod's own metadata file.
+  exits 0 tool license "$J"
+  says "$OUT" '# Licence check: pocketcompass.jar'
+  says "$OUT" '**Allowed**'
+  says "$OUT" 'Declared in META-INF/neoforge.mods.toml: `MIT`'
+  says "$OUT" '- Authors: Mine, Second Author'
+  says "$OUT" "Checked by horizon-port's licence rules"
+  lacks "$OUT" 'fabric.mod.json'
+  relicensed gpl 'license = "GPL-3.0-or-later"'
+  fixture_jar gpl "$B/over/gpl"
+  exits 0 tool license "$B/jars/gpl.jar"
+  says "$OUT" 'Conditions for the port'
+
+  # A closed one: refused, unless one of the mod's authors says it is theirs.
+  relicensed arr 'license = "All Rights Reserved"'
+  fixture_jar arr "$B/over/arr"
+  exits 3 tool license "$B/jars/arr.jar"
+  says "$OUT" '**Not allowed**'
+  says "$OUT" '(Mine, Second Author)'
+  exits 3 tool license "$B/jars/arr.jar" --i-am-the-author Somebody
+  exits 0 tool license "$B/jars/arr.jar" --i-am-the-author "second author"
+  says "$OUT" '**Allowed**'
+  exits 0 tool license "$B/jars/arr.jar" --i-am-the-author "Mine, Second Author"
+
+  # No licence to go by: a placeholder nobody filled in, or no `license` at all.
+  relicensed placeholder 'license = "${mod_license}"'
+  fixture_jar placeholder "$B/over/placeholder"
+  exits 3 tool license "$B/jars/placeholder.jar"
+  says "$OUT" 'Declared in META-INF/neoforge.mods.toml: nothing'
+  says "$OUT" 'build placeholder nobody filled in'
+  relicensed missing ''
+  fixture_jar missing "$B/over/missing"
+  exits 3 tool license "$B/jars/missing.jar"
+  says "$OUT" 'no `license`, which NeoForge requires'
+
+  # The jar's licence files count too, and the strictest wins.
+  relicensed closedfile 'license = "MIT"'
+  echo "Copyright (c) 2026 Mine. All rights reserved." > "$B/over/closedfile/LICENSE"
+  fixture_jar closedfile "$B/over/closedfile"
+  exits 3 tool license "$B/jars/closedfile.jar"
+  says "$OUT" 'Licence file LICENSE'
+  relicensed openfile ''
+  printf 'MIT License\n\nPermission is hereby granted, free of charge, to any person obtaining a copy of this software.\n' > "$B/over/openfile/LICENSE.txt"
+  fixture_jar openfile "$B/over/openfile"
+  exits 0 tool license "$B/jars/openfile.jar"
+  says "$OUT" 'Licence file LICENSE.txt'
+
+  # A jar made for both loaders: both sets of metadata have to allow it.
+  exits 2 tool license "$B/jars/both.jar"
+  exits 0 tool license "$B/jars/both.jar" --loader neoforge
+  says "$OUT" 'Both have to allow it: **allowed**'
+  mkdir -p "$B/over/botharr"
+  echo '{ "schemaVersion": 1, "id": "pocketcompass", "version": "1.2.3", "license": "ARR", "authors": ["Mine"] }' > "$B/over/botharr/fabric.mod.json"
+  fixture_jar botharr "$B/over/botharr"
+  exits 3 tool license "$B/jars/botharr.jar" --loader neoforge
+  says "$OUT" 'Both have to allow it: **not allowed**'
+
+  # A Fabric jar is horizon-port's: its answer, as it is.
+  exits 0 tool license "$B/jars/fabric.jar"
+  says "$OUT" 'Declared in fabric.mod.json: `MIT`'
+  exits 0 tool license "$B/jars/both.jar" --loader fabric
+
+  # Jars it doesn't read, and a horizon-port it can't find.
+  exits 1 tool license "$B/jars/forge.jar"
+  exits 1 tool license "$B/jars/broken.jar"
+  exits 1 tool license "$J" --translator "$B/jars/no-such.jar"
+  says "$ERR" "isn't a file (from --translator)"
+  exits 1 env HORIZON_PORT_JAR="$B/nowhere.jar" java -jar build/horizon-port-neoforge.jar license "$J"
+  says "$ERR" "isn't a file (from HORIZON_PORT_JAR)"
+fi
 
 echo; echo "== the command line"
 exits 0 tool --help

@@ -59,8 +59,35 @@ public final class Main {
             case "metadata" -> {
                 return metadata(Line.read(args, Set.of("--loader"), Set.of("--json")), out);
             }
+            case "license" -> {
+                return license(Line.read(args, Set.of("--loader", "--i-am-the-author", "--translator"), Set.of()), out, err);
+            }
             default -> throw new Usage("unknown command `" + args[0] + "`");
         }
+    }
+
+    // ---- license ----
+
+    private static int license(Line line, PrintStream out, PrintStream err) throws Usage, IOException, ModsToml.Invalid {
+        Path path = line.only("mod jar");
+        ModJar jar = ModJar.open(path);
+        String author = line.options().get("--i-am-the-author");
+        if (loader(jar, line.option("--loader", "auto")) == Loader.FABRIC) {
+            // horizon-port's own job: it gets the jar as it is, and its answer is passed on as it is.
+            List<String> args = new ArrayList<>(List.of("license", path.toString()));
+            if (author != null) {
+                args.add("--i-am-the-author");
+                args.add(author);
+            }
+            Translator.Run run = Translator.locate(line.options().get("--translator")).run(args, 120);
+            out.print(run.out());
+            err.print(run.err());
+            return run.exit();
+        }
+        ModInfo info = NeoForgeFrontend.read(jar).info();
+        LicenceCheck.Verdict verdict = LicenceCheck.run(jar, info, author, Translator.locate(line.options().get("--translator")));
+        out.print(verdict.report());
+        return verdict.allowed() ? DONE : REFUSED;
     }
 
     // ---- metadata ----
@@ -228,6 +255,19 @@ public final class Main {
                   authors, its dependencies, its Mixin configs and access transformers.
                   Text, or JSON with --json. Nothing else in the jar is read.
 
-            Exit codes: 0 done, 1 failed, 2 wrong command line.
+              license <mod.jar> [--i-am-the-author NAME] [--loader auto|neoforge|fabric] [--translator JAR]
+                  Whether the mod's licence lets you decompile and port it, by horizon-port's own
+                  rules: open licences (MIT, Apache, GPL, LGPL, MPL...) do, with their conditions;
+                  All Rights Reserved, no-derivatives, unknown and missing licences don't, unless
+                  NAME is one of the mod's authors. It goes by `license` in
+                  META-INF/neoforge.mods.toml and by the jar's LICENSE / COPYING files; the
+                  strictest wins. Exit code 0 when it is allowed, 3 when it isn't.
+                  A Fabric jar goes to horizon-port as it is.
+
+            horizon-port.jar is Horizon-Translator's converter, built in its clone
+            (bash mod-converter/build.sh). It is found through --translator, else the
+            HORIZON_PORT_JAR variable, else a Horizon-Translator/ folder beside this tool.
+
+            Exit codes: 0 done, 1 failed, 2 wrong command line, 3 the licence doesn't allow it.
             """;
 }
