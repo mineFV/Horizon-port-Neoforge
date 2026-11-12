@@ -1,0 +1,16 @@
+# Build and test output
+/build/
+/test/build/
+/test/fixture/
+/out/
+
+# Never commit mods, game files or decompiled code
+*.jar
+*.class
+*-src/
+
+# Editors / OS
+.idea/
+.vscode/
+*.iml
+.DS_Store
