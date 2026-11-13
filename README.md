@@ -14,8 +14,10 @@ Horizon-Translator has no licence file, so none of its code is copied or changed
 code that **calls** it:
 
 - `horizon-port.jar`, built from an unmodified clone and run as a program of its own (its licence
-  check, and its `port`: Vineflower, the Mixin matching, the Java to Rust translation);
-- later, Horizon's own `horizon-port-pack` and `native-hooks.json`, which are MIT.
+  check, its `port`: Vineflower, the Mixin matching, the Java to Rust translation, and its `hooks`:
+  each hook point's signature in a Horizon source);
+- Horizon's own hook catalogue, `native-hooks.json`, read from the Horizon source given (MIT);
+- later, Horizon's own `horizon-port-pack`, which is MIT.
 
 `ModFrontend` is the seam. A loader's frontend reads a jar into data that doesn't depend on the loader
 (`ModInfo`), and everything after it works on that. If Horizon-Translator gets a licence, the NeoForge
@@ -143,14 +145,50 @@ What happens, in order:
      commented out, unless the mod names NeoForge's `IConfigScreenFactory`. A class's name isn't a
      correspondence.
    - The `.hnmod` horizon-port packs when it sees nothing left is removed.
-5. **The copy and the decompiled source are deleted**, whether it worked or not.
+5. **The mod's event listeners are put on Horizon's hook points** (below).
+6. **The copy and the decompiled source are deleted**, whether it worked or not.
 
 `report/report.md` and `report.json` are `analyze`'s, with what the conversion made: the injections
-that are on and off, each Mixin handler's status and where it is in the bundle, and horizon-port's
-count of the methods it translated. `report/horizon-port-report.md` is horizon-port's own report.
+that are on and off, each Mixin handler's status and where it is in the bundle, each listener's hook
+point, and horizon-port's count of the methods it translated. `report/horizon-port-report.md` is
+horizon-port's own report.
 
-- **Not converted yet:** event listeners and registries. They are in the report and in `PORTING.md`
-  as left to do.
+#### Event listeners
+
+Which hook point stands for which NeoForge event isn't this tool's opinion. Horizon's hook catalogue,
+`native-hooks.json` in its source, names each hook point's NeoForge counterpart in a `neoforge` label
+(`"BlockEvent.BreakEvent"`, `"ItemTossEvent (only hears: a toss can't be canceled)"`,
+`"none (NeoForge has no such event)"`). The table is read from the catalogue of the Horizon source
+given, at each conversion, so it can't be out of step with it. A label is read the way Horizon's own
+`horizon-port-pack events` reads it; that command lists a mod's events with their hooks for a person
+to check. This sorts each answer by how sure it is:
+
+| The catalogue's answer for the event | Level | In the bundle |
+|---|---|---|
+| One hook point, named for this event alone, with no note | `exact` | **on** |
+| One hook point, with a note in brackets, or shared with other events, or found under the event's newer name | `approximate` | commented out; on with `--allow-approximate` |
+| Several hook points | `several` | commented out |
+| Only another phase of it (`.Pre` for `.Post`), or events nested in it | `phase` | commented out |
+| A hook point that is being prepared (`tools/native-hook-fragments/`), not in the hooks API yet | `pending` | commented out |
+| A label that says why it has no counterpart | `noted` | commented out |
+| Nothing | `none` | commented out |
+| An event of the mod's own, not NeoForge's | `own` | nothing written |
+
+A listener is switched on only when NeoForge really calls it (it is registered, on the bus its event
+is posted on), its level is `exact`, and horizon-port read a signature for the hook point in that
+source (`horizon-port hooks`), with the game as its first parameter and every type under a path.
+
+- **On** means an `[[injection]]` at the head of the hook point and a helper that takes its
+  parameters and does nothing, with a `TODO` naming the handler to port. The handler's own Java
+  takes a NeoForge event, so horizon-port doesn't translate it. The helper's comments say what to
+  mind: the listener's priority, that NeoForge doesn't call it once the event is cancelled, the side
+  the mod has it on. Listeners of one event share one injection; a hook point a Mixin is on already
+  keeps its one injection, and its helper is told.
+- **Commented out** means `# Off:`, the reason, a `TODO`, and the injection it would be, as
+  horizon-port writes a Mixin it leaves off.
+- `compatibility.json`'s `hooks` is raised to the hooks API the hook points switched on came in.
+
+- **Not converted yet:** registries. They are in the report and in `PORTING.md` as left to do.
 - **Nothing is compiled or run**, by this tool or by horizon-port's `port`. Building a bundle is
   yours to decide (`PORTING.md`, "Build it").
 - **The Horizon commit** the bundle names is `--horizon-revision`, else the source's
@@ -170,8 +208,8 @@ bash test/run-test.sh
 
 It builds the tool, writes three made-up NeoForge mods (`test/make-fixture.sh`: "Pocket Compass", a
 second one of things done oddly, a third with nothing left to finish) with stand-ins for the game,
-NeoForge and Horizon's source, packs them into jars and checks what the tool says about each and
-what `port` writes. No real mod, no game file, nothing of Horizon's, nothing downloaded. The licence
+NeoForge and Horizon's source (a few hook points and a hook catalogue), packs them into jars and checks what
+the tool says about each and what `port` writes. No real mod, no game file, nothing of Horizon's, nothing downloaded. The licence
 and `port` checks need `horizon-port.jar` (above); `port` runs Vineflower from that clone's `tools/`.
 
 ## Rules of this repository
@@ -183,6 +221,9 @@ and `port` checks need `horizon-port.jar` (above); `port` runs Vineflower from t
 
 ## Licence
 
-MIT: see [LICENSE](LICENSE). That is this tool's own code. It covers nothing of Horizon-Translator's,
+MIT: see [LICENSE](LICENSE). That is this tool's own code. How `EventTable.java` reads a hook
+catalogue's labels, and its three short lists of renamed, parent and dropped events, follow Horizon's
+`crates/horizon-port-pack/src/events.rs` (MIT, Copyright (c) 2026 Ludovic Marie and the Horizon
+contributors). It covers nothing of Horizon-Translator's,
 which this tool runs and doesn't contain, and nothing of the mods it converts: a bundle is a port of
 its mod, under that mod's licence (`PORTING.md` in each bundle has its conditions).

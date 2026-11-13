@@ -29,6 +29,8 @@ import java.util.stream.Stream;
  *   unless the mod itself says it has a config screen: a class's name isn't a correspondence.
  * - An injection whose target isn't in the Horizon source given is commented out: horizon-port's
  *   table of Horizon's functions was written for one Horizon, and the source may be another.
+ * - The mod's NeoForge event listeners are put on Horizon's hook points (`Wiring`): on when the
+ *   event table is sure of the hook point, written commented out with the reason when it isn't.
  * - Where it names Fabric as the mod's loader, it says NeoForge.
  *
  * Everything else is horizon-port's, as it wrote it. PORTING.md gets a section that says all this.
@@ -48,14 +50,22 @@ final class Bundle {
 
     /**
      * on, off: the manifest's injections by id, as it stands after the changes. handlers: by
-     * `com/example/SomeMixin.handler`. changes: what was changed here, in sentences.
+     * `com/example/SomeMixin.handler`. listeners: what became of each event listener, in the
+     * analysis's order; none when there was no event table to go by. changes: what was changed
+     * here, in sentences.
      */
-    record Outcome(String modId, List<String> on, List<String> off, Map<String, Handler> handlers, Translation translation,
-                   List<String> changes, int javaLines) {
+    record Outcome(String modId, List<String> on, List<String> off, Map<String, Handler> handlers, List<Wiring.Wired> listeners,
+                   Translation translation, List<String> changes, int javaLines) {
         Outcome {
             on = List.copyOf(on);
             off = List.copyOf(off);
+            listeners = List.copyOf(listeners);
             changes = List.copyOf(changes);
+        }
+
+        /** How many listeners are on a hook point. */
+        long listenersOn() {
+            return listeners.stream().filter(w -> w.state().equals("on")).count();
         }
     }
 
@@ -78,9 +88,12 @@ final class Bundle {
     /**
      * Makes the changes. dir: the bundle. decompiled: the folder horizon-port decompiled into, read
      * only to make sure none of it stays in the bundle. horizonSrc: the Horizon source the mod was
-     * converted against.
+     * converted against. table: which hook point stands for which NeoForge event in that source,
+     * null when it has no hook catalogue. approximate: also switch on the listeners whose hook
+     * point comes with a note.
      */
-    static Outcome finish(Path dir, Path decompiled, Path horizonSrc, ModInfo info, Analysis analysis) throws IOException {
+    static Outcome finish(Path dir, Path decompiled, Path horizonSrc, ModInfo info, Analysis analysis, EventTable table, boolean approximate)
+            throws IOException {
         Path mod = modFolder(dir);
         String id = mod.getFileName().toString();
         List<String> changes = new ArrayList<>();
@@ -103,6 +116,7 @@ final class Bundle {
         List<String> hooksOff = new ArrayList<>(settings(dir, mod, analysis, changes, turnedOff));
         hooksOff.addAll(targets(dir, mod, horizonSrc, changes, turnedOff));
         reword(dir, mod, info);
+        List<Wiring.Wired> listeners = table == null ? List.of() : Wiring.apply(mod, id, analysis, table, approximate);
 
         Map<String, Handler> theirs = mixinStatuses(dir.resolve("report").resolve("report.json"));
         Translation translation = translation(dir.resolve("report").resolve("translation.md"));
@@ -117,7 +131,7 @@ final class Bundle {
         Map<String, String> helpers = injections(mod, manifest, on, off);
         Map<String, Handler> handlers = handlers(analysis, theirs, manifest, mod, helpers, turnedOff);
 
-        Outcome outcome = new Outcome(id, on, off, handlers, translation, changes, javaLines);
+        Outcome outcome = new Outcome(id, on, off, handlers, listeners, translation, changes, javaLines);
         Path porting = dir.resolve("PORTING.md");
         if (!Files.isRegularFile(porting)) throw new Unexpected("no PORTING.md");
         Files.writeString(porting, porting(read(porting), info, analysis, outcome, mod, dir, packed, hooksOff), StandardCharsets.UTF_8);
@@ -525,7 +539,7 @@ final class Bundle {
             } else if (s[0].equals("## Build it")) {
                 build = i;
             } else if (s[0].equals("## Ready to use?")) {
-                s[1] = ready(s[1], o, left, mod, dir, packed, !o.changes().isEmpty());
+                s[1] = ready(s[1], o, left, mod, dir, packed);
             } else if (s[0].equals("## Licence")) {
                 s[1] = LicenceCheck.named(s[1], info);
             }
@@ -562,9 +576,15 @@ final class Bundle {
     private static List<String> left(Analysis analysis, Outcome o) {
         List<String> left = new ArrayList<>();
         long listeners = analysis.listeners().stream().filter(Analysis.Listener::registered).count();
-        if (listeners > 0) {
-            left.add(listeners + (listeners == 1 ? " event listener isn't" : " event listeners aren't")
-                    + " wired to a Horizon hook yet (`@SubscribeEvent`, `addListener`): the list is in `report/report.md`.");
+        long on = o.listenersOn();
+        if (on > 0) {
+            left.add(on + (on == 1 ? " event listener is" : " event listeners are") + " on " + (on == 1 ? "a hook point" : "hook points")
+                    + ", but " + (on == 1 ? "its handler isn't" : "their handlers aren't") + " ported: each helper has a TODO for it.");
+        }
+        if (listeners - on > 0) {
+            left.add((listeners - on) + (listeners - on == 1 ? " event listener isn't" : " event listeners aren't") + " on a hook point"
+                    + (o.listeners().isEmpty() ? ": the Horizon source given has no hook catalogue (`native-hooks.json`) to go by."
+                            : ": each is written commented out in `horizon-mixin.toml` with why (the table under \"From a NeoForge mod\")."));
         }
         int registered = analysis.registries().stream().mapToInt(r -> r.entries().size()).sum();
         if (registered > 0) {
@@ -597,13 +617,25 @@ final class Bundle {
             b.append("\nChanged after horizon-port wrote the bundle:\n\n");
             for (String c : o.changes()) b.append("- ").append(c).append('\n');
         }
+        if (o.listeners().stream().anyMatch(w -> !w.state().equals("none"))) {
+            b.append("\nThe mod's event listeners, put on Horizon's hook points from its hook catalogue (`native-hooks.json`). One is on only when the ")
+                    .append("catalogue names a single hook point for its event, with nothing more to read; its helper does nothing until its `TODO` is filled in:\n\n")
+                    .append("| Listener | NeoForge event | Hook point | State | Why |\n|---|---|---|---|---|\n");
+            for (Wiring.Wired w : o.listeners()) {
+                if (w.state().equals("none")) continue;
+                b.append("| `").append(Report.handler(w.listener())).append("` | ").append(Wiring.eventName(w.listener().event())).append(" | ")
+                        .append(w.hook() == null ? "" : "`" + w.hook() + "`").append(" | ")
+                        .append(w.state().equals("on") ? "on, in `" + w.injection() + "`" : "off, as `" + w.injection() + "`").append(" | ")
+                        .append(Character.toUpperCase(w.why().charAt(0))).append(w.why().substring(1).replace("|", "\\|")).append(w.why().endsWith(".") ? "" : ".").append(" |\n");
+            }
+        }
         b.append("\n`report/report.md` is the mod as NeoForge sees it (entry points, listeners, registries, Mixins) with what became of each part; ")
                 .append("`report/horizon-port-report.md` is horizon-port's own report, on the copy.\n");
         return b.toString();
     }
 
     /** The "Ready to use?" section, with what horizon-port doesn't see added to what is left. */
-    private static String ready(String theirs, Outcome o, List<String> left, Path mod, Path dir, boolean packed, boolean todosMoved) throws IOException {
+    private static String ready(String theirs, Outcome o, List<String> left, Path mod, Path dir, boolean packed) throws IOException {
         if (theirs.contains(FULL) || packed) {
             StringBuilder b = new StringBuilder("\n**Not packed.** horizon-port saw nothing left to finish and packed `" + o.modId()
                     + ".hnmod`. That file was removed: it was packed before this bundle was gone over for a NeoForge mod, "
@@ -618,19 +650,21 @@ final class Bundle {
             return b + theirs.substring(theirs.stripTrailing().length());
         }
         List<String> lines = new ArrayList<>(List.of(theirs.split("\n", -1)));
-        if (todosMoved) {
-            for (int i = 0; i < lines.size(); i++) {
-                if (!TODO_HEAD.matcher(lines.get(i)).matches()) continue;
-                int end = i + 1;
-                while (end < lines.size() && lines.get(end).startsWith("  - ")) end++;
-                lines.subList(i, end).clear();
-                lines.addAll(i, todos(mod, dir));
-                break;
-            }
+        // The TODOs are counted again: this tool moved some and wrote others.
+        List<String> todos = todos(mod, dir);
+        boolean listed = false;
+        for (int i = 0; i < lines.size() && !listed; i++) {
+            if (!TODO_HEAD.matcher(lines.get(i)).matches()) continue;
+            int end = i + 1;
+            while (end < lines.size() && lines.get(end).startsWith("  - ")) end++;
+            lines.subList(i, end).clear();
+            lines.addAll(i, todos);
+            listed = true;
         }
         int last = lines.size();
         while (last > 0 && lines.get(last - 1).isBlank()) last--;
         List<String> added = new ArrayList<>();
+        if (!listed) added.addAll(todos);
         for (String l : left) added.add("- " + l);
         lines.addAll(last, added);
         return String.join("\n", lines);

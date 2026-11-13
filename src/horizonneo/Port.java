@@ -25,8 +25,8 @@ import java.util.stream.Stream;
 final class Port {
     private Port() {}
 
-    /** horizonSrc: Horizon's source. revision, author, out: null when not given. */
-    record Options(Path horizonSrc, String revision, String author, Path out, String translator) {}
+    /** horizonSrc: Horizon's source. revision, author, out: null when not given. approximate: also switch on listeners whose hook point comes with a note. */
+    record Options(Path horizonSrc, String revision, String author, Path out, String translator, boolean approximate) {}
 
     /** How long horizon-port may take: it decompiles the jar and indexes Horizon's source. */
     private static final int SECONDS = 30 * 60;
@@ -87,7 +87,8 @@ final class Port {
                 throw new IOException("horizon-port's `port` failed (exit " + run.exit() + ")" + tail(run.err().isBlank() ? run.out() : run.err()));
             }
 
-            Bundle.Outcome outcome = Bundle.finish(bundle, decompiled, o.horizonSrc(), info, analysis);
+            EventTable table = table(o.horizonSrc(), translator, work);
+            Bundle.Outcome outcome = Bundle.finish(bundle, decompiled, o.horizonSrc(), info, analysis, table, o.approximate());
             Report.write(bundle.resolve("report"), jar, frontend, analysis, outcome);
             deliver(bundle, target);
 
@@ -102,7 +103,10 @@ final class Port {
                     : t.methods() + " of " + t.methodsOf() + " methods" + (t.fields() == null ? "" : ", " + t.fields() + " of " + t.fieldsOf() + " static fields")
                             + " (horizon-port's count)"));
             long listeners = analysis.listeners().stream().filter(Analysis.Listener::registered).count();
-            out.println("  Event listeners: " + (listeners == 0 ? "none" : listeners + ", none wired to a Horizon hook yet"));
+            long listenersOff = outcome.listeners().stream().filter(w -> w.state().equals("off")).count();
+            out.println("  Event listeners: " + (listeners == 0 ? "none" : table == null ? listeners + ", none on a hook point (this Horizon source has no native-hooks.json)"
+                    : listeners + ", " + outcome.listenersOn() + " on a hook point, " + listenersOff + " written commented out"
+                            + (listeners - outcome.listenersOn() - listenersOff > 0 ? ", " + (listeners - outcome.listenersOn() - listenersOff) + " of events of the mod's own" : "")));
             for (String c : outcome.changes()) out.println("  Changed: " + c);
             for (String l : written.leftOut()) out.println("  Not handed to horizon-port: " + l + ".");
             out.println("Start with " + target.resolve("PORTING.md"));
@@ -115,6 +119,22 @@ final class Port {
         }
         out.println("The decompiled source and the copy of the jar have been deleted. Nothing was compiled or run.");
         return Main.DONE;
+    }
+
+    // ---- Horizon's hook points ----
+
+    /**
+     * Which hook point stands for which NeoForge event in that Horizon source: its hook catalogue,
+     * with each hook point's signature as horizon-port reads it (`hooks --json`). null when the
+     * source has no catalogue.
+     */
+    static EventTable table(Path horizonSrc, Translator translator, Path work) throws IOException {
+        if (!Files.isRegularFile(horizonSrc.resolve("native-hooks.json"))) return null;
+        Path list = work.resolve("hooks.json");
+        Translator.Run run = translator.run(List.of("hooks", "--horizon-src", horizonSrc.toAbsolutePath().toString(), "--json", "--out", list.toString()), 600);
+        // Without its list no hook point has a signature, and the table says so for each listener.
+        String hookList = run.exit() == 0 && Files.isRegularFile(list) ? Files.readString(list, StandardCharsets.UTF_8) : null;
+        return EventTable.read(horizonSrc, hookList);
     }
 
     // ---- Horizon's commit ----

@@ -822,7 +822,7 @@ EOF
 # ---------------------------------------------------------------- a stand-in for Horizon's source
 
 # What horizon-port reads of it: its commit, the game version, the horizon-mixins commit, and Rust to index.
-# The hook points are the four the made-up mod ends up on. Nothing here is Horizon's code.
+# The hook points are a handful with made-up contents. Nothing here is Horizon's code.
 H=fixture/horizon-src
 mkdir -p "$H/crates/horizon-client/src/game" "$H/crates/horizon-core/src" "$H/launcher/src"
 echo "0123456789abcdef0123456789abcdef01234567" > "$H/.horizon-revision"
@@ -863,6 +863,67 @@ impl Game<'_> {
     pub(super) fn native_settings_click(&mut self, mod_id: &str, button: usize) {
         let _ = (mod_id, button);
     }
+
+    /// A player breaks the block at `pos`. Set `canceled` to keep it.
+    pub(super) fn native_destroy_block(&mut self, pos: [i32; 3], canceled: &mut bool) {
+        let _ = (pos, canceled);
+    }
+
+    /// The server's tick, before and after.
+    pub(super) fn native_server_tick(&mut self, after: bool) {
+        let _ = after;
+    }
+
+    /// `name` joined the game.
+    pub(super) fn native_player_logged_in(&self, name: &str) {
+        let _ = name;
+    }
+
+    /// Before the GUI is drawn.
+    pub(super) fn native_gui_render_pre(&mut self) {}
+
+    /// A key the mod listed was pressed.
+    pub(super) fn native_key_press(&mut self, key: &str) {
+        let _ = key;
+    }
+}
+EOF
+# Horizon's hook catalogue, in its shape: what the event table is read from. The labels are made up to
+# give one event of each kind: named alone, named with a note, sharing a hook point, another phase only,
+# said to have no counterpart, and named for a hook point that has no function in the source.
+cat > "$H/native-hooks.json" <<'EOF'
+{
+  "helpers": [],
+  "hooks": [
+    { "name": "mods", "version": 1, "target": "horizon_client::game::native_hooks::Game<'_>::native_mods", "mod_api": { "contract": "collect" } },
+    { "name": "tick", "version": 1, "target": "horizon_client::game::native_hooks::Game<'_>::native_tick", "neoforge": "ClientTickEvent.Post",
+      "side": "client", "cancellable": false, "mod_api": { "contract": "listen" } },
+    { "name": "settings", "version": 1, "target": "horizon_client::game::native_hooks::Game<'_>::native_settings", "mod_api": { "contract": "collect" } },
+    { "name": "settings_click", "version": 1, "target": "horizon_client::game::native_hooks::Game<'_>::native_settings_click", "mod_api": { "contract": "listen" } },
+    { "name": "destroy_block", "version": 1, "target": "horizon_client::game::native_hooks::Game<'_>::native_destroy_block", "neoforge": "BlockEvent.BreakEvent",
+      "side": "server", "cancellable": true, "mod_api": { "contract": "cancel", "out": "canceled" } },
+    { "name": "server_tick", "version": 1, "target": "horizon_client::game::native_hooks::Game<'_>::native_server_tick",
+      "neoforge": "ServerTickEvent.Pre / .Post", "side": "server", "mod_api": { "contract": "listen" } },
+    { "name": "player_logged_in", "version": 1, "target": "horizon_client::game::native_hooks::Game<'_>::native_player_logged_in",
+      "neoforge": "PlayerEvent.PlayerLoggedInEvent (once the player is in the world, not before)", "side": "server", "mod_api": { "contract": "listen" } },
+    { "name": "gui_render_pre", "version": 1, "target": "horizon_client::game::native_hooks::Game<'_>::native_gui_render_pre", "neoforge": "RenderGuiEvent.Pre",
+      "side": "client", "mod_api": { "contract": "listen" } },
+    { "name": "key_press", "version": 1, "target": "horizon_client::game::native_hooks::Game<'_>::native_key_press",
+      "neoforge": "none (InputEvent.Key hears every key; this hears the mod's own keys only)", "side": "client", "mod_api": { "contract": "listen" } },
+    { "name": "register_key_mappings", "version": 1, "target": "horizon_client::game::native_hooks::Game<'_>::native_register_key_mappings",
+      "neoforge": "RegisterKeyMappingsEvent", "side": "client", "mod_api": { "contract": "collect" } }
+  ]
+}
+EOF
+# A hook point that is only being prepared: not in the catalogue, so not in the hooks API.
+mkdir -p "$H/tools/native-hook-fragments"
+echo "Fragments: hook points asked for, not merged yet." > "$H/tools/native-hook-fragments/README.md"
+cat > "$H/tools/native-hook-fragments/client_chat.json" <<'EOF'
+{
+  "hooks": [
+    { "name": "client_chat_received", "target": "horizon_client::game::native_hooks::Game<'_>::native_client_chat_received",
+      "neoforge": "ClientChatReceivedEvent", "side": "client", "cancellable": true, "mod_api": { "contract": "cancel", "out": "canceled" } }
+  ]
 }
 EOF
 # One very long line, as Horizon's source has: horizon-port needs a bigger stack than Java's default to read it.

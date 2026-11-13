@@ -67,7 +67,7 @@ public final class Main {
             }
             case "port" -> {
                 return port(Line.read(args, Set.of("--loader", "--out", "--neoforge-jar", "--translator", "--horizon-src", "--horizon-revision",
-                        "--i-am-the-author"), Set.of()), out, err);
+                        "--i-am-the-author"), Set.of("--allow-approximate")), out, err);
             }
             default -> throw new Usage("unknown command `" + args[0] + "`");
         }
@@ -96,7 +96,8 @@ public final class Main {
             return run.exit();
         }
         NeoForgeFrontend frontend = NeoForgeFrontend.read(jar);
-        Port.Options options = new Port.Options(Path.of(horizonSrc), revision, author, outDir == null ? null : Path.of(outDir), line.options().get("--translator"));
+        Port.Options options = new Port.Options(Path.of(horizonSrc), revision, author, outDir == null ? null : Path.of(outDir), line.options().get("--translator"),
+                line.has("--allow-approximate"));
         return Port.run(jar, frontend, facts(line), options, out, err);
     }
 
@@ -345,14 +346,19 @@ public final class Main {
                   NeoForge's documentation tells it. A Fabric jar goes to horizon-port as it is.
 
               port <mod.jar> --horizon-src FOLDER [--horizon-revision SHA] [--i-am-the-author NAME] [--out DIR]
-                   [--neoforge-jar JAR[:JAR...]] [--loader auto|neoforge|fabric]
+                   [--allow-approximate] [--neoforge-jar JAR[:JAR...]] [--loader auto|neoforge|fabric]
                   The licence check, then horizon-port's own `port` on a copy of the jar: it
                   decompiles it, matches its Mixins against that Horizon source and translates
                   the Java that doesn't need the game to Rust. Writes a Horizon native-mod bundle
                   to DIR (default: out/<mod id>-horizon; a folder that is already there isn't
                   written over), with PORTING.md and report/. The decompiled Java isn't kept,
-                  in the bundle or anywhere else. Event listeners and registries are reported,
-                  not converted yet. Nothing is compiled or run. The Horizon commit is
+                  in the bundle or anywhere else. Each event listener is put on the hook point
+                  that Horizon's hook catalogue (native-hooks.json in that source) names for its
+                  event: switched on when the catalogue names one hook point with nothing more
+                  to read, written commented out with the reason otherwise. --allow-approximate
+                  also switches on those whose hook point comes with a note. A listener's own
+                  code isn't translated: its helper has a TODO. Registries are reported, not
+                  converted yet. Nothing is compiled or run. The Horizon commit is
                   --horizon-revision, else the source's .horizon-revision, else git's HEAD there.
                   A Fabric jar goes to horizon-port as it is.
 

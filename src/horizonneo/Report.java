@@ -52,7 +52,7 @@ final class Report {
         {"info", "Nothing to convert."},
     };
 
-    private static final String LATER_EVENTS = "Its Horizon hook comes from the event table (milestone 4).";
+    private static final String LATER_EVENTS = "Its Horizon hook point comes from Horizon's hook catalogue when the mod is converted (`port`).";
     private static final String LATER_MIXINS = "Matched against Horizon's own functions by horizon-port when the mod is converted (`port`).";
     private static final String LATER_CONTENT = "Carried by Horizon's horizon-port-pack (milestone 5).";
     private static final String BY_HAND = "Not converted: it goes into PORTING.md as work to do by hand.";
@@ -108,7 +108,7 @@ final class Report {
                     e.unknownParameters().isEmpty() ? null
                             : "Its constructor takes " + String.join(", ", e.unknownParameters()) + ", which NeoForge doesn't hand a @Mod class."));
         }
-        for (Listener l : a.listeners()) out.add(feature(l));
+        for (int i = 0; i < a.listeners().size(); i++) out.add(feature(a.listeners().get(i), wired(converted, i)));
         Set<String> registeredClasses = new HashSet<>();
         for (Registry r : a.registries()) {
             for (Registration e : r.entries()) {
@@ -178,11 +178,35 @@ final class Report {
         return new Feature("mixin", source, detail, h.horizon(), status, h.note() == null ? where : where + " " + h.note());
     }
 
-    private static Feature feature(Listener l) {
+    /** What `port` made of the listener at that place in the analysis; null when it wasn't converted, or with no event table. */
+    private static Wiring.Wired wired(Bundle.Outcome converted, int index) {
+        return converted == null || index >= converted.listeners().size() ? null : converted.listeners().get(index);
+    }
+
+    private static Feature feature(Listener l, Wiring.Wired w) {
         String event = l.event() == null ? "an event that couldn't be read" : ClassData.simple(l.event());
         String detail = event + ", " + (l.bus() == Bus.UNKNOWN ? "bus not known" : Analyzer.word(l.bus()) + " bus") + ", " + sideWords(l.side());
         List<String> notes = new ArrayList<>(l.notes());
         String status = "needs-mapping";
+        if (w != null && !(w.state().equals("none") && w.level() == null)) {
+            // After `port`: the event table's answer, and where the listener is in the bundle.
+            String hook = w.hook() == null ? null : "hook `" + w.hook() + "`";
+            switch (w.state()) {
+                case "on" -> {
+                    notes.add("on, in the injection `" + w.injection() + "`: its handler is still to port");
+                    return new Feature("listener", handler(l), detail, hook, "auto", sentence(notes));
+                }
+                case "off" -> notes.add("written commented out, as `" + w.injection() + "`");
+                default -> { }
+            }
+            notes.add(w.why());
+            status = switch (w.level()) {
+                case EXACT, APPROXIMATE, SEVERAL, PHASE, PENDING -> "needs-mapping";
+                case DATA -> "content";
+                default -> "needs-translation";
+            };
+            return new Feature("listener", handler(l), detail, hook, status, sentence(notes));
+        }
         if (l.registered()) {
             notes.add(LATER_EVENTS);
         } else if (l.registeredBy().startsWith("@EventBusSubscriber")) {
@@ -279,9 +303,10 @@ final class Report {
             b.append("None.\n");
         } else {
             b.append("| Event | Bus | Side | Handler | Registered by | Status |\n|---|---|---|---|---|---|\n");
-            for (Listener l : a.listeners()) {
+            for (int i = 0; i < a.listeners().size(); i++) {
+                Listener l = a.listeners().get(i);
                 row(b, l.event() == null ? "not read" : code(ClassData.simple(l.event())), l.bus() == Bus.UNKNOWN ? "not known" : Analyzer.word(l.bus()), l.side(),
-                        code(handler(l)), l.registered() ? l.registeredBy() : "not registered (" + l.registeredBy() + ")", feature(l).status());
+                        code(handler(l)), l.registered() ? l.registeredBy() : "not registered (" + l.registeredBy() + ")", feature(l, wired(converted, i)).status());
             }
             List<String> remarks = new ArrayList<>();
             for (Listener l : a.listeners()) {
@@ -408,7 +433,17 @@ final class Report {
             b.append(", by horizon-port's count (`translation.md` lists each one and why).\n");
         }
         long listeners = a.listeners().stream().filter(Listener::registered).count();
-        b.append("- Event listeners wired to a Horizon hook: 0 of ").append(listeners).append(" (the event table isn't used yet).\n");
+        b.append("- Event listeners on a hook point: ").append(o.listenersOn()).append(" of ").append(listeners)
+                .append(o.listeners().isEmpty() && listeners > 0 ? " (the Horizon source given has no hook catalogue, `native-hooks.json`, to go by).\n"
+                        : " (from Horizon's hook catalogue; a listener that is on still has its handler to port).\n");
+        if (o.listeners().stream().anyMatch(w -> !w.state().equals("none"))) {
+            b.append("\n| Listener | NeoForge event | The table's answer | Hook point | In the bundle |\n|---|---|---|---|---|\n");
+            for (Wiring.Wired w : o.listeners()) {
+                if (w.state().equals("none")) continue;
+                row(b, code(handler(w.listener())), Wiring.eventName(w.listener().event()), w.level().name().toLowerCase(java.util.Locale.ROOT),
+                        w.hook() == null ? "" : code(w.hook()), w.state().equals("on") ? "on, in `" + w.injection() + "`" : "commented out, as `" + w.injection() + "`");
+            }
+        }
         if (!o.handlers().isEmpty()) {
             b.append("\n| Mixin handler | horizon-port's status | In Horizon | In the bundle |\n|---|---|---|---|\n");
             for (Map.Entry<String, Bundle.Handler> e : o.handlers().entrySet()) {
@@ -450,7 +485,7 @@ final class Report {
             Bundle.Translation t = converted.translation();
             root.put("conversion", map("bundle", converted.modId(), "injectionsOn", converted.on(), "injectionsOff", converted.off(),
                     "translation", t == null ? null : map("methods", t.methods(), "methodsOf", t.methodsOf(), "fields", t.fields(), "fieldsOf", t.fieldsOf()),
-                    "listenersWired", 0, "listeners", (int) a.listeners().stream().filter(Listener::registered).count(),
+                    "listenersOn", (int) converted.listenersOn(), "listeners", (int) a.listeners().stream().filter(Listener::registered).count(),
                     "changes", converted.changes(), "decompiledLinesRemoved", converted.javaLines()));
         }
         root.put("census", map("classes", a.census().classes(), "assets", a.census().assets(), "data", a.census().data()));
@@ -463,11 +498,19 @@ final class Report {
         root.put("entryPoints", entryPoints);
 
         List<Object> listeners = new ArrayList<>();
-        for (Listener l : a.listeners()) {
-            listeners.add(map("event", l.event() == null ? null : dotted(l.event()), "handlerClass", dotted(l.handlerClass()), "handlerMethod", l.handlerMethod(),
-                    "lambda", l.lambda(), "registeredBy", l.registeredBy(), "registered", l.registered(),
+        for (int i = 0; i < a.listeners().size(); i++) {
+            Listener l = a.listeners().get(i);
+            Wiring.Wired w = wired(converted, i);
+            Map<String, Object> listener = map("event", l.event() == null ? null : dotted(l.event()), "handlerClass", dotted(l.handlerClass()),
+                    "handlerMethod", l.handlerMethod(), "lambda", l.lambda(), "registeredBy", l.registeredBy(), "registered", l.registered(),
                     "bus", Analyzer.word(l.bus()), "busFrom", l.busFrom(), "side", l.side(), "sideFrom", l.sideFrom(),
-                    "priority", l.priority(), "receiveCanceled", l.receiveCanceled(), "hook", null, "status", feature(l).status(), "notes", l.notes()));
+                    "priority", l.priority(), "receiveCanceled", l.receiveCanceled(), "hook", w == null ? null : w.hook(), "status", feature(l, w).status(),
+                    "notes", l.notes());
+            if (w != null) {
+                listener.put("converted", map("level", w.level() == null ? null : w.level().name().toLowerCase(java.util.Locale.ROOT), "bundle", w.state(),
+                        "injection", w.injection(), "why", w.why()));
+            }
+            listeners.add(listener);
         }
         root.put("listeners", listeners);
 
