@@ -43,6 +43,14 @@ final class Checks {
         System.out.println("  FAIL: " + subject + ": " + message);
     }
 
+    /** Deletes a folder a test made, and all in it. */
+    static void delete(java.nio.file.Path dir) throws java.io.IOException {
+        if (!java.nio.file.Files.exists(dir)) return;
+        try (java.util.stream.Stream<java.nio.file.Path> s = java.nio.file.Files.walk(dir)) {
+            for (java.nio.file.Path p : s.sorted(java.util.Comparator.reverseOrder()).toList()) java.nio.file.Files.delete(p);
+        }
+    }
+
     /** Prints the count and returns the program's exit code. */
     int done() {
         if (wrong == 0) System.out.println("  ok: " + subject + ": " + right + " checks");
