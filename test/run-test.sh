@@ -13,10 +13,14 @@ bash test/make-fixture.sh
 B=test/build
 F=test/fixture/pocketcompass
 rm -rf "$B"
-mkdir -p "$B/classes" "$B/jars" "$B/over" "$B/out" "$B/tmp"
+mkdir -p "$B/classes" "$B/stubs" "$B/mod" "$B/jars" "$B/over" "$B/out" "$B/tmp"
 OUT=$B/out/stdout.txt
 ERR=$B/out/stderr.txt
 failures=0
+
+# The made-up mod, compiled against the stand-ins. Its jars hold its own classes and resources only.
+javac --release 21 -d "$B/stubs" $(find test/fixture/stubs -name '*.java')
+javac --release 21 -cp "$B/stubs" -d "$B/mod" $(find "$F/src" -name '*.java')
 
 # The tool, with its temporary files in the build folder, so the tests can see that none is left.
 tool() { java -Djava.io.tmpdir="$PWD/$B/tmp" -jar build/horizon-port-neoforge.jar "$@"; }
@@ -51,7 +55,7 @@ fixture_jar() {
   mkdir -p "$dir"
   cp -r "$F/resources/." "$dir/"
   if [ $# -ge 2 ]; then cp -r "$2/." "$dir/"; fi
-  jar --create --file "$B/jars/$1.jar" --manifest "$F/MANIFEST.MF" -C "$dir" .
+  jar --create --file "$B/jars/$1.jar" --manifest "$F/MANIFEST.MF" -C "$B/mod" . -C "$dir" .
 }
 
 # lacks <file> <text>: the file doesn't hold the text.
@@ -76,8 +80,9 @@ relicensed() {
 
 echo; echo "== unit tests"
 javac --release 21 -Xlint:all -Werror -cp build/classes -d "$B/classes" test/java/horizonneo/*.java
-for t in TomlTest MetadataTest LicenceCheckTest; do
-  java -cp "build/classes:$B/classes" "horizonneo.$t" || failures=$((failures + 1))
+for t in TomlTest JsonTest MetadataTest LicenceCheckTest ClassDataTest; do
+  # Their one argument: where the made-up mod's classes are, for the tests that read them.
+  java -cp "build/classes:$B/classes" "horizonneo.$t" "$B/mod" || failures=$((failures + 1))
 done
 
 echo; echo "== metadata"
