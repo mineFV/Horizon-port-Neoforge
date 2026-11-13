@@ -187,6 +187,7 @@ final class AnalyzerTest {
         c.same("an access transformer the metadata doesn't list", List.of(new Analysis.AccessFile("META-INF/accesstransformer.cfg", false,
                 List.of("public net.minecraft.client.Minecraft someField"))), odd.accessTransformers());
         c.same("what it warns about", List.of(
+                "the jar holds 1 nested jar (META-INF/jarjar/library-1.0.jar): it isn't opened, so what it does isn't in this report",
                 "the Mixin config missing.mixins.json is listed in META-INF/neoforge.mods.toml but isn't in the jar",
                 "oddities.mixins.json lists the Mixin class com.example.oddities.mixin.GoneMixin, which isn't in the jar",
                 "@Mod(\"somethingelse\") on Oddities names no mod of META-INF/neoforge.mods.toml",

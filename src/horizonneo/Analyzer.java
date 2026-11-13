@@ -148,6 +148,7 @@ final class Analyzer {
         wanted.addAll(toml.accessTransformers());
         wanted.add(DEFAULT_TRANSFORMER);
         long left = MAX_CLASSES;
+        List<String> nested = new ArrayList<>();
         try (ZipFile zip = new ZipFile(jar.path().toFile())) {
             Enumeration<? extends ZipEntry> entries = zip.entries();
             while (entries.hasMoreElements()) {
@@ -156,6 +157,7 @@ final class Analyzer {
                 if (e.isDirectory()) continue;
                 if (name.startsWith("assets/")) assets++;
                 else if (name.startsWith("data/")) data++;
+                if (name.endsWith(".jar")) nested.add(name);
                 if (wanted.contains(name)) texts.put(name, new String(ModJar.read(zip, e, ModJar.MAX_TEXT), StandardCharsets.UTF_8));
                 // Classes under META-INF are other Java versions' copies or other jars' leftovers.
                 if (!name.endsWith(".class") || name.startsWith("META-INF/") || name.endsWith("module-info.class")) continue;
@@ -171,6 +173,13 @@ final class Analyzer {
                 }
                 if (left < 0) throw new IOException(jar.name() + " holds more than 1 GiB of classes: refused");
             }
+        }
+        // Libraries and other mods a jar carries inside itself (NeoForge's jar-in-jar) are jars of their own.
+        if (!nested.isEmpty()) {
+            boolean one = nested.size() == 1;
+            warnings.add("the jar holds " + nested.size() + (one ? " nested jar (" : " nested jars (")
+                    + String.join(", ", nested.subList(0, Math.min(3, nested.size()))) + (nested.size() > 3 ? ", ..." : "") + "): "
+                    + (one ? "it isn't opened, so what it does" : "they aren't opened, so what they do") + " isn't in this report");
         }
     }
 

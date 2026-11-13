@@ -774,6 +774,9 @@ EOF
 cat > "$O/resources/META-INF/accesstransformer.cfg" <<'EOF'
 public net.minecraft.client.Minecraft someField
 EOF
+# A library carried inside the jar, as NeoForge's jar-in-jar does. Only its name matters: it is never opened.
+mkdir -p "$O/resources/META-INF/jarjar"
+echo "a library's jar would be here" > "$O/resources/META-INF/jarjar/library-1.0.jar"
 javafile $O/src com.example.oddities.Oddities <<'EOF'
 package com.example.oddities;
 
