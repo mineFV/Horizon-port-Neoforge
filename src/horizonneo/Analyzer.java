@@ -381,6 +381,9 @@ final class Analyzer {
                         isRegistered = false;
                         notes.add(m.isStatic() ? "the class is registered as an object, which registers its non-static methods only"
                                 : "the class itself is registered, which registers its static methods only");
+                    } else if (alsoAdded(c.name, m.name(), event)) {
+                        // The same handler, already listed from the addListener that hands it over: the mark alone registers nothing.
+                        continue;
                     } else {
                         by = "nothing found that registers " + ClassData.simple(c.name);
                         isRegistered = false;
@@ -394,6 +397,24 @@ final class Analyzer {
                         priority, receiveCanceled, notes));
             }
         }
+    }
+
+    /**
+     * Whether that method is already listed as the handler an `addListener` was given. It is then one
+     * listener, not two: @SubscribeEvent on a method of a class nothing registers adds nothing. The
+     * listener that is listed says so.
+     */
+    private boolean alsoAdded(String className, String method, String event) {
+        for (int i = 0; i < listeners.size(); i++) {
+            Listener l = listeners.get(i);
+            if (!l.registered() || l.lambda() || !className.equals(l.handlerClass()) || !method.equals(l.handlerMethod()) || !java.util.Objects.equals(event, l.event())) continue;
+            List<String> notes = new ArrayList<>(l.notes());
+            notes.add("it is also marked @SubscribeEvent, which registers nothing here: nothing registers " + ClassData.simple(className) + " itself");
+            listeners.set(i, new Listener(l.event(), l.handlerClass(), l.handlerMethod(), l.lambda(), l.registeredBy(), l.registered(), l.bus(), l.busFrom(), l.side(),
+                    l.sideFrom(), l.priority(), l.receiveCanceled(), notes));
+            return true;
+        }
+        return false;
     }
 
     // ---- bus and side ----

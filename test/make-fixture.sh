@@ -489,6 +489,7 @@ package com.example.pocketcompass;
 
 import net.neoforged.api.distmarker.Dist;
 import net.neoforged.bus.api.IEventBus;
+import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.fml.ModContainer;
 import net.neoforged.fml.common.Mod;
 import net.neoforged.fml.config.ModConfig;
@@ -514,6 +515,8 @@ public class PocketCompass {
 
     private void onCommonSetup(FMLCommonSetupEvent event) {}
 
+    // Marked, and handed to addListener too, as real mods do: one listener, not two.
+    @SubscribeEvent
     private void onBreak(BlockEvent.BreakEvent event) {
         event.setCanceled(false);
     }

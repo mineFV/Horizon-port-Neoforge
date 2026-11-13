@@ -60,6 +60,10 @@ final class AnalyzerTest {
         c.same("the mod bus, by the constructor's bus", "it is added to the bus NeoForge hands the @Mod class's constructor", listener(a, "onCommonSetup").busFrom());
         c.same("the mod bus, by the documentation", BusFacts.FROM_DOCS, listener(a, "onClientSetup").busFrom());
         c.same("a default priority", "NORMAL", listener(a, "onBreak").priority());
+        c.same("a marked method that addListener is given is one listener", 1L, a.listeners().stream().filter(l -> "onBreak".equals(l.handlerMethod())).count());
+        c.same("and it says the mark registers nothing", List.of("it is also marked @SubscribeEvent, which registers nothing here: nothing registers PocketCompass itself"),
+                listener(a, "onBreak").notes());
+        c.same("it is still registered by addListener", "addListener in PocketCompass's constructor", listener(a, "onBreak").registeredBy());
         c.same("an object's listeners", "register(new ServerEvents(...)) in PocketCompass's constructor", listener(a, "onServerTick").registeredBy());
         Listener notStatic = listener(a, "notStatic");
         c.yes("a method that isn't static in an @EventBusSubscriber class isn't registered",
@@ -68,7 +72,8 @@ final class AnalyzerTest {
         c.same("a listener nothing registers", List.of(false, "nothing found that registers Orphan"), List.of(orphan.registered(), orphan.registeredBy()));
         Listener written = a.listeners().stream().filter(Listener::lambda).findFirst().orElseThrow();
         c.same("a lambda written at the call", List.of(P + "PocketCompassClient", CLIENT_EVENTS + "ClientChatReceivedEvent"), List.of(written.handlerClass(), written.event()));
-        c.yes("no listener has anything to note but the one that isn't static", a.listeners().stream().filter(l -> !l.notes().isEmpty()).count() == 1);
+        c.same("no listener has anything to note but the one that isn't static and the one marked twice", List.of("onBreak", "notStatic"),
+                a.listeners().stream().filter(l -> !l.notes().isEmpty()).map(Listener::handlerMethod).sorted(java.util.Comparator.reverseOrder()).toList());
 
         c.same("its registers", List.of(
                 "BLOCK pocketcompass ModRegistry.BLOCKS, on the mod bus",
