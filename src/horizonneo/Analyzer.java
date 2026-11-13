@@ -402,7 +402,7 @@ final class Analyzer {
     private BusOf bus(String event, Bus site, String siteWords, List<String> notes) {
         BusFacts.Answer type = event == null ? new BusFacts.Answer(Bus.UNKNOWN, null) : facts.of(event, classes);
         if (site != Bus.UNKNOWN && type.bus() != Bus.UNKNOWN && site != type.bus()) {
-            notes.add("it is added to the " + word(site) + " bus, but by " + type.from() + " its event is posted on the " + word(type.bus()) + " bus");
+            notes.add("it is added to the " + word(site) + " bus, but by " + type.from() + Wiring.WRONG_BUS + word(type.bus()) + " bus");
             return new BusOf(Bus.UNKNOWN, null);
         }
         if (site != Bus.UNKNOWN) return new BusOf(site, siteWords);
