@@ -13,14 +13,15 @@ bash test/make-fixture.sh
 B=test/build
 F=test/fixture/pocketcompass
 rm -rf "$B"
-mkdir -p "$B/classes" "$B/stubs" "$B/mod" "$B/jars" "$B/over" "$B/out" "$B/tmp"
+mkdir -p "$B/classes" "$B/stubs" "$B/mod" "$B/odd" "$B/jars" "$B/over" "$B/out" "$B/tmp"
 OUT=$B/out/stdout.txt
 ERR=$B/out/stderr.txt
 failures=0
 
-# The made-up mod, compiled against the stand-ins. Its jars hold its own classes and resources only.
+# The made-up mods, compiled against the stand-ins. Their jars hold their own classes and resources only.
 javac --release 21 -d "$B/stubs" $(find test/fixture/stubs -name '*.java')
 javac --release 21 -cp "$B/stubs" -d "$B/mod" $(find "$F/src" -name '*.java')
+javac --release 21 -cp "$B/stubs" -d "$B/odd" $(find test/fixture/oddities/src -name '*.java')
 
 # The tool, with its temporary files in the build folder, so the tests can see that none is left.
 tool() { java -Djava.io.tmpdir="$PWD/$B/tmp" -jar build/horizon-port-neoforge.jar "$@"; }
@@ -78,16 +79,20 @@ relicensed() {
   sed "s|^license = .*|$2|" "$F/resources/META-INF/neoforge.mods.toml" > "$B/over/$1/META-INF/neoforge.mods.toml"
 }
 
+# The jars most checks use: the two made-up mods, and the stand-ins passed off as NeoForge's own jar.
+fixture_jar pocketcompass
+J=$B/jars/pocketcompass.jar
+jar --create --file "$B/jars/oddities.jar" -C "$B/odd" . -C test/fixture/oddities/resources .
+jar --create --file "$B/jars/neoforge-stubs.jar" -C "$B/stubs" .
+
 echo; echo "== unit tests"
 javac --release 21 -Xlint:all -Werror -cp build/classes -d "$B/classes" test/java/horizonneo/*.java
-for t in TomlTest JsonTest MetadataTest LicenceCheckTest ClassDataTest; do
-  # Their one argument: where the made-up mod's classes are, for the tests that read them.
-  java -cp "build/classes:$B/classes" "horizonneo.$t" "$B/mod" || failures=$((failures + 1))
+for t in TomlTest JsonTest MetadataTest LicenceCheckTest ClassDataTest AnalyzerTest; do
+  # Their arguments, for the tests that read them: the first mod's classes, its jar, the stand-ins' jar, the second mod's jar.
+  java -cp "build/classes:$B/classes" "horizonneo.$t" "$B/mod" "$J" "$B/jars/neoforge-stubs.jar" "$B/jars/oddities.jar" || failures=$((failures + 1))
 done
 
 echo; echo "== metadata"
-fixture_jar pocketcompass
-J=$B/jars/pocketcompass.jar
 exits 0 tool metadata "$J"
 says "$OUT" 'Pocket Compass 1.2.3 (`pocketcompass`), a NeoForge mod: pocketcompass.jar'
 says "$OUT" 'licence: MIT'

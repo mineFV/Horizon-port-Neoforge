@@ -1,9 +1,10 @@
 #!/usr/bin/env bash
 # Writes the test fixture into test/fixture/:
 #   pocketcompass/  "Pocket Compass", a made-up NeoForge mod: its Java, its resources, its manifest;
-#   stubs/          stand-ins for the game, NeoForge, FML, the event bus and Mixin that it compiles
+#   oddities/       a second one, of things done oddly, that an analysis has to own up to not reading;
+#   stubs/          stand-ins for the game, NeoForge, FML, the event bus and Mixin that they compile
 #                   against. Only their names and shapes matter: they do nothing and aren't put in the
-#                   mod's jar.
+#                   mods' jars.
 # Nothing here comes from a real mod, from NeoForge or from the game.
 set -euo pipefail
 cd "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -745,4 +746,130 @@ import org.spongepowered.asm.mixin.Mixin;
 public abstract class UnlistedMixin {}
 EOF
 
-echo "Wrote test/$F and test/$S"
+# ---------------------------------------------------------------- a second mod: things done oddly
+
+# What an analysis can't be sure of, or that NeoForge itself would refuse. It has to say so, not guess.
+O=fixture/oddities
+mkdir -p "$O/resources/META-INF"
+cat > "$O/resources/META-INF/neoforge.mods.toml" <<'EOF'
+license = "MIT"
+
+[[mods]]
+modId = "oddities"
+
+[[mixins]]
+config = "missing.mixins.json"
+
+[[mixins]]
+config = "oddities.mixins.json"
+
+[[accessTransformers]]
+file = "META-INF/missing_at.cfg"
+EOF
+# It lists a class the jar doesn't have.
+cat > "$O/resources/oddities.mixins.json" <<'EOF'
+{ "package": "com.example.oddities.mixin", "mixins": ["GoneMixin"] }
+EOF
+# In the jar, but the metadata doesn't list it.
+cat > "$O/resources/META-INF/accesstransformer.cfg" <<'EOF'
+public net.minecraft.client.Minecraft someField
+EOF
+javafile $O/src com.example.oddities.Oddities <<'EOF'
+package com.example.oddities;
+
+import java.util.function.Consumer;
+import net.neoforged.bus.api.IEventBus;
+import net.neoforged.bus.api.SubscribeEvent;
+import net.neoforged.fml.common.Mod;
+import net.neoforged.fml.event.lifecycle.FMLCommonSetupEvent;
+import net.neoforged.neoforge.common.NeoForge;
+import net.neoforged.neoforge.event.entity.player.PlayerEvent;
+import net.neoforged.neoforge.event.tick.ServerTickEvent;
+
+// The metadata's mod is "oddities", not this.
+@Mod("somethingelse")
+public class Oddities {
+    // NeoForge hands a @Mod class no String.
+    public Oddities(IEventBus bus, String extra) {
+        // An object: its non-static listeners.
+        NeoForge.EVENT_BUS.register(this);
+        // A class: its static listeners.
+        NeoForge.EVENT_BUS.register(StaticHandlers.class);
+        // A mod bus event, on the game bus.
+        NeoForge.EVENT_BUS.addListener(this::wrongBus);
+        // A handler kept in a variable.
+        Consumer<ServerTickEvent.Post> kept = event -> {};
+        NeoForge.EVENT_BUS.addListener(kept);
+        more(bus);
+    }
+
+    // A second public constructor.
+    public Oddities() {}
+
+    @SubscribeEvent
+    public void onLogin(PlayerEvent.PlayerLoggedInEvent event) {}
+
+    // Static, in a class that is registered as an object.
+    @SubscribeEvent
+    public static void misplaced(ServerTickEvent.Post event) {}
+
+    private void wrongBus(FMLCommonSetupEvent event) {}
+
+    // A bus handed on: nothing here tells which one it is.
+    static void more(IEventBus anyBus) {
+        anyBus.addListener(Oddities::late);
+    }
+
+    private static void late(ServerTickEvent.Post event) {}
+}
+EOF
+# The mod's own events: one for the mod bus, one that extends an event of NeoForge's.
+javafile $O/src com.example.oddities.OwnEvents <<'EOF'
+package com.example.oddities;
+
+import net.neoforged.bus.api.Event;
+import net.neoforged.fml.event.IModBusEvent;
+import net.neoforged.neoforge.event.tick.ServerTickEvent;
+
+public final class OwnEvents {
+    public static class Setup extends Event implements IModBusEvent {}
+
+    public static class Late extends ServerTickEvent.Post {}
+
+    private OwnEvents() {}
+}
+EOF
+javafile $O/src com.example.oddities.OwnEventHandlers <<'EOF'
+package com.example.oddities;
+
+import net.neoforged.bus.api.SubscribeEvent;
+import net.neoforged.fml.common.EventBusSubscriber;
+
+@EventBusSubscriber(modid = "oddities")
+public final class OwnEventHandlers {
+    @SubscribeEvent
+    public static void onOwnSetup(OwnEvents.Setup event) {}
+
+    @SubscribeEvent
+    public static void onOwnLate(OwnEvents.Late event) {}
+}
+EOF
+javafile $O/src com.example.oddities.StaticHandlers <<'EOF'
+package com.example.oddities;
+
+import net.neoforged.api.distmarker.Dist;
+import net.neoforged.api.distmarker.OnlyIn;
+import net.neoforged.bus.api.SubscribeEvent;
+import net.neoforged.neoforge.event.tick.ServerTickEvent;
+
+public class StaticHandlers {
+    @SubscribeEvent
+    public static void onTick(ServerTickEvent.Post event) {}
+
+    @OnlyIn(Dist.CLIENT)
+    @SubscribeEvent
+    public static void onClientOnly(ServerTickEvent.Post event) {}
+}
+EOF
+
+echo "Wrote test/$F, test/$O and test/$S"

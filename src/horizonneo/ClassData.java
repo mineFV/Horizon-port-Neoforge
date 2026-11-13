@@ -112,7 +112,10 @@ final class ClassData {
     final List<Annotation> annotations;
     final List<Field> fields;
     final List<Method> methods;
-    /** Every class the constant pool names, as internal names (`net/minecraft/client/Minecraft`), sorted. */
+    /**
+     * Every class this one names, in its constant pool or in the types of its members and of what it
+     * calls, as internal names (`net/minecraft/client/Minecraft`), sorted.
+     */
     final Set<String> classRefs;
 
     private ClassData(String name, String superName, List<String> interfaces, int access, List<Annotation> annotations,
@@ -234,10 +237,27 @@ final class ClassData {
             for (int i = 1; i < tag.length; i++) {
                 if (tag[i] == 7) {
                     String ref = utf(first[i]);
-                    if (!ref.startsWith("[")) classRefs.add(ref);
+                    if (ref.startsWith("[")) named(ref, classRefs);
+                    else classRefs.add(ref);
+                } else if (tag[i] == 12) {
+                    named(utf(second[i]), classRefs);
+                } else if (tag[i] == 16) {
+                    named(utf(first[i]), classRefs);
                 }
             }
+            for (Field f : fields) named(f.descriptor(), classRefs);
+            for (Method m : methods) named(m.descriptor(), classRefs);
             return new ClassData(name, superName, interfaces, access, own.annotations, fields, methods, classRefs);
+        }
+
+        /** Adds the classes a descriptor names: `(ILfoo/Bar;)Lfoo/Baz;` names foo/Bar and foo/Baz. */
+        private static void named(String descriptor, Set<String> into) {
+            for (int i = descriptor.indexOf('L'); i >= 0; ) {
+                int end = descriptor.indexOf(';', i);
+                if (end < 0) return;
+                into.add(descriptor.substring(i + 1, end));
+                i = descriptor.indexOf('L', end);
+            }
         }
 
         // ---- the constant pool ----
