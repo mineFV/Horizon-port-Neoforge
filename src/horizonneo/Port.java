@@ -179,6 +179,20 @@ final class Port {
         return new Revision(null, "its commit isn't known (no .horizon-revision, and --horizon-revision wasn't given): the bundle doesn't name one");
     }
 
+    /** The commit of a Horizon source, by its `.horizon-revision`, else git's HEAD there; null when neither says. */
+    static String sourceRevision(Path horizonSrc) throws IOException {
+        Path file = horizonSrc.resolve(".horizon-revision");
+        if (Files.isRegularFile(file)) {
+            String said = Files.readString(file, StandardCharsets.UTF_8).strip();
+            if (said.matches("[0-9a-f]{40}")) return said;
+        }
+        if (Files.exists(horizonSrc.resolve(".git"))) {
+            String head = git(horizonSrc, "rev-parse", "HEAD");
+            if (head != null && head.strip().matches("[0-9a-f]{40}")) return head.strip();
+        }
+        return null;
+    }
+
     /** What a git command prints for that folder; null when git isn't there or fails. It changes nothing. */
     private static String git(Path folder, String... args) {
         List<String> command = new ArrayList<>(List.of("git", "-C", folder.toAbsolutePath().toString()));

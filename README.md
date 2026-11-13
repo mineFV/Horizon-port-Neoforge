@@ -14,8 +14,8 @@ Horizon-Translator has no licence file, so none of its code is copied or changed
 code that **calls** it:
 
 - `horizon-port.jar`, built from an unmodified clone and run as a program of its own (its licence
-  check, its `port`: Vineflower, the Mixin matching, the Java to Rust translation, and its `hooks`:
-  each hook point's signature in a Horizon source);
+  check, its `port`: Vineflower, the Mixin matching, the Java to Rust translation, its `hooks`:
+  each hook point's signature in a Horizon source, and its `check` when `check --compile` asks);
 - Horizon's own hook catalogue, `native-hooks.json`, read from the Horizon source given (MIT);
 - Horizon's own content tools, `horizon-port-pack` and `cargo-horizon-mod` (MIT), built from its source
   and run as programs of their own.
@@ -243,6 +243,39 @@ why (`todo/content-left-out/`).
 
 A Fabric jar goes to horizon-port's own `port` as it is, with that stack.
 
+### `check`: go over a bundle
+
+```bash
+java -jar build/horizon-port-neoforge.jar check out/mymod-horizon --horizon-src ~/horizon
+```
+
+For a bundle `port` wrote, or one you edited since. By reading alone, it makes sure of what
+horizon-mixins and the launcher go by:
+
+| What | A problem when |
+|---|---|
+| The manifest | `mixins/<id>/horizon-mixin.toml` can't be read, has no `[mod] id`, or the id isn't its folder's name |
+| Modules | a `[[module]]` file is missing, or has what horizon-mixins refuses in a module: `//!`, `#![...]`, `mod x;`, `include!` |
+| Injections that are on | no id, kind or target; two with one id; the helper is missing, isn't one function, or doesn't take a parameter for each binding |
+| Targets | the function isn't in that Horizon source; a binding that is one name (`button`, `&mut *self`) names nothing its hook point takes there |
+| Hooks API | `compatibility.json` asks for less than a hook point of the bundle came in, or for more than that Horizon has |
+| Rust files that are on | a bracket isn't closed, or closes another |
+| The mod's own code | a `.java`, `.class` or `.jar` file, or decompiled Java quoted in comments (`// \|`) |
+| The content mod | its `.hmod` doesn't pass `cargo horizon-mod check` (Horizon's content tools, as for `port`) |
+
+It also says whether the bundle was made for that source's commit (a difference is a note, not a
+problem), and how many TODOs and commented-out injections are left: those aren't problems, a bundle
+is made that way. What it couldn't check (no `horizon-port.jar` for the hook points, no content
+tools for the `.hmod`) is said as `not checked`. The last line is `RESULT: ok`,
+`RESULT: ok, not compiled` or `RESULT: failed (n problems)`; the exit code is 0 or 1.
+
+Reading tells that a bundle is whole, not that its Rust compiles. **`--compile`** then runs
+horizon-port's own `check`: cargo type-checks the helpers and modules against stand-ins for
+Horizon's helpers (`cargo check`, in `<bundle>/target/horizon-check`; nothing of the mod is run,
+Horizon isn't built). It is never done unasked. As horizon-port says of it, it fails on code that
+uses the game's own types even when they are right; its `compile` checks those against Horizon
+itself.
+
 ## Tests
 
 ```bash
@@ -252,8 +285,9 @@ bash test/run-test.sh
 It builds the tool, writes three made-up NeoForge mods (`test/make-fixture.sh`: "Pocket Compass", a
 second one of things done oddly, a third with nothing left to finish) with stand-ins for the game,
 NeoForge and Horizon's source (a few hook points and a hook catalogue), packs them into jars and checks what
-the tool says about each and what `port` writes. No real mod, no game file, nothing of Horizon's, nothing downloaded. The licence
-and `port` checks need `horizon-port.jar` (above); `port` runs Vineflower from that clone's `tools/`.
+the tool says about each, what `port` writes and what `check` says of it, whole and spoiled. No real mod, no game file, nothing of
+Horizon's, nothing downloaded, and nothing compiled but the tests' own Java: `check --compile` is tried on a stand-in for
+horizon-port. The licence, `port` and `check` checks need `horizon-port.jar` (above); `port` runs Vineflower from that clone's `tools/`.
 The checks that pack a `.hmod` need Horizon's content tools (above): `HORIZON_TOOLS`, or a `horizon/`
 clone beside this folder where cargo built them. Without them those checks are skipped, with a note.
 
@@ -261,7 +295,7 @@ clone beside this folder where cargo built them. Without them those checks are s
 
 - No mod jars, game files or decompiled code are committed, ever. `.gitignore` refuses `*.jar` and `*.class`.
 - Decompiled code stays out of the bundles this tool writes, and is deleted when a conversion ends.
-- A converted mod is never compiled or run by this tool on its own.
+- A converted mod is never compiled or run by this tool on its own: only `check --compile` type-checks one, when asked.
 - No guessed correspondences: a mapping is switched on only when it is certain.
 
 ## Licence

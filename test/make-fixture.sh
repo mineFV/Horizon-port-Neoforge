@@ -5,6 +5,7 @@
 #   tidy/           a third one, with nothing in it that a converter can't finish;
 #   extras/         classes laid over Pocket Compass for one test each;
 #   horizon-src/    a stand-in for Horizon's source: a few hook points, to convert against;
+#   fake-port/      a stand-in for horizon-port.jar that compiles nothing, for `check --compile`;
 #   stubs/          stand-ins for the game, NeoForge, FML, the event bus and Mixin that they compile
 #                   against. Only their names and shapes matter: they do nothing and aren't put in the
 #                   mods' jars.
@@ -938,6 +939,37 @@ EOF
   head -c 400000 /dev/zero | tr '\0' 'a'
   printf '";\n'
 } > "$H/crates/horizon-client/src/game/long_line.rs"
+
+# ---------------------------------------------------------------- a stand-in for horizon-port.jar
+
+# For `check --compile`: it says what it was given and ends as FAKE_PORT tells it, so that nothing is
+# compiled in the tests. It has no list of hook points to give.
+mkdir -p fixture/fake-port
+cat > fixture/fake-port/FakePort.java <<'EOF'
+import java.lang.management.ManagementFactory;
+
+public final class FakePort {
+    public static void main(String[] args) {
+        if (args.length == 0 || !args[0].equals("check")) {
+            System.err.println("fake horizon-port: it only checks");
+            System.exit(1);
+        }
+        System.out.println("fake horizon-port: " + String.join(" ", args));
+        System.out.println("its stack: " + ManagementFactory.getRuntimeMXBean().getInputArguments().stream().filter(a -> a.startsWith("-Xss")).findFirst().orElse("default"));
+        String how = String.valueOf(System.getenv("FAKE_PORT"));
+        if (how.equals("fail")) {
+            System.out.println("src/lib.rs:3:5: error[E0425]: cannot find value `x` in this scope");
+            System.out.println("The bundle's Rust doesn't compile (above).");
+            System.exit(1);
+        }
+        if (how.equals("no-cargo")) {
+            System.out.println("No cargo found. The check crate is in target/horizon-check: run `cargo check` there.");
+            return;
+        }
+        System.out.println("ok: the bundle's Rust compiles against Horizon's helpers");
+    }
+}
+EOF
 
 # ---------------------------------------------------------------- a second mod: things done oddly
 

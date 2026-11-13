@@ -126,7 +126,7 @@ jar --create --file "$B/jars/tidy.jar" -C "$B/tidy" . -C test/fixture/tidy/resou
 
 echo; echo "== unit tests"
 javac --release 21 -Xlint:all -Werror -cp build/classes -d "$B/classes" test/java/horizonneo/*.java
-for t in TomlTest JsonTest MetadataTest LicenceCheckTest ClassDataTest AnalyzerTest ReportTest StandInTest BundleTest EventTableTest WiringTest ContentTest; do
+for t in TomlTest JsonTest MetadataTest LicenceCheckTest ClassDataTest AnalyzerTest ReportTest StandInTest BundleTest EventTableTest WiringTest ContentTest RustTextTest; do
   # Their arguments, for the tests that read them: the first mod's classes, its jar, the stand-ins' jar, the second mod's jar.
   java -cp "build/classes:$B/classes" "horizonneo.$t" "$B/mod" "$J" "$B/jars/neoforge-stubs.jar" "$B/jars/oddities.jar" || failures=$((failures + 1))
 done
@@ -623,6 +623,134 @@ if [ -f "${HORIZON_PORT_JAR:-}" ]; then
   else
     echo "  (skipped: the checks that pack a .hmod. Horizon's content tools aren't in $TOOLS: build them in Horizon's source,"
     echo "   cargo build --release -p horizon-port-pack -p cargo-horizon-mod, or set HORIZON_TOOLS to their folder)"
+  fi
+fi
+
+echo; echo "== check"
+exits 2 tool check "$B/port/pc"
+says "$ERR" 'needs --horizon-src'
+exits 1 tool check "$B/nowhere" --horizon-src "$H"
+says "$ERR" "isn't a folder"
+if [ -f "${HORIZON_PORT_JAR:-}" ]; then
+  C=$B/check
+  mkdir -p "$C" "$B/fake"
+  # The bundle `port` wrote, by reading alone: nothing is compiled, and nothing is written into it.
+  exits 0 tool check "$P/pc" --horizon-src "$H"
+  says "$OUT" 'the mod `pocketcompass`, 3 injections on, 13 written commented out'
+  says "$OUT" 'ok: 2 modules: each file is there, with nothing horizon-mixins refuses in a module'
+  says "$OUT" 'ok: 3 injections on: each has its helper, one function with a parameter for each binding'
+  says "$OUT" "ok: every target is in this Horizon's source: 3 hook points, each binding naming something it takes"
+  says "$OUT" 'ok: hooks API 1 covers its hook points (they need 1; this Horizon has 1)'
+  says "$OUT" 'ok: it was made for this Horizon commit (0123456789abcdef0123456789abcdef01234567)'
+  says "$OUT" 'ok: the brackets pair up in the 5 Rust files that are on'
+  says "$OUT" 'ok: no decompiled Java, class file or jar is in it'
+  says "$OUT" 'Left to do: 3 TODOs in 2 files of the code that is on, 13 injections written commented out'
+  says "$OUT" 'Nothing was compiled.'
+  says "$OUT" 'RESULT: ok, not compiled'
+  lacks "$OUT" 'problem:'
+  no_file "$P/pc/target"
+
+  # broken <name>: a copy of that bundle to spoil, in $C/<name>.
+  broken() { rm -rf "$C/$1"; cp -r "$P/pc" "$C/$1"; }
+  CM=mixins/pocketcompass
+
+  broken helper-gone
+  rm "$C/helper-gone/$CM/tick.rs"
+  exits 1 tool check "$C/helper-gone" --horizon-src "$H"
+  says "$OUT" 'problem: the injection `tick` names the helper tick.rs, which isn'"'"'t there'
+  says "$OUT" 'RESULT: failed (1 problem)'
+
+  broken two-functions
+  printf '\nfn another() {}\n' >> "$C/two-functions/$CM/tick.rs"
+  exits 1 tool check "$C/two-functions" --horizon-src "$H"
+  says "$OUT" 'problem: tick.rs holds 2 functions outside any block: a helper is one function'
+
+  broken parameter
+  sed -i 's/^fn pocketcompass_tick(game: /fn pocketcompass_tick(extra: u8, game: /' "$C/parameter/$CM/tick.rs"
+  exits 1 tool check "$C/parameter" --horizon-src "$H"
+  says "$OUT" 'problem: tick.rs: `fn pocketcompass_tick` takes 2 parameters, and the injection `tick` has 1 binding'
+
+  broken bracket
+  printf '\nfn open() {\n' >> "$C/bracket/$CM/runtime.rs"
+  exits 1 tool check "$C/bracket" --horizon-src "$H"
+  says "$OUT" "problem: $CM/runtime.rs, line "
+  says "$OUT" '`{` is never closed'
+
+  broken target
+  sed -i 's/::native_tick"/::native_tock"/' "$C/target/$CM/horizon-mixin.toml"
+  exits 1 tool check "$C/target" --horizon-src "$H"
+  says "$OUT" 'problem: the injection `tick` goes into `horizon_client::game::native_hooks::Game<'"'"'_>::native_tock`, and `crates/horizon-client/src/game/native_hooks.rs` has no `fn native_tock`'
+
+  broken binding
+  sed -i 's/value = "&mut \*canceled"/value = "\&mut *cancelled"/' "$C/binding/$CM/horizon-mixin.toml"
+  exits 1 tool check "$C/binding" --horizon-src "$H"
+  says "$OUT" 'problem: the injection `destroy-block` binds `&mut *cancelled`, and its hook point takes no `cancelled` in this Horizon (it takes self, pos, canceled)'
+
+  broken api
+  sed -i 's/"hooks": 1,/"hooks": 7,/' "$C/api/compatibility.json"
+  exits 1 tool check "$C/api" --horizon-src "$H"
+  says "$OUT" 'problem: compatibility.json asks for hooks API 7, and this Horizon has API 1'
+
+  broken module
+  printf '\nmod other;\n' >> "$C/module/$CM/runtime.rs"
+  exits 1 tool check "$C/module" --horizon-src "$H"
+  says "$OUT" 'problem: runtime.rs has a `mod x;` naming another file: only inline `mod x { ... }` works in a module'
+
+  broken java
+  printf '    // | this.minecraft.setScreen(null);\n' >> "$C/java/$CM/tick.rs"
+  printf 'x' > "$C/java/Mod.class"
+  exits 1 tool check "$C/java" --horizon-src "$H"
+  says "$OUT" "problem: $CM/tick.rs quotes decompiled Java (1 line starting with \`// |\`)"
+  says "$OUT" "problem: Mod.class: the mod's own code doesn't belong in a bundle"
+  says "$OUT" 'RESULT: failed (2 problems)'
+  rm "$C/java/Mod.class"
+
+  broken manifest
+  printf '\n[[injection\n' >> "$C/manifest/$CM/horizon-mixin.toml"
+  exits 1 tool check "$C/manifest" --horizon-src "$H"
+  says "$OUT" "problem: horizon-mixin.toml can't be read"
+  exits 1 tool check "$B/out" --horizon-src "$H"
+  says "$OUT" "problem: it has no mixins/<mod id>/horizon-mixin.toml: it isn't a native-mod bundle"
+
+  # Another commit of Horizon than the bundle names: said, and not a problem.
+  cp -r "$H" "$B/horizon-moved"
+  echo "89abcdef0123456789abcdef0123456789abcdef" > "$B/horizon-moved/.horizon-revision"
+  exits 0 tool check "$P/pc" --horizon-src "$B/horizon-moved"
+  says "$OUT" 'note: the bundle was made for Horizon 0123456789abcdef0123456789abcdef01234567, and this source is 89abcdef0123456789abcdef0123456789abcdef'
+
+  # --compile hands the bundle to horizon-port's own check. Here a stand-in for it: nothing is compiled.
+  javac --release 21 -d "$B/fake" test/fixture/fake-port/FakePort.java
+  jar --create --file "$B/jars/fake-port.jar" --main-class FakePort -C "$B/fake" .
+  exits 0 tool check "$P/pc" --horizon-src "$H" --compile --translator "$B/jars/fake-port.jar"
+  says "$OUT" "not checked: the hook points' bindings and API (horizon-port couldn't list that source's hook points: fake horizon-port: it only checks)"
+  says "$OUT" "    fake horizon-port: check $PWD/$P/pc --horizon-src $PWD/$H"
+  says "$OUT" '    its stack: -Xss512m'
+  says "$OUT" "ok: horizon-port's check passes"
+  says "$OUT" 'RESULT: ok (1 not checked, above)'
+  lacks "$OUT" 'Nothing was compiled.'
+  exits 1 env FAKE_PORT=fail java -Djava.io.tmpdir="$PWD/$B/tmp" -jar build/horizon-port-neoforge.jar check "$P/pc" --horizon-src "$H" --compile --translator "$B/jars/fake-port.jar"
+  says "$OUT" '    src/lib.rs:3:5: error[E0425]: cannot find value `x` in this scope'
+  says "$OUT" "problem: horizon-port's check failed (exit 1, above)"
+  says "$OUT" 'RESULT: failed (1 problem)'
+  exits 0 env FAKE_PORT=no-cargo java -Djava.io.tmpdir="$PWD/$B/tmp" -jar build/horizon-port-neoforge.jar check "$P/pc" --horizon-src "$H" --compile --translator "$B/jars/fake-port.jar"
+  says "$OUT" 'not checked: the compile: there is no cargo on this machine'
+  says "$OUT" 'RESULT: ok, not compiled (2 not checked, above)'
+  rm -rf "$B/fake"
+
+  # The content mod: its .hmod goes through Horizon's own check.
+  if [ -x "$TOOLS/horizon-port-pack" ] && [ -x "$TOOLS/cargo-horizon-mod" ]; then
+    exits 0 tool check "$P/content" --horizon-src "$H" --horizon-tools "$T"
+    says "$OUT" 'ok: pocketcompass.hmod passes `cargo horizon-mod check`'
+    exits 0 tool check "$P/content" --horizon-src "$H"
+    says "$OUT" "not checked: pocketcompass.hmod (Horizon's cargo-horizon-mod isn't built"
+    exits 0 tool check "$P/guessed" --horizon-src "$H" --horizon-tools "$T"
+    says "$OUT" "note: the mod's content is a folder under todo/content/, not packed: PORTING.md says why"
+    rm -rf "$C/hmod"; cp -r "$P/content" "$C/hmod"
+    echo "not a zip" > "$C/hmod/pocketcompass.hmod"
+    exits 1 tool check "$C/hmod" --horizon-src "$H" --horizon-tools "$T"
+    says "$OUT" "problem: pocketcompass.hmod doesn't pass \`cargo horizon-mod check\`"
+  else
+    echo "  (skipped: the checks of a .hmod, as above)"
   fi
 fi
 

@@ -69,8 +69,21 @@ public final class Main {
                 return port(Line.read(args, Set.of("--loader", "--out", "--neoforge-jar", "--translator", "--horizon-src", "--horizon-revision",
                         "--i-am-the-author", "--horizon-tools"), Set.of("--allow-approximate")), out, err);
             }
+            case "check" -> {
+                return check(Line.read(args, Set.of("--horizon-src", "--translator", "--horizon-tools"), Set.of("--compile")), out, err);
+            }
             default -> throw new Usage("unknown command `" + args[0] + "`");
         }
+    }
+
+    // ---- check ----
+
+    private static int check(Line line, PrintStream out, PrintStream err) throws Usage, IOException {
+        Path bundle = line.only("bundle folder");
+        String horizonSrc = line.options().get("--horizon-src");
+        if (horizonSrc == null) throw new Usage("`check` needs --horizon-src <Horizon's source folder>");
+        return Check.run(bundle, new Check.Options(Path.of(horizonSrc), line.options().get("--translator"), line.options().get("--horizon-tools"),
+                line.has("--compile")), out, err);
     }
 
     // ---- port ----
@@ -366,6 +379,20 @@ public final class Main {
                   --allow-approximate. Nothing of the mod is compiled or run. The Horizon commit is
                   --horizon-revision, else the source's .horizon-revision, else git's HEAD there.
                   A Fabric jar goes to horizon-port as it is.
+
+              check <bundle-folder> --horizon-src FOLDER [--compile] [--horizon-tools DIR]
+                  Goes over a bundle `port` wrote, or one you edited since, against that Horizon
+                  source, by reading alone: the manifest reads and every file it names is there,
+                  each helper is one function with a parameter for each binding, each target is
+                  a function of that source (and what a binding names is something its hook
+                  point takes there), the
+                  hooks API the bundle asks for covers its hook points, the Rust files' brackets
+                  pair up, no decompiled Java or class file is in it, and its .hmod passes
+                  `cargo horizon-mod check`. It says how many TODOs are left. --compile then
+                  runs horizon-port's own `check`: cargo type-checks the bundle's Rust against
+                  stand-ins for Horizon's helpers (it writes <bundle>/target/; nothing of the
+                  mod is run). The last line is `RESULT: ok`, `RESULT: ok, not compiled` or
+                  `RESULT: failed (...)`; exit code 0 or 1.
 
             horizon-port.jar is Horizon-Translator's converter, built in its clone
             (bash mod-converter/build.sh). It is found through --translator, else the
