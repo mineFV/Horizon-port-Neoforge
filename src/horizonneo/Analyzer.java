@@ -289,7 +289,7 @@ final class Analyzer {
     private void registered(ClassData c, ClassData.Method m, List<Op> ops, Site site, int window, int i) {
         int from = site.index() >= 0 ? site.index() + 1 : window;
         Op argument = i - 1 >= from ? ops.get(i - 1) : null;
-        String target = null;
+        String target = null, declared = null;
         boolean instance = true;
         if (argument != null) {
             if (argument.kind() == Kind.CALL && argument.name().equals("<init>")) {
@@ -299,14 +299,32 @@ final class Analyzer {
                 instance = false;
             } else if (argument.kind() == Kind.LOCAL && (Integer) argument.value() == 0 && !m.isStatic()) {
                 target = c.name;
+            } else if (argument.kind() == Kind.GET_STATIC || argument.kind() == Kind.GET_FIELD) {
+                // An object kept in a field: it is of the class the field is declared as, when that is one of the mod's.
+                String type = ClassData.internal(argument.descriptor());
+                if (type != null && classes.containsKey(type)) {
+                    target = type;
+                    declared = ClassData.simple(argument.owner()) + "." + argument.name() + ", declared as " + article(ClassData.simple(type));
+                }
+            } else if (argument.kind() == Kind.CALL) {
+                // An object a method hands out: of the class the method is declared to return, when that is one of the mod's.
+                String type = ClassData.internal(argument.descriptor().substring(argument.descriptor().indexOf(')') + 1));
+                if (type != null && classes.containsKey(type)) {
+                    target = type;
+                    declared = ClassData.simple(argument.owner()) + "." + argument.name() + "(), declared to return " + article(ClassData.simple(type));
+                }
             }
         }
         if (target == null) {
             warnings.add(where(c, m) + " registers something on an event bus that couldn't be read: its listeners, if it has any, show as not registered");
             return;
         }
-        String shown = instance ? (target.equals(c.name) ? "this" : "new " + ClassData.simple(target) + "(...)") : ClassData.simple(target) + ".class";
+        String shown = declared != null ? declared : instance ? (target.equals(c.name) ? "this" : "new " + ClassData.simple(target) + "(...)") : ClassData.simple(target) + ".class";
         registered.add(new Registered(target, instance, site.bus(), site.words(), c, "register(" + shown + ") in " + where(c, m)));
+    }
+
+    private static String article(String name) {
+        return ("AEIOU".indexOf(name.charAt(0)) >= 0 ? "an " : "a ") + name;
     }
 
     /** The last step in [from, to) that puts an event bus on the stack. */

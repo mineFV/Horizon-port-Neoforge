@@ -167,6 +167,8 @@ final class AnalyzerTest {
         c.same("an entry point NeoForge would refuse", List.of(new Analysis.EntryPoint("com/example/oddities/Oddities", "somethingelse", "both",
                 List.of("IEventBus", "String"), List.of("String"))), odd.entryPoints());
         c.same("its listeners", List.of(
+                "HandedHandlers.onHanded <- ServerTickEvent.Post [game, common]",
+                "KeptHandlers.onKept <- ServerTickEvent.Post [game, common]",
                 "Oddities.wrongBus <- FMLCommonSetupEvent [unknown, common]",
                 "Oddities.? <- ? [game, common]",
                 "Oddities.late <- ServerTickEvent.Post [unknown, common]",
@@ -186,6 +188,8 @@ final class AnalyzerTest {
         c.same("a static method of a class registered as an object", List.of("the class is registered as an object, which registers its non-static methods only"),
                 listener(odd, "misplaced").notes());
         c.same("a class's static listeners", "register(StaticHandlers.class) in Oddities's constructor", listener(odd, "onTick").registeredBy());
+        c.same("an object kept in a field", "register(Oddities.KEPT, declared as a KeptHandlers) in Oddities's constructor", listener(odd, "onKept").registeredBy());
+        c.same("an object a method hands out", "register(HandedHandlers.get(), declared to return a HandedHandlers) in Oddities's constructor", listener(odd, "onHanded").registeredBy());
         c.same("@OnlyIn on a method", "@OnlyIn on the method", listener(odd, "onClientOnly").sideFrom());
         c.same("the mod's own mod bus event, by its ancestry", BusFacts.FROM_ANCESTRY, listener(odd, "onOwnSetup").busFrom());
         c.same("no Mixin class when the config's class is missing", List.of(), odd.mixins());

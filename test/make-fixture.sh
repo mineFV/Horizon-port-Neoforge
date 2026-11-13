@@ -1031,8 +1031,13 @@ public class Oddities {
         // A handler kept in a variable.
         Consumer<ServerTickEvent.Post> kept = event -> {};
         NeoForge.EVENT_BUS.addListener(kept);
+        // An object kept in a field, and one a method hands out, as real mods do: the class is the one the code declares.
+        NeoForge.EVENT_BUS.register(KEPT);
+        NeoForge.EVENT_BUS.register(HandedHandlers.get());
         more(bus);
     }
+
+    static final KeptHandlers KEPT = new KeptHandlers();
 
     // A second public constructor.
     public Oddities() {}
@@ -1052,6 +1057,34 @@ public class Oddities {
     }
 
     private static void late(ServerTickEvent.Post event) {}
+}
+EOF
+javafile $O/src com.example.oddities.KeptHandlers <<'EOF'
+package com.example.oddities;
+
+import net.neoforged.bus.api.SubscribeEvent;
+import net.neoforged.neoforge.event.tick.ServerTickEvent;
+
+public class KeptHandlers {
+    @SubscribeEvent
+    public void onKept(ServerTickEvent.Post event) {}
+}
+EOF
+javafile $O/src com.example.oddities.HandedHandlers <<'EOF'
+package com.example.oddities;
+
+import net.neoforged.bus.api.SubscribeEvent;
+import net.neoforged.neoforge.event.tick.ServerTickEvent;
+
+public class HandedHandlers {
+    private static final HandedHandlers ONE = new HandedHandlers();
+
+    public static HandedHandlers get() {
+        return ONE;
+    }
+
+    @SubscribeEvent
+    public void onHanded(ServerTickEvent.Post event) {}
 }
 EOF
 # The mod's own events: one for the mod bus, one that extends an event of NeoForge's.
