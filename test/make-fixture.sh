@@ -2,6 +2,9 @@
 # Writes the test fixture into test/fixture/:
 #   pocketcompass/  "Pocket Compass", a made-up NeoForge mod: its Java, its resources, its manifest;
 #   oddities/       a second one, of things done oddly, that an analysis has to own up to not reading;
+#   tidy/           a third one, with nothing in it that a converter can't finish;
+#   extras/         classes laid over Pocket Compass for one test each;
+#   horizon-src/    a stand-in for Horizon's source: a few hook points, to convert against;
 #   stubs/          stand-ins for the game, NeoForge, FML, the event bus and Mixin that they compile
 #                   against. Only their names and shapes matter: they do nothing and aren't put in the
 #                   mods' jars.
@@ -746,6 +749,129 @@ import org.spongepowered.asm.mixin.Mixin;
 public abstract class UnlistedMixin {}
 EOF
 
+# ---------------------------------------------------------------- classes laid over the mod for one test each
+
+# A Mixin class no config lists, with an injector a converter would switch on if it were handed over.
+X=fixture/extras
+javafile $X/stray com.example.pocketcompass.mixin.StrayMixin <<'EOF'
+package com.example.pocketcompass.mixin;
+
+import net.minecraft.client.Minecraft;
+import org.spongepowered.asm.mixin.Mixin;
+import org.spongepowered.asm.mixin.injection.At;
+import org.spongepowered.asm.mixin.injection.Inject;
+import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
+
+@Mixin(Minecraft.class)
+public abstract class StrayMixin {
+    @Inject(method = "tick", at = @At("HEAD"))
+    private void pocketcompass$stray(CallbackInfo ci) {}
+}
+EOF
+# The mod saying it has a config screen of its own.
+javafile $X/screen com.example.pocketcompass.ConfigScreens <<'EOF'
+package com.example.pocketcompass;
+
+import net.neoforged.neoforge.client.gui.IConfigScreenFactory;
+
+public final class ConfigScreens implements IConfigScreenFactory {
+    @Override
+    public Object createScreen(Object container, Object parent) {
+        return new CompassScreen();
+    }
+}
+EOF
+javafile $S net.neoforged.neoforge.client.gui.IConfigScreenFactory <<'EOF'
+package net.neoforged.neoforge.client.gui;
+
+public interface IConfigScreenFactory {
+    Object createScreen(Object container, Object parent);
+}
+EOF
+
+# ---------------------------------------------------------------- a third mod: nothing a converter can't finish
+
+# No event, no registry, no Mixin: horizon-port sees nothing left to do in it.
+T=fixture/tidy
+mkdir -p "$T/resources/META-INF"
+cat > "$T/resources/META-INF/neoforge.mods.toml" <<'EOF'
+license = "MIT"
+
+[[mods]]
+modId = "tidy"
+version = "1.0.0"
+displayName = "Tidy"
+authors = "Mine"
+description = "Adds two numbers."
+EOF
+javafile $T/src com.example.tidy.Tidy <<'EOF'
+package com.example.tidy;
+
+import net.neoforged.fml.common.Mod;
+
+@Mod("tidy")
+public final class Tidy {
+    public Tidy() {}
+
+    public static int sum(int a, int b) {
+        return a + b;
+    }
+}
+EOF
+
+# ---------------------------------------------------------------- a stand-in for Horizon's source
+
+# What horizon-port reads of it: its commit, the game version, the horizon-mixins commit, and Rust to index.
+# The hook points are the four the made-up mod ends up on. Nothing here is Horizon's code.
+H=fixture/horizon-src
+mkdir -p "$H/crates/horizon-client/src/game" "$H/crates/horizon-core/src" "$H/launcher/src"
+echo "0123456789abcdef0123456789abcdef01234567" > "$H/.horizon-revision"
+echo 'pub const VANILLA_VERSION: &str = "26.3";' > "$H/crates/horizon-core/src/version.rs"
+echo 'pub const MIXINS_REV: &str = "89abcdef0123456789abcdef0123456789abcdef";' > "$H/launcher/src/native_mods.rs"
+cat > "$H/crates/horizon-client/src/game.rs" <<'EOF'
+mod native_hooks;
+
+pub struct Game<'a> {
+    pub name: &'a str,
+}
+EOF
+cat > "$H/crates/horizon-client/src/game/native_hooks.rs" <<'EOF'
+use super::Game;
+
+pub struct NativeMod {
+    pub id: String,
+    pub title: String,
+    pub description: String,
+    pub keys: Vec<[String; 3]>,
+}
+
+impl Game<'_> {
+    /// The mods listed in Options > Mods.
+    pub(super) fn native_mods(&mut self, mods: &mut Vec<NativeMod>) {
+        let _ = mods;
+    }
+
+    /// Once per tick.
+    pub(super) fn native_tick(&mut self) {}
+
+    /// A mod's settings page.
+    pub(super) fn native_settings(&mut self, mod_id: &str, buttons: &mut Vec<String>) {
+        let _ = (mod_id, buttons);
+    }
+
+    /// A click on a mod's settings page.
+    pub(super) fn native_settings_click(&mut self, mod_id: &str, button: usize) {
+        let _ = (mod_id, button);
+    }
+}
+EOF
+# One very long line, as Horizon's source has: horizon-port needs a bigger stack than Java's default to read it.
+{
+  printf 'pub const LONG: &str = "'
+  head -c 400000 /dev/zero | tr '\0' 'a'
+  printf '";\n'
+} > "$H/crates/horizon-client/src/game/long_line.rs"
+
 # ---------------------------------------------------------------- a second mod: things done oddly
 
 # What an analysis can't be sure of, or that NeoForge itself would refuse. It has to say so, not guess.
@@ -875,4 +1001,4 @@ public class StaticHandlers {
 }
 EOF
 
-echo "Wrote test/$F, test/$O and test/$S"
+echo "Wrote test/$F, test/$O, test/$T, test/$X, test/$H and test/$S"

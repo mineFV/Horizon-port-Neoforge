@@ -53,7 +53,7 @@ final class Report {
     };
 
     private static final String LATER_EVENTS = "Its Horizon hook comes from the event table (milestone 4).";
-    private static final String LATER_MIXINS = "Matched against Horizon's own functions by horizon-port (milestone 3).";
+    private static final String LATER_MIXINS = "Matched against Horizon's own functions by horizon-port when the mod is converted (`port`).";
     private static final String LATER_CONTENT = "Carried by Horizon's horizon-port-pack (milestone 5).";
     private static final String BY_HAND = "Not converted: it goes into PORTING.md as work to do by hand.";
 
@@ -71,11 +71,16 @@ final class Report {
         {"net/minecraft/world/level/levelgen/", "world generation in code", "unsupported"},
     };
 
-    /** Writes dir/report.md and dir/report.json. */
+    /** Writes dir/report.md and dir/report.json for a jar that was only analysed. */
     static void write(Path dir, ModJar jar, NeoForgeFrontend frontend, Analysis analysis) throws IOException {
+        write(dir, jar, frontend, analysis, null);
+    }
+
+    /** The same; `converted` is what `port` made of the mod, null when it was only analysed. */
+    static void write(Path dir, ModJar jar, NeoForgeFrontend frontend, Analysis analysis, Bundle.Outcome converted) throws IOException {
         Files.createDirectories(dir);
-        Files.writeString(dir.resolve("report.md"), markdown(jar, frontend, analysis), StandardCharsets.UTF_8);
-        Files.writeString(dir.resolve("report.json"), Json.write(json(jar, frontend, analysis)), StandardCharsets.UTF_8);
+        Files.writeString(dir.resolve("report.md"), markdown(jar, frontend, analysis, converted), StandardCharsets.UTF_8);
+        Files.writeString(dir.resolve("report.json"), Json.write(json(jar, frontend, analysis, converted)), StandardCharsets.UTF_8);
     }
 
     /** One line for the terminal. */
@@ -92,6 +97,10 @@ final class Report {
     // ---- what each part becomes ----
 
     static List<Feature> features(Analysis a) {
+        return features(a, null);
+    }
+
+    static List<Feature> features(Analysis a, Bundle.Outcome converted) {
         List<Feature> out = new ArrayList<>();
         for (EntryPoint e : a.entryPoints()) {
             out.add(new Feature("entrypoint", dotted(e.className()), "@Mod(\"" + e.modId() + "\"), " + sideWords(e.side()),
@@ -116,11 +125,16 @@ final class Report {
             // A Mixin class no config lists is never applied: there is nothing of it to convert.
             String status = m.config() == null ? "info" : "needs-mapping";
             String note = m.config() == null ? "No Mixin config lists this class, so Mixin doesn't apply it." : LATER_MIXINS;
+            boolean matched = converted != null && m.config() != null;
             if (m.injectors().isEmpty()) {
-                out.add(new Feature("mixin", dotted(m.className()), "a Mixin into " + targets + " with no injector", null, status, note));
+                out.add(new Feature("mixin", dotted(m.className()), "a Mixin into " + targets + " with no injector", null,
+                        matched ? "needs-translation" : status,
+                        matched ? "No injector: it adds members or an interface to a class of the game, which has to be done by hand." : note));
             }
             for (Injector i : m.injectors()) {
-                out.add(new Feature("mixin", dotted(m.className()) + "." + i.handler(), injectorWords(i, targets), null, status, note));
+                String source = dotted(m.className()) + "." + i.handler();
+                if (matched) out.add(matched(source, injectorWords(i, targets), converted.handlers().get(m.className() + "." + i.handler())));
+                else out.add(new Feature("mixin", source, injectorWords(i, targets), null, status, note));
             }
         }
         for (AccessFile f : a.accessTransformers()) {
@@ -144,6 +158,24 @@ final class Report {
                     "a content mod (.hmod)", "content", LATER_CONTENT));
         }
         return out;
+    }
+
+    /**
+     * A Mixin handler after `port`: horizon-port's status for it, unless the bundle doesn't have it
+     * switched on, in which case it can't be `auto`.
+     */
+    private static Feature matched(String source, String detail, Bundle.Handler h) {
+        if (h == null || h.status() == null) {
+            return new Feature("mixin", source, detail, null, "needs-mapping", "horizon-port's report doesn't name it"
+                    + (h == null || h.state().equals("absent") ? ", and it isn't in the bundle." : "."));
+        }
+        String where = switch (h.state()) {
+            case "on" -> "On, in the injection `" + h.injection() + "`.";
+            case "off" -> "Written commented out, as `" + h.injection() + "`.";
+            default -> "Not in the bundle.";
+        };
+        String status = h.state().equals("on") || !h.status().equals("auto") ? h.status() : "needs-translation";
+        return new Feature("mixin", source, detail, h.horizon(), status, h.note() == null ? where : where + " " + h.note());
     }
 
     private static Feature feature(Listener l) {
@@ -205,19 +237,32 @@ final class Report {
     // ---- report.md ----
 
     static String markdown(ModJar jar, NeoForgeFrontend frontend, Analysis a) {
+        return markdown(jar, frontend, a, null);
+    }
+
+    static String markdown(ModJar jar, NeoForgeFrontend frontend, Analysis a, Bundle.Outcome converted) {
         ModInfo info = frontend.info();
         ModsToml toml = frontend.toml();
-        List<Feature> features = features(a);
+        List<Feature> features = features(a, converted);
         Map<String, Integer> counts = counts(features);
         StringBuilder b = new StringBuilder();
         b.append("# ").append(info.name()).append(' ').append(info.version()).append(": what it does, and what converts to Horizon\n\n");
         b.append('`').append(jar.name()).append("`, a NeoForge mod (`").append(info.id()).append("`). Declared licence: ")
                 .append(toml.declaredLicense() == null ? "none" : "`" + toml.declaredLicense() + "`")
-                .append(" (the `license` command says whether it may be ported).\n\n");
-        b.append("Read from the jar's class files and resources: names, annotations and the order of the calls in each method. ")
-                .append("Nothing was decompiled, and nothing of the mod was run.\n\n");
+                .append(converted == null ? " (the `license` command says whether it may be ported).\n\n"
+                        : " (horizon-port's licence rules allow porting it: see `PORTING.md`).\n\n");
+        if (converted == null) {
+            b.append("Read from the jar's class files and resources: names, annotations and the order of the calls in each method. ")
+                    .append("Nothing was decompiled, and nothing of the mod was run.\n\n");
+        } else {
+            b.append("The Mixin matching and the Java to Rust translation are horizon-port's, done on a copy of the jar; the source it decompiled ")
+                    .append("for that has been deleted. Everything else was read from the jar's class files and resources: names, annotations and ")
+                    .append("the order of the calls in each method. Nothing of the mod was compiled or run.\n\n");
+        }
         b.append("| Status | Parts | Meaning |\n|---|---:|---|\n");
         for (String[] s : STATUSES) b.append("| ").append(s[0]).append(" | ").append(counts.get(s[0])).append(" | ").append(s[1]).append(" |\n");
+
+        if (converted != null) conversion(b, a, converted);
 
         b.append("\n## Entry points\n\n");
         if (a.entryPoints().isEmpty()) {
@@ -348,12 +393,52 @@ final class Report {
         return b.toString();
     }
 
+    /** What `port` made: the bundle's injections, each Mixin handler, and how much Java became Rust. */
+    private static void conversion(StringBuilder b, Analysis a, Bundle.Outcome o) {
+        b.append("\n## What the conversion made\n\n");
+        b.append("- Injections on: ").append(o.on().isEmpty() ? "none" : "`" + String.join("`, `", o.on()) + "`").append(".\n");
+        b.append("- Injections written commented out: ").append(o.off().isEmpty() ? "none" : "`" + String.join("`, `", o.off()) + "`").append(".\n");
+        Bundle.Translation t = o.translation();
+        b.append("- Java translated to Rust: ");
+        if (t == null) {
+            b.append("horizon-port gave no count.\n");
+        } else {
+            b.append(t.methods()).append(" of ").append(t.methodsOf()).append(t.methodsOf() == 1 ? " method" : " methods");
+            if (t.fields() != null) b.append(" and ").append(t.fields()).append(" of ").append(t.fieldsOf()).append(t.fieldsOf() == 1 ? " static field" : " static fields");
+            b.append(", by horizon-port's count (`translation.md` lists each one and why).\n");
+        }
+        long listeners = a.listeners().stream().filter(Listener::registered).count();
+        b.append("- Event listeners wired to a Horizon hook: 0 of ").append(listeners).append(" (the event table isn't used yet).\n");
+        if (!o.handlers().isEmpty()) {
+            b.append("\n| Mixin handler | horizon-port's status | In Horizon | In the bundle |\n|---|---|---|---|\n");
+            for (Map.Entry<String, Bundle.Handler> e : o.handlers().entrySet()) {
+                Bundle.Handler h = e.getValue();
+                String where = switch (h.state()) {
+                    case "on" -> "on, in `" + h.injection() + "`";
+                    case "off" -> "commented out, as `" + h.injection() + "`";
+                    default -> "not in it";
+                };
+                String name = e.getKey();
+                row(b, code(ClassData.simple(name.substring(0, name.lastIndexOf('.'))) + name.substring(name.lastIndexOf('.'))),
+                        or(h.status(), "not reported"), or(h.horizon(), ""), where);
+            }
+        }
+        if (!o.changes().isEmpty()) {
+            b.append("\nChanged after horizon-port wrote the bundle:\n\n");
+            for (String c : o.changes()) b.append("- ").append(c).append('\n');
+        }
+    }
+
     // ---- report.json ----
 
     static Map<String, Object> json(ModJar jar, NeoForgeFrontend frontend, Analysis a) {
+        return json(jar, frontend, a, null);
+    }
+
+    static Map<String, Object> json(ModJar jar, NeoForgeFrontend frontend, Analysis a, Bundle.Outcome converted) {
         ModInfo info = frontend.info();
         ModsToml toml = frontend.toml();
-        List<Feature> features = features(a);
+        List<Feature> features = features(a, converted);
         Map<String, Object> root = new LinkedHashMap<>();
         root.put("tool", "horizon-port-neoforge");
         root.put("schema", 1);
@@ -361,6 +446,13 @@ final class Report {
         root.put("mod", map("id", info.id(), "name", info.name(), "version", info.version(), "description", info.description(),
                 "loader", info.loader(), "license", toml.declaredLicense(), "authors", toml.mods().get(0).authors()));
         root.put("counts", counts(features));
+        if (converted != null) {
+            Bundle.Translation t = converted.translation();
+            root.put("conversion", map("bundle", converted.modId(), "injectionsOn", converted.on(), "injectionsOff", converted.off(),
+                    "translation", t == null ? null : map("methods", t.methods(), "methodsOf", t.methodsOf(), "fields", t.fields(), "fieldsOf", t.fieldsOf()),
+                    "listenersWired", 0, "listeners", (int) a.listeners().stream().filter(Listener::registered).count(),
+                    "changes", converted.changes(), "decompiledLinesRemoved", converted.javaLines()));
+        }
         root.put("census", map("classes", a.census().classes(), "assets", a.census().assets(), "data", a.census().data()));
 
         List<Object> entryPoints = new ArrayList<>();
@@ -400,8 +492,13 @@ final class Report {
         for (MixinClass m : a.mixins()) {
             List<Object> injectors = new ArrayList<>();
             for (Injector i : m.injectors()) {
-                injectors.add(map("annotation", i.annotation(), "handler", i.handler(), "methods", i.methods(), "at", i.at(), "atTarget", i.atTarget(),
-                        "cancellable", i.cancellable()));
+                Map<String, Object> injector = map("annotation", i.annotation(), "handler", i.handler(), "methods", i.methods(), "at", i.at(),
+                        "atTarget", i.atTarget(), "cancellable", i.cancellable());
+                Bundle.Handler h = converted == null ? null : converted.handlers().get(m.className() + "." + i.handler());
+                if (h != null) {
+                    injector.put("converted", map("status", h.status(), "horizon", h.horizon(), "note", h.note(), "bundle", h.state(), "injection", h.injection()));
+                }
+                injectors.add(injector);
             }
             mixins.add(map("class", dotted(m.className()), "config", m.config(), "environment", m.environment(),
                     "targets", m.targets().stream().map(Report::dotted).toList(), "injectors", injectors));

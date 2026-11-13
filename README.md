@@ -13,7 +13,8 @@ in it as it is.
 Horizon-Translator has no licence file, so none of its code is copied or changed here. This is separate
 code that **calls** it:
 
-- `horizon-port.jar`, built from an unmodified clone and run as a program of its own;
+- `horizon-port.jar`, built from an unmodified clone and run as a program of its own (its licence
+  check, and its `port`: Vineflower, the Mixin matching, the Java to Rust translation);
 - later, Horizon's own `horizon-port-pack` and `native-hooks.json`, which are MIT.
 
 `ModFrontend` is the seam. A loader's frontend reads a jar into data that doesn't depend on the loader
@@ -105,10 +106,61 @@ decompiled and nothing of the mod is run. It finds:
   a `DeferredRegister` that isn't kept in a static field: the report says what wasn't read.
 - **Statuses.** Each part gets one of horizon-port's statuses (`auto`, `content`, `needs-mapping`,
   `needs-translation`, `unsupported`), or `info` when there is nothing to convert. Nothing is `auto`
-  or `content` unless it is known to carry over. For now no listener names a Horizon hook and no
-  Mixin is matched to a Horizon function: both are `needs-mapping` until the milestones that do it.
+  or `content` unless it is known to carry over. `analyze` alone matches nothing against Horizon:
+  listeners and Mixins are `needs-mapping`. `port` gives each Mixin handler its real status.
+- **Mixin configs.** The ones `neoforge.mods.toml` lists. One named only in the jar's manifest
+  (`MixinConfigs`) is reported, and its classes are taken as not applied.
 
 A Fabric jar goes to horizon-port's own `analyze` as it is.
+
+### `port`: the bundle
+
+```bash
+java -jar build/horizon-port-neoforge.jar port some-mod.jar --horizon-src ../horizon [--out DIR]
+```
+
+Writes a Horizon native-mod bundle to `DIR` (default `out/<mod id>-horizon`): `mixins/<id>/` with
+`horizon-mixin.toml`, `runtime.rs`, `game_side.rs` and a helper per injection, `todo/` with notes on
+what is commented out, `PORTING.md`, and `report/`. A folder that is already there isn't written over.
+
+What happens, in order:
+
+1. **The licence check** (`license`, above). Refused: exit code 3, nothing decompiled, nothing written.
+2. **The analysis** (`analyze`, above).
+3. **horizon-port's own `port`, unchanged, on a copy of the jar.** It decompiles the copy with
+   Vineflower, matches the Mixins against the Horizon source given and translates the Java that
+   doesn't need the game to Rust. The copy is the mod's jar with a `fabric.mod.json` written from
+   its metadata, so that horizon-port reads it; see `StandIn.java` for the four things that differ
+   from the mod's jar (Mixin configs as plain JSON; no Mixin class that no config lists; no jar
+   inside the jar; no `fabric.mod.json` of the jar's own).
+4. **The bundle is gone over for a NeoForge mod** (`Bundle.java`), and `PORTING.md` gets a section,
+   "From a NeoForge mod", that says what was changed and what isn't in the bundle:
+   - The decompiled Java that horizon-port copies into the helpers as comments is taken out. Each
+     helper still names the Java file it stands in for.
+   - An injection whose target function isn't in the Horizon source given is commented out, with
+     why. horizon-port's table of hook points was written for one Horizon; yours may be another.
+   - The settings page horizon-port switches on when a class extends one of the game's screens is
+     commented out, unless the mod names NeoForge's `IConfigScreenFactory`. A class's name isn't a
+     correspondence.
+   - The `.hnmod` horizon-port packs when it sees nothing left is removed.
+5. **The copy and the decompiled source are deleted**, whether it worked or not.
+
+`report/report.md` and `report.json` are `analyze`'s, with what the conversion made: the injections
+that are on and off, each Mixin handler's status and where it is in the bundle, and horizon-port's
+count of the methods it translated. `report/horizon-port-report.md` is horizon-port's own report.
+
+- **Not converted yet:** event listeners and registries. They are in the report and in `PORTING.md`
+  as left to do.
+- **Nothing is compiled or run**, by this tool or by horizon-port's `port`. Building a bundle is
+  yours to decide (`PORTING.md`, "Build it").
+- **The Horizon commit** the bundle names is `--horizon-revision`, else the source's
+  `.horizon-revision`, else git's `HEAD` of that folder (it says so when the folder has changes
+  that aren't committed).
+- **Java's stack.** horizon-port is run with `-Xss512m`: on Horizon's current source its comment
+  stripper overflows Java's default stack (`StackOverflowError`). That is true of horizon-port on a
+  Fabric mod too; run it as `java -Xss512m -jar horizon-port.jar ...` there.
+
+A Fabric jar goes to horizon-port's own `port` as it is, with that stack.
 
 ## Tests
 
@@ -116,10 +168,11 @@ A Fabric jar goes to horizon-port's own `analyze` as it is.
 bash test/run-test.sh
 ```
 
-It builds the tool, writes two made-up NeoForge mods (`test/make-fixture.sh`: "Pocket Compass", and a
-second one of things done oddly) with stand-ins for the game and NeoForge to compile them against,
-packs them into jars and checks what the tool says about each. No real mod, no game file, nothing
-downloaded. The licence checks need `horizon-port.jar` (above).
+It builds the tool, writes three made-up NeoForge mods (`test/make-fixture.sh`: "Pocket Compass", a
+second one of things done oddly, a third with nothing left to finish) with stand-ins for the game,
+NeoForge and Horizon's source, packs them into jars and checks what the tool says about each and
+what `port` writes. No real mod, no game file, nothing of Horizon's, nothing downloaded. The licence
+and `port` checks need `horizon-port.jar` (above); `port` runs Vineflower from that clone's `tools/`.
 
 ## Rules of this repository
 

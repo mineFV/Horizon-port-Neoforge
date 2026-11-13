@@ -69,15 +69,26 @@ final class Translator {
 
     /** Runs `java -jar horizon-port.jar <args>` with this JVM's own java, and waits for it at most `seconds`. */
     Run run(List<String> args, int seconds) throws IOException {
+        return run(List.of(), args, seconds, null);
+    }
+
+    /**
+     * The same, with options for its JVM (`-Xss...`, `-Dname=value`) and, when `folder` isn't null, run
+     * in that folder: what it writes under a relative path lands there.
+     */
+    Run run(List<String> jvmOptions, List<String> args, int seconds, Path folder) throws IOException {
         List<String> command = new ArrayList<>();
         command.add(ProcessHandle.current().info().command().orElse(Path.of(System.getProperty("java.home"), "bin", "java").toString()));
         // Its output is read as UTF-8 here, whatever the terminal's own encoding.
         command.add("-Dstdout.encoding=UTF-8");
         command.add("-Dstderr.encoding=UTF-8");
+        command.addAll(jvmOptions);
         command.add("-jar");
         command.add(jar.toString());
         command.addAll(args);
-        Process process = new ProcessBuilder(command).start();
+        ProcessBuilder builder = new ProcessBuilder(command);
+        if (folder != null) builder.directory(folder.toFile());
+        Process process = builder.start();
         try {
             process.getOutputStream().close();
             CompletableFuture<String> out = CompletableFuture.supplyAsync(() -> text(process.getInputStream()));

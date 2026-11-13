@@ -65,8 +65,48 @@ public final class Main {
             case "analyze" -> {
                 return analyze(Line.read(args, Set.of("--loader", "--out", "--neoforge-jar", "--translator"), Set.of()), out, err);
             }
+            case "port" -> {
+                return port(Line.read(args, Set.of("--loader", "--out", "--neoforge-jar", "--translator", "--horizon-src", "--horizon-revision",
+                        "--i-am-the-author"), Set.of()), out, err);
+            }
             default -> throw new Usage("unknown command `" + args[0] + "`");
         }
+    }
+
+    // ---- port ----
+
+    private static int port(Line line, PrintStream out, PrintStream err) throws Usage, IOException, ModsToml.Invalid {
+        Path path = line.only("mod jar");
+        String horizonSrc = line.options().get("--horizon-src");
+        if (horizonSrc == null) throw new Usage("`port` needs --horizon-src <Horizon's source folder>");
+        ModJar jar = ModJar.open(path);
+        String outDir = line.options().get("--out"), revision = line.options().get("--horizon-revision"), author = line.options().get("--i-am-the-author");
+        if (loader(jar, line.option("--loader", "auto")) == Loader.FABRIC) {
+            // horizon-port's own job: it gets the jar as it is, with the options it knows (and the stack Horizon's source takes).
+            List<String> args = new ArrayList<>(List.of("port", path.toString(), "--horizon-src", horizonSrc));
+            for (String option : List.of("--horizon-revision", "--i-am-the-author", "--out")) {
+                if (line.has(option)) {
+                    args.add(option);
+                    args.add(line.options().get(option));
+                }
+            }
+            Translator.Run run = Translator.locate(line.options().get("--translator")).run(List.of(Port.STACK), args, 1800, null);
+            out.print(run.out());
+            err.print(run.err());
+            return run.exit();
+        }
+        NeoForgeFrontend frontend = NeoForgeFrontend.read(jar);
+        Port.Options options = new Port.Options(Path.of(horizonSrc), revision, author, outDir == null ? null : Path.of(outDir), line.options().get("--translator"));
+        return Port.run(jar, frontend, facts(line), options, out, err);
+    }
+
+    /** What is known of each event's bus: NeoForge's documentation, or its own jars when they are given. */
+    private static BusFacts facts(Line line) throws IOException {
+        String neoforge = line.options().get("--neoforge-jar");
+        if (neoforge == null) return BusFacts.documented();
+        List<Path> jars = new ArrayList<>();
+        for (String one : neoforge.split(java.io.File.pathSeparator)) if (!one.isBlank()) jars.add(Path.of(one));
+        return BusFacts.fromJars(jars);
     }
 
     // ---- analyze ----
@@ -88,14 +128,7 @@ public final class Main {
             return run.exit();
         }
         NeoForgeFrontend frontend = NeoForgeFrontend.read(jar);
-        BusFacts facts = BusFacts.documented();
-        String neoforge = line.options().get("--neoforge-jar");
-        if (neoforge != null) {
-            List<Path> jars = new ArrayList<>();
-            for (String one : neoforge.split(java.io.File.pathSeparator)) if (!one.isBlank()) jars.add(Path.of(one));
-            facts = BusFacts.fromJars(jars);
-        }
-        Analysis analysis = Analyzer.analyze(jar, frontend, facts);
+        Analysis analysis = Analyzer.analyze(jar, frontend, facts(line));
         // The mod's id comes from the jar: only its plain characters go into a folder's name.
         Path dir = outDir != null ? Path.of(outDir) : Path.of("out", frontend.info().id().replaceAll("[^A-Za-z0-9_-]", "_"));
         Report.write(dir, jar, frontend, analysis);
@@ -310,6 +343,18 @@ public final class Main {
                   out/<mod id>). --neoforge-jar: NeoForge's own jars, read for the bus each event
                   is posted on; without them a bus is given only where the mod's code or
                   NeoForge's documentation tells it. A Fabric jar goes to horizon-port as it is.
+
+              port <mod.jar> --horizon-src FOLDER [--horizon-revision SHA] [--i-am-the-author NAME] [--out DIR]
+                   [--neoforge-jar JAR[:JAR...]] [--loader auto|neoforge|fabric]
+                  The licence check, then horizon-port's own `port` on a copy of the jar: it
+                  decompiles it, matches its Mixins against that Horizon source and translates
+                  the Java that doesn't need the game to Rust. Writes a Horizon native-mod bundle
+                  to DIR (default: out/<mod id>-horizon; a folder that is already there isn't
+                  written over), with PORTING.md and report/. The decompiled Java isn't kept,
+                  in the bundle or anywhere else. Event listeners and registries are reported,
+                  not converted yet. Nothing is compiled or run. The Horizon commit is
+                  --horizon-revision, else the source's .horizon-revision, else git's HEAD there.
+                  A Fabric jar goes to horizon-port as it is.
 
             horizon-port.jar is Horizon-Translator's converter, built in its clone
             (bash mod-converter/build.sh). It is found through --translator, else the

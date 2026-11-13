@@ -13,7 +13,7 @@ bash test/make-fixture.sh
 B=test/build
 F=test/fixture/pocketcompass
 rm -rf "$B"
-mkdir -p "$B/classes" "$B/stubs" "$B/mod" "$B/odd" "$B/jars" "$B/over" "$B/out" "$B/tmp"
+mkdir -p "$B/classes" "$B/stubs" "$B/mod" "$B/odd" "$B/tidy" "$B/stray" "$B/screen" "$B/jars" "$B/over" "$B/out" "$B/tmp"
 OUT=$B/out/stdout.txt
 ERR=$B/out/stderr.txt
 failures=0
@@ -22,6 +22,10 @@ failures=0
 javac --release 21 -d "$B/stubs" $(find test/fixture/stubs -name '*.java')
 javac --release 21 -cp "$B/stubs" -d "$B/mod" $(find "$F/src" -name '*.java')
 javac --release 21 -cp "$B/stubs" -d "$B/odd" $(find test/fixture/oddities/src -name '*.java')
+javac --release 21 -cp "$B/stubs" -d "$B/tidy" $(find test/fixture/tidy/src -name '*.java')
+# Classes laid over the first mod's, for one test each.
+javac --release 21 -cp "$B/stubs:$B/mod" -d "$B/stray" $(find test/fixture/extras/stray -name '*.java')
+javac --release 21 -cp "$B/stubs:$B/mod" -d "$B/screen" $(find test/fixture/extras/screen -name '*.java')
 
 # The tool, with its temporary files in the build folder, so the tests can see that none is left.
 tool() { java -Djava.io.tmpdir="$PWD/$B/tmp" -jar build/horizon-port-neoforge.jar "$@"; }
@@ -59,6 +63,34 @@ fixture_jar() {
   jar --create --file "$B/jars/$1.jar" --manifest "$F/MANIFEST.MF" -C "$B/mod" . -C "$dir" .
 }
 
+# is_file <path> / no_file <path>: the file is there, or isn't.
+is_file() {
+  if [ -f "$1" ]; then
+    echo "  ok: $1"
+  else
+    echo "  FAIL: there is no $1"
+    failures=$((failures + 1))
+  fi
+}
+no_file() {
+  if [ -e "$1" ]; then
+    echo "  FAIL: $1 is there"
+    failures=$((failures + 1))
+  else
+    echo "  ok: no $1"
+  fi
+}
+
+# none_in <folder> <text>: no file under the folder holds the text.
+none_in() {
+  if grep -rqF -- "$2" "$1"; then
+    echo "  FAIL: '$2' is in $(grep -rlF -- "$2" "$1" | head -3 | tr '\n' ' ')"
+    failures=$((failures + 1))
+  else
+    echo "  ok: no '$2' under $1"
+  fi
+}
+
 # lacks <file> <text>: the file doesn't hold the text.
 lacks() {
   if grep -qF -- "$2" "$1"; then
@@ -84,6 +116,7 @@ fixture_jar pocketcompass
 J=$B/jars/pocketcompass.jar
 jar --create --file "$B/jars/oddities.jar" -C "$B/odd" . -C test/fixture/oddities/resources .
 jar --create --file "$B/jars/neoforge-stubs.jar" -C "$B/stubs" .
+jar --create --file "$B/jars/tidy.jar" -C "$B/tidy" . -C test/fixture/tidy/resources .
 
 echo; echo "== unit tests"
 javac --release 21 -Xlint:all -Werror -cp build/classes -d "$B/classes" test/java/horizonneo/*.java
@@ -295,6 +328,157 @@ jar --create --file "$B/jars/manifestmixins.jar" --manifest "$B/over/manifest.mf
 exits 0 tool analyze "$B/jars/manifestmixins.jar" --out "$B/report-manifest"
 says "$B/report-manifest/report.md" "the jar's manifest names the Mixin config legacy.mixins.json"
 lacks "$B/report-manifest/report.md" "names the Mixin config pocketcompass.mixins.json"
+
+echo; echo "== port"
+H=test/fixture/horizon-src
+P=$B/port
+exits 2 tool port "$J"
+says "$ERR" 'needs --horizon-src'
+if [ -f "${HORIZON_PORT_JAR:-}" ]; then
+  # The made-up mod, against the stand-in for Horizon's source.
+  exits 0 tool port "$J" --horizon-src "$H" --out "$P/pc"
+  says "$OUT" "Pocket Compass 1.2.3, a NeoForge mod: bundle written to $P/pc"
+  says "$OUT" 'Horizon: commit 0123456789abcdef0123456789abcdef01234567 (its .horizon-revision)'
+  says "$OUT" 'Injections: 2 on (list, tick), 3 written commented out (settings, click, minecraft-mixin-no-screen)'
+  says "$OUT" 'Mixin handlers: 2, 1 of them on'
+  says "$OUT" 'Java translated to Rust: 3 of 21 methods, 1 of 14 static fields'
+  says "$OUT" 'Event listeners: 12, none wired to a Horizon hook yet'
+  says "$OUT" 'Not handed to horizon-port: the Mixin class UnlistedMixin'
+  says "$OUT" 'have been deleted. Nothing was compiled or run.'
+  M=$P/pc/mixins/pocketcompass
+  for f in PORTING.md Cargo.toml compatibility.json report/report.md report/report.json report/translation.md report/horizon-port-report.md \
+           mixins/pocketcompass/horizon-mixin.toml mixins/pocketcompass/runtime.rs mixins/pocketcompass/tick.rs mixins/pocketcompass/list.rs \
+           todo/settings.rs todo/click.rs todo/minecraft-mixin-no-screen.rs; do
+    is_file "$P/pc/$f"
+  done
+  # The decompiled Java: not in the bundle, in comments or as files, and not left anywhere else.
+  says "$M/tick.rs" "Its Java is com/example/pocketcompass/mixin/MinecraftMixin.java in the mod (decompiled code isn't kept in this bundle)."
+  none_in "$P/pc" '// |'
+  none_in "$P/pc" 'CallbackInfo'
+  none_in "$P/pc" 'Decompiled Java,'
+  left=$(find "$B" \( -name '*.java' -o -name '*-src' -o -name '*.hnmod' \) | wc -l)
+  if [ "$left" = 0 ]; then echo "  ok: no Java source, decompiled folder or .hnmod under $B"; else echo "  FAIL: $left of them under $B"; failures=$((failures + 1)); fi
+  # What horizon-port switched on by a class's name is commented out, with why.
+  no_file "$M/settings.rs"
+  says "$M/horizon-mixin.toml" '# Off: the `settings` hook point (the mod'"'"'s settings page), turned off by horizon-port-neoforge.'
+  says "$M/horizon-mixin.toml" '# id = "click"'
+  says "$M/horizon-mixin.toml" 'target = "horizon_client::game::native_hooks::Game<'"'"'_>::native_tick"'
+  says "$P/pc/PORTING.md" 'generated by horizon-port from `pocketcompass.jar`'
+  says "$P/pc/PORTING.md" '2 injections are on; 3 are written commented out'
+  says "$P/pc/PORTING.md" '| hook `settings` | off | Commented out by horizon-port-neoforge'
+  says "$P/pc/PORTING.md" '| hook `tick` | on |'
+  says "$P/pc/PORTING.md" '## From a NeoForge mod'
+  says "$P/pc/PORTING.md" "- 12 event listeners aren't wired to a Horizon hook yet"
+  says "$P/pc/PORTING.md" '- 6 things registered with `DeferredRegister`'
+  says "$P/pc/PORTING.md" 'TODO: if the mod has settings to show, fill in todo/settings.rs'
+  says "$P/pc/PORTING.md" 'Declared in META-INF/neoforge.mods.toml: `MIT`'
+  says "$P/pc/PORTING.md" '- Authors: Mine, Second Author'
+  lacks "$P/pc/PORTING.md" 'fabric.mod.json'
+  lacks "$P/pc/PORTING.md" 'mixins/pocketcompass/settings.rs'
+  says "$P/pc/Cargo.toml" 'ported from NeoForge to a Horizon native mod'
+  says "$P/pc/report/report.md" '| `MinecraftMixin.pocketcompass$onTick` | auto | HEAD on hook `tick` | on, in `tick` |'
+  says "$P/pc/report/report.md" '| `MinecraftMixin.pocketcompass$noScreen` | needs-translation | WRAP_OPERATION on hook `tick` | commented out, as `minecraft-mixin-no-screen` |'
+  says "$P/pc/report/report.md" 'Java translated to Rust: 3 of 21 methods and 1 of 14 static fields'
+  says "$P/pc/report/report.md" 'the source it decompiled for that has been deleted'
+  says "$P/pc/report/report.json" '"injectionsOn": ['
+  says "$P/pc/report/report.json" '"bundle": "on"'
+  says "$P/pc/report/report.json" '"tool": "horizon-port-neoforge"'
+
+  # A bundle that is there isn't written over.
+  echo "edited by hand" >> "$M/tick.rs"
+  exits 1 tool port "$J" --horizon-src "$H" --out "$P/pc"
+  says "$ERR" 'is already there'
+  says "$M/tick.rs" 'edited by hand'
+
+  # A licence that doesn't allow it: refused before anything is decompiled, and nothing is written.
+  exits 3 tool port "$B/jars/arr.jar" --horizon-src "$H" --out "$P/arr"
+  says "$OUT" '**Not allowed**'
+  says "$OUT" 'Nothing was decompiled and nothing was written.'
+  no_file "$P/arr"
+  exits 0 tool port "$B/jars/arr.jar" --horizon-src "$H" --out "$P/arr-author" --i-am-the-author "second author"
+  is_file "$P/arr-author/PORTING.md"
+
+  # A Mixin class no config lists is never applied, so it isn't converted either.
+  fixture_jar stray "$B/stray"
+  exits 0 tool port "$B/jars/stray.jar" --horizon-src "$H" --out "$P/stray"
+  says "$OUT" 'Not handed to horizon-port: the Mixin classes StrayMixin, UnlistedMixin'
+  says "$OUT" 'Injections: 2 on (list, tick), 3 written commented out'
+  none_in "$P/stray/mixins" 'pocketcompass$stray'
+  none_in "$P/stray/todo" 'pocketcompass$stray'
+  says "$P/stray/report/report.md" 'StrayMixin'
+
+  # The mod says it has a config screen: the settings page stays on.
+  fixture_jar screen "$B/screen"
+  exits 0 tool port "$B/jars/screen.jar" --horizon-src "$H" --out "$P/screen"
+  says "$OUT" 'Injections: 4 on (list, tick, settings, click), 1 written commented out (minecraft-mixin-no-screen)'
+  says "$OUT" 'is left on: the mod names NeoForge'"'"'s `IConfigScreenFactory` in ConfigScreens'
+  is_file "$P/screen/mixins/pocketcompass/settings.rs"
+  says "$P/screen/PORTING.md" '| hook `settings` | on |'
+
+  # A Horizon that doesn't have the hook point horizon-port's table names: off, with why. And no commit known.
+  cp -r "$H" "$B/horizon-other"
+  rm "$B/horizon-other/.horizon-revision"
+  sed -i '/fn native_tick/d' "$B/horizon-other/crates/horizon-client/src/game/native_hooks.rs"
+  exits 0 tool port "$J" --horizon-src "$B/horizon-other" --out "$P/other"
+  says "$OUT" "Horizon: its commit isn't known"
+  says "$OUT" 'Injections: 1 on (list), 4 written commented out (tick, settings, click, minecraft-mixin-no-screen)'
+  says "$OUT" 'Mixin handlers: 2, 0 of them on'
+  says "$OUT" 'The injection `tick` is commented out'
+  says "$P/other/mixins/pocketcompass/horizon-mixin.toml" 'crates/horizon-client/src/game/native_hooks.rs` has no `fn native_tick`'
+  is_file "$P/other/todo/tick.rs"
+  no_file "$P/other/mixins/pocketcompass/tick.rs"
+  says "$P/other/PORTING.md" '| hook `tick` | off |'
+  says "$P/other/report/report.md" '| `MinecraftMixin.pocketcompass$onTick` | auto | HEAD on hook `tick` | commented out, as `tick` |'
+  says "$P/other/report/report.md" '| needs-translation | Written commented out, as `tick`.'
+
+  # The commit: given, wrong, or git's.
+  exits 0 tool port "$J" --horizon-src "$B/horizon-other" --out "$P/given" --horizon-revision 1111111111111111111111111111111111111111
+  says "$OUT" 'Horizon: commit 1111111111111111111111111111111111111111 (given)'
+  says "$P/given/compatibility.json" '"horizon_revision": "1111111111111111111111111111111111111111"'
+  exits 1 tool port "$J" --horizon-src "$H" --out "$P/short" --horizon-revision abc123
+  says "$ERR" 'takes a full commit'
+  no_file "$P/short"
+  if command -v git > /dev/null; then
+    cp -r "$B/horizon-other" "$B/horizon-git"
+    git -C "$B/horizon-git" init -q
+    git -C "$B/horizon-git" add -A
+    git -C "$B/horizon-git" -c user.name=test -c user.email=test@example.com commit -q -m "a stand-in"
+    head=$(git -C "$B/horizon-git" rev-parse HEAD)
+    exits 0 tool port "$J" --horizon-src "$B/horizon-git" --out "$P/git"
+    says "$OUT" "Horizon: commit $head (git's HEAD of that folder)"
+    says "$P/git/compatibility.json" "\"horizon_revision\": \"$head\""
+    echo "// changed" >> "$B/horizon-git/crates/horizon-client/src/game.rs"
+    exits 0 tool port "$J" --horizon-src "$B/horizon-git" --out "$P/git-changed"
+    says "$OUT" "it has changes that aren't committed"
+  fi
+
+  # A mod horizon-port sees nothing left to do in: its .hnmod isn't kept.
+  exits 0 tool port "$B/jars/tidy.jar" --horizon-src "$H" --out "$P/tidy"
+  says "$OUT" 'Injections: 1 on (list), 0 written commented out'
+  says "$P/tidy/PORTING.md" '**Not packed.**'
+  lacks "$P/tidy/PORTING.md" 'Yes: this is a full port'
+  says "$P/tidy/PORTING.md" "Nothing of the mod's NeoForge side is known to be left out."
+  no_file "$P/tidy/tidy.hnmod"
+
+  # The second mod: a jar inside the jar isn't handed over.
+  exits 0 tool port "$B/jars/oddities.jar" --horizon-src "$H" --out "$P/odd"
+  says "$OUT" 'Not handed to horizon-port: 1 jar inside the jar (META-INF/jarjar/library-1.0.jar)'
+
+  # Not Horizon's source, not a jar.
+  exits 1 tool port "$J" --horizon-src "$B/no-such-folder" --out "$P/nowhere"
+  says "$ERR" "isn't Horizon's source folder"
+  exits 1 tool port "$B/jars/forge.jar" --horizon-src "$H" --out "$P/nowhere"
+  no_file "$P/nowhere"
+
+  # A Fabric jar is horizon-port's own job, as it is: its bundle, with nothing of this tool's in it.
+  mkdir -p "$B/cwd-fabric"
+  (cd "$B/cwd-fabric" && exits_here=0 && java -Djava.io.tmpdir="$OLDPWD/$B/tmp" -jar "$OLDPWD/build/horizon-port-neoforge.jar" port "$OLDPWD/$B/jars/fabric.jar" \
+      --horizon-src "$OLDPWD/$H" --out fabric-bundle > stdout.txt 2> stderr.txt) && echo "  ok: exit 0: port of a Fabric jar" || { echo "  FAIL: port of a Fabric jar"; failures=$((failures + 1)); }
+  says "$B/cwd-fabric/stdout.txt" 'Bundle: fabric-bundle'
+  lacks "$B/cwd-fabric/stdout.txt" 'a NeoForge mod'
+  lacks "$B/cwd-fabric/fabric-bundle/PORTING.md" '## From a NeoForge mod'
+  rm -rf "$B/cwd-fabric"
+fi
 
 echo; echo "== the command line"
 exits 0 tool --help
