@@ -179,6 +179,10 @@ to check. This sorts each answer by how sure it is:
 A listener is switched on only when NeoForge really calls it (it is registered, on the bus its event
 is posted on), its level is `exact`, and horizon-port read a signature for the hook point in that
 source (`horizon-port hooks`), with the game as its first parameter and every type under a path.
+One the mod keeps to the client (`@OnlyIn`, a client-only @Mod class or @EventBusSubscriber) stays
+commented out when the catalogue gives its hook point the server side, and the other way round:
+`--allow-approximate` switches those on too. A listener the mod doesn't restrict is taken as
+written; whether its handler looks at the logical side inside is for whoever ports it.
 
 - **On** means an `[[injection]]` at the head of the hook point and a helper that takes its
   parameters and does nothing, with a `TODO` naming the handler to port. The handler's own Java

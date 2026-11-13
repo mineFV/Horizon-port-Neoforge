@@ -183,6 +183,17 @@ final class WiringTest {
 
         c.same("a handler's name as an id", "client-events-on-client-tick", Wiring.kebab("ClientEvents-onClientTick"));
         c.same("a lambda's", "pocket-compass-lambda-new-0", Wiring.kebab("PocketCompass-lambda$new$0"));
+        // A listener kept to one side, and a hook point of the other.
+        Hook server = new Hook("entity_join_level", T + "entity_join_level", "EntityJoinLevelEvent", null, 1, null, "server", "listen", 1, null, "fn native_entity_join_level(&mut self)", List.of(), null);
+        Listener clientOnly = listener(E + "entity/EntityJoinLevelEvent", "ClientHandlers", "onJoin", true, "NORMAL", false, "client", "its class is a @Mod class for that side only", List.of());
+        c.same("a client-only listener and a server-side hook point",
+                "the mod keeps this listener to the client (its class is a @Mod class for that side only) and Horizon's catalogue gives `entity_join_level` the server side: "
+                        + "it isn't certain that the hook point tells what the listener hears", Wiring.sides(clientOnly, server));
+        c.same("a listener on either side", null, Wiring.sides(listener(E + "entity/EntityJoinLevelEvent", "Handlers", "onJoin", true, "NORMAL", false, "common", null, List.of()), server));
+        c.same("a hook point with no side", null, Wiring.sides(clientOnly, hook(null, "fn native_x(&mut self)", List.of())));
+        c.same("the same side", null, Wiring.sides(listener(E + "x/Y", "Handlers", "on", true, "NORMAL", false, "server", "@OnlyIn on the method", List.of()), server));
+        c.same("capitals in a row are one word", "hud-overlay-handler-on-client-tick", Wiring.kebab("HUDOverlayHandler-onClientTick"));
+        c.same("to the end of the name too", "render-gui", Wiring.kebab("RenderGUI"));
         c.same("nothing to name it by", "listener", Wiring.kebab("$$"));
         System.exit(c.done());
     }

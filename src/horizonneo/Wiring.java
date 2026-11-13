@@ -96,8 +96,12 @@ final class Wiring {
             String why = match.why();
             boolean sure = match.level() == Level.EXACT || (approximate && match.level() == Level.APPROXIMATE);
             String unusable = hook == null ? null : unusable(hook);
+            String sides = hook == null ? null : sides(l, hook);
             if (wrongBus != null) {
                 why = "NeoForge never calls it: " + wrongBus;
+                sure = false;
+            } else if (sure && sides != null && !approximate) {
+                why = why + ", but " + sides + ". `--allow-approximate` switches such listeners on";
                 sure = false;
             } else if (sure && unusable != null) {
                 why = why + ", but " + unusable;
@@ -284,13 +288,28 @@ final class Wiring {
         return eventClass.substring(eventClass.lastIndexOf('/') + 1).replace('$', '.');
     }
 
+    /**
+     * Why a listener and the hook point named for its event don't sit on the same side, in words; null
+     * when nothing says so. The mod restricts the listener to one side (`@OnlyIn`, a @Mod class or an
+     * @EventBusSubscriber for that side) and Horizon's catalogue gives the hook point the other one.
+     */
+    static String sides(Listener l, Hook hook) {
+        boolean opposite = ("client".equals(l.side()) && "server".equals(hook.side())) || ("server".equals(l.side()) && "client".equals(hook.side()));
+        if (!opposite) return null;
+        return "the mod keeps this listener to the " + l.side() + (l.sideFrom() == null ? "" : " (" + l.sideFrom() + ")") + " and Horizon's catalogue gives `" + hook.name()
+                + "` the " + hook.side() + " side: it isn't certain that the hook point tells what the listener hears";
+    }
+
     /** `ClientEvents-onClientTick` as `client-events-on-client-tick`. */
     static String kebab(String name) {
         StringBuilder b = new StringBuilder();
         for (int i = 0; i < name.length(); i++) {
             char c = name.charAt(i);
             if (Character.isUpperCase(c)) {
-                if (b.length() > 0 && b.charAt(b.length() - 1) != '-') b.append('-');
+                // A new word: after a small letter or a digit, or at the last capital of a run (`HUDOverlay` is hud-overlay).
+                boolean afterCapital = i > 0 && Character.isUpperCase(name.charAt(i - 1));
+                boolean beforeSmall = i + 1 < name.length() && Character.isLowerCase(name.charAt(i + 1));
+                if (b.length() > 0 && b.charAt(b.length() - 1) != '-' && (!afterCapital || beforeSmall)) b.append('-');
                 b.append(Character.toLowerCase(c));
             } else if (c < 128 && Character.isLetterOrDigit(c)) {
                 b.append(c);
