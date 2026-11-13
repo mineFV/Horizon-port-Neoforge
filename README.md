@@ -180,3 +180,9 @@ and `port` checks need `horizon-port.jar` (above); `port` runs Vineflower from t
 - Decompiled code stays out of the bundles this tool writes, and is deleted when a conversion ends.
 - A converted mod is never compiled or run by this tool on its own.
 - No guessed correspondences: a mapping is switched on only when it is certain.
+
+## Licence
+
+MIT: see [LICENSE](LICENSE). That is this tool's own code. It covers nothing of Horizon-Translator's,
+which this tool runs and doesn't contain, and nothing of the mods it converts: a bundle is a port of
+its mod, under that mod's licence (`PORTING.md` in each bundle has its conditions).
