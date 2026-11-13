@@ -54,7 +54,7 @@ final class Report {
 
     private static final String LATER_EVENTS = "Its Horizon hook point comes from Horizon's hook catalogue when the mod is converted (`port`).";
     private static final String LATER_MIXINS = "Matched against Horizon's own functions by horizon-port when the mod is converted (`port`).";
-    private static final String LATER_CONTENT = "Carried by Horizon's horizon-port-pack (milestone 5).";
+    private static final String LATER_CONTENT = "Carried over by Horizon's horizon-port-pack when the mod is converted (`port`).";
     private static final String BY_HAND = "Not converted: it goes into PORTING.md as work to do by hand.";
 
     /** The game's packages a mod's class may extend into, and what such a class is; anything else is plain code. */
@@ -113,7 +113,7 @@ final class Report {
         for (Registry r : a.registries()) {
             for (Registration e : r.entries()) {
                 if (e.objectClass() != null) registeredClasses.add(e.objectClass());
-                out.add(feature(r, e, a));
+                out.add(carried(feature(r, e, a), r, e, converted == null ? null : converted.content()));
             }
         }
         for (ConfigUse c : a.configs()) {
@@ -154,8 +154,10 @@ final class Report {
                     buildTime ? "info" : "unsupported", buildTime ? "It runs when the mod is built or tested, not in the game." : BY_HAND));
         }
         if (a.census().assets() + a.census().data() > 0) {
+            Content.Result content = converted == null ? null : converted.content();
             out.add(new Feature("content", "the jar's resources", count(a.census().assets(), "asset file") + ", " + count(a.census().data(), "data file"),
-                    "a content mod (.hmod)", "content", LATER_CONTENT));
+                    content != null && content.packed() ? "`" + content.file() + "`" : "a content mod (.hmod)", "content",
+                    content == null ? LATER_CONTENT : sentence(List.of(content.packed() ? "in `" + content.file() + "`, " + content.why() : content.why()))));
         }
         return out;
     }
@@ -219,6 +221,30 @@ final class Report {
             notes.add(LATER_EVENTS);
         }
         return new Feature("listener", handler(l), detail, null, status, sentence(notes));
+    }
+
+    /**
+     * A block or item that is plain content, after `port`: whether the content mod declares it, and
+     * that the vanilla template it copies there is a guess.
+     */
+    private static Feature carried(Feature f, Registry r, Registration e, Content.Result content) {
+        if (content == null || !f.status().equals("content") || r.namespace() == null || e.name() == null) return f;
+        if (!content.packed() && !content.state().equals("todo")) {
+            return new Feature(f.category(), f.source(), f.detail(), f.horizon(), "content", "Not carried over: " + content.why() + ".");
+        }
+        String id = r.namespace() + ":" + e.name(), kind = "BLOCK".equals(r.kind()) ? "block" : "item";
+        Content.Declared declared = null;
+        for (Content.Declared d : content.declared()) {
+            // A block's own item goes with its block.
+            if (d.id().equals(id) && (d.kind().equals(kind) || d.kind().equals("block"))) declared = d;
+        }
+        String where = content.packed() ? "`" + content.file() + "`" : "`" + content.folder() + "/`, which isn't packed";
+        if (declared == null) {
+            return new Feature(f.category(), f.source(), f.detail(), null, "needs-translation",
+                    "The content mod doesn't declare it: the jar has no blockstate or item model that Horizon's carry takes it from.");
+        }
+        return new Feature(f.category(), f.source(), f.detail(), content.packed() ? "`" + content.file() + "`" : null, content.packed() ? "content" : "needs-mapping",
+                "Declared in " + where + ", as a copy of `" + declared.template() + "`: Horizon's guess, to check against the mod's code.");
     }
 
     private static Feature feature(Registry r, Registration e, Analysis a) {
@@ -338,7 +364,8 @@ final class Report {
             for (Registry r : a.registries()) {
                 for (Registration e : r.entries()) {
                     row(b, or(r.kind(), "not read"), code(id(r, e)), e.objectClass() == null ? "not read" : code(ClassData.simple(e.objectClass())),
-                            code(e.how()), e.holderField() == null ? "" : code(e.holderField()), feature(r, e, a).status());
+                            code(e.how()), e.holderField() == null ? "" : code(e.holderField()),
+                            carried(feature(r, e, a), r, e, converted == null ? null : converted.content()).status());
                 }
                 if (r.entries().isEmpty()) row(b, or(r.kind(), "not read"), "nothing read", "", "", code(ClassData.simple(r.declaredIn()) + "." + r.field()), "");
             }
@@ -444,6 +471,10 @@ final class Report {
                         w.hook() == null ? "" : code(w.hook()), w.state().equals("on") ? "on, in `" + w.injection() + "`" : "commented out, as `" + w.injection() + "`");
             }
         }
+        if (o.content() != null) {
+            Content.Result c = o.content();
+            b.append("- Content: ").append(c.packed() ? "`" + c.file() + "`, " + c.why() : c.why()).append(".\n");
+        }
         if (!o.handlers().isEmpty()) {
             b.append("\n| Mixin handler | horizon-port's status | In Horizon | In the bundle |\n|---|---|---|---|\n");
             for (Map.Entry<String, Bundle.Handler> e : o.handlers().entrySet()) {
@@ -487,6 +518,13 @@ final class Report {
                     "translation", t == null ? null : map("methods", t.methods(), "methodsOf", t.methodsOf(), "fields", t.fields(), "fieldsOf", t.fieldsOf()),
                     "listenersOn", (int) converted.listenersOn(), "listeners", (int) a.listeners().stream().filter(Listener::registered).count(),
                     "changes", converted.changes(), "decompiledLinesRemoved", converted.javaLines()));
+            Content.Result c = converted.content();
+            if (c != null) {
+                List<Object> declared = new ArrayList<>();
+                for (Content.Declared d : c.declared()) declared.add(map("kind", d.kind(), "id", d.id(), "template", d.template(), "registered", d.registered()));
+                root.put("content", map("state", c.state(), "file", c.file(), "folder", c.folder(), "files", c.files(), "summary", c.summary(), "ports", c.ports(),
+                        "skipped", c.skipped(), "declared", declared, "undeclared", c.undeclared(), "leftOut", c.leftOut(), "why", c.why()));
+            }
         }
         root.put("census", map("classes", a.census().classes(), "assets", a.census().assets(), "data", a.census().data()));
 
@@ -518,7 +556,7 @@ final class Report {
         for (Registry r : a.registries()) {
             List<Object> entries = new ArrayList<>();
             for (Registration e : r.entries()) {
-                Feature f = feature(r, e, a);
+                Feature f = carried(feature(r, e, a), r, e, converted == null ? null : converted.content());
                 entries.add(map("id", id(r, e), "how", e.how(), "class", e.objectClass() == null ? null : dotted(e.objectClass()), "classFrom", e.classFrom(),
                         "holder", e.holderField(), "status", f.status(), "note", f.note()));
             }

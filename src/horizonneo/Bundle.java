@@ -51,11 +51,12 @@ final class Bundle {
     /**
      * on, off: the manifest's injections by id, as it stands after the changes. handlers: by
      * `com/example/SomeMixin.handler`. listeners: what became of each event listener, in the
-     * analysis's order; none when there was no event table to go by. changes: what was changed
-     * here, in sentences.
+     * analysis's order; none when there was no event table to go by. content: what became of the
+     * mod's data and assets, null when that wasn't tried. changes: what was changed here, in
+     * sentences.
      */
     record Outcome(String modId, List<String> on, List<String> off, Map<String, Handler> handlers, List<Wiring.Wired> listeners,
-                   Translation translation, List<String> changes, int javaLines) {
+                   Content.Result content, Translation translation, List<String> changes, int javaLines) {
         Outcome {
             on = List.copyOf(on);
             off = List.copyOf(off);
@@ -67,6 +68,11 @@ final class Bundle {
         long listenersOn() {
             return listeners.stream().filter(w -> w.state().equals("on")).count();
         }
+    }
+
+    /** The step that carries the mod's data and assets over into the bundle, once the bundle is in order. */
+    interface Carrier {
+        Content.Result carry(Path bundle) throws IOException;
     }
 
     /** horizon-port's bundle isn't what this expects of one: nothing is delivered. */
@@ -90,10 +96,10 @@ final class Bundle {
      * only to make sure none of it stays in the bundle. horizonSrc: the Horizon source the mod was
      * converted against. table: which hook point stands for which NeoForge event in that source,
      * null when it has no hook catalogue. approximate: also switch on the listeners whose hook
-     * point comes with a note.
+     * point comes with a note. carrier: carries the content over, null to leave it.
      */
-    static Outcome finish(Path dir, Path decompiled, Path horizonSrc, ModInfo info, Analysis analysis, EventTable table, boolean approximate)
-            throws IOException {
+    static Outcome finish(Path dir, Path decompiled, Path horizonSrc, ModInfo info, Analysis analysis, EventTable table, boolean approximate,
+                          Carrier carrier) throws IOException {
         Path mod = modFolder(dir);
         String id = mod.getFileName().toString();
         List<String> changes = new ArrayList<>();
@@ -131,15 +137,19 @@ final class Bundle {
         Map<String, String> helpers = injections(mod, manifest, on, off);
         Map<String, Handler> handlers = handlers(analysis, theirs, manifest, mod, helpers, turnedOff);
 
-        Outcome outcome = new Outcome(id, on, off, handlers, listeners, translation, changes, javaLines);
+        // Last, so that nothing above goes through the mod's own files.
+        Content.Result content = carrier == null ? null : carrier.carry(dir);
+        Outcome outcome = new Outcome(id, on, off, handlers, listeners, content, translation, changes, javaLines);
         Path porting = dir.resolve("PORTING.md");
         if (!Files.isRegularFile(porting)) throw new Unexpected("no PORTING.md");
         Files.writeString(porting, porting(read(porting), info, analysis, outcome, mod, dir, packed, hooksOff), StandardCharsets.UTF_8);
 
         for (Path f : files(dir)) {
-            if (!text(f)) continue;
+            String name = dir.relativize(f).toString().replace('\\', '/');
+            // The content is the mod's own files, carried over: nothing decompiled can be in them.
+            if (!text(f) || name.startsWith(Content.FOLDER + "/") || name.startsWith(Content.TODO_FOLDER)) continue;
             for (String line : read(f).split("\n", -1)) {
-                if (line.strip().startsWith("// |")) throw new Unexpected("decompiled Java is still in " + dir.relativize(f));
+                if (line.strip().startsWith("// |")) throw new Unexpected("decompiled Java is still in " + name);
             }
         }
         return outcome;
@@ -587,9 +597,22 @@ final class Bundle {
                             : ": each is written commented out in `horizon-mixin.toml` with why (the table under \"From a NeoForge mod\")."));
         }
         int registered = analysis.registries().stream().mapToInt(r -> r.entries().size()).sum();
-        if (registered > 0) {
+        Content.Result content = o.content();
+        long declared = content == null ? 0 : content.declared().stream().filter(Content.Declared::registered).count();
+        if (registered > 0 && content != null && content.packed() && declared > 0) {
+            left.add(registered + (registered == 1 ? " thing is" : " things are") + " registered with `DeferredRegister`: " + declared + (declared == 1 ? " is" : " are")
+                    + " declared in `" + content.file() + "`, copying a vanilla template to check; the rest " + (registered - declared == 1 ? "isn't" : "aren't")
+                    + " in the bundle (`report/report.md`).");
+        } else if (registered > 0) {
             left.add(registered + (registered == 1 ? " thing" : " things") + " registered with `DeferredRegister` "
                     + (registered == 1 ? "isn't" : "aren't") + " in the bundle (`report/report.md`).");
+        }
+        if (content != null && !content.packed() && !content.state().equals("none")) {
+            left.add(switch (content.state()) {
+                case "todo" -> "The content mod isn't packed: its folder is `" + content.folder() + "/`, with declarations to check first.";
+                case "no-tools" -> "The jar's data and assets aren't carried over into a content mod: Horizon's tools for it aren't built.";
+                default -> "No `.hmod` was made of the jar's data and assets: " + content.why() + ".";
+            });
         }
         if (!analysis.configs().isEmpty()) {
             left.add(analysis.configs().size() + (analysis.configs().size() == 1 ? " config" : " configs") + " registered with NeoForge "
@@ -616,6 +639,10 @@ final class Bundle {
         if (!o.changes().isEmpty()) {
             b.append("\nChanged after horizon-port wrote the bundle:\n\n");
             for (String c : o.changes()) b.append("- ").append(c).append('\n');
+        }
+        if (o.content() != null) {
+            b.append('\n');
+            for (String line : Content.words(o.content())) b.append(line).append('\n');
         }
         if (o.listeners().stream().anyMatch(w -> !w.state().equals("none"))) {
             b.append("\nThe mod's event listeners, put on Horizon's hook points from its hook catalogue (`native-hooks.json`). One is on only when the ")
@@ -650,6 +677,17 @@ final class Bundle {
             return b + theirs.substring(theirs.stripTrailing().length());
         }
         List<String> lines = new ArrayList<>(List.of(theirs.split("\n", -1)));
+        // What horizon-port says a content mod is needed for, now that there is an answer.
+        for (int i = lines.size() - 1; i >= 0; i--) {
+            String line = lines.get(i);
+            if (o.content() == null || !line.startsWith("- ") || !line.contains("content mod (.hmod)")) continue;
+            if (o.content().packed()) {
+                lines.set(i, line.replace(", which this tool doesn't make.", ": `" + o.content().file() + "` (see \"From a NeoForge mod\").")
+                        .replace(": that needs a content mod (.hmod).", ": that is for a content mod; see `" + o.content().file() + "` under \"From a NeoForge mod\"."));
+            } else {
+                lines.set(i, line.replace(", which this tool doesn't make.", ", which isn't made (see \"From a NeoForge mod\")."));
+            }
+        }
         // The TODOs are counted again: this tool moved some and wrote others.
         List<String> todos = todos(mod, dir);
         boolean listed = false;

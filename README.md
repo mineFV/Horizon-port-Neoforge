@@ -17,7 +17,8 @@ code that **calls** it:
   check, its `port`: Vineflower, the Mixin matching, the Java to Rust translation, and its `hooks`:
   each hook point's signature in a Horizon source);
 - Horizon's own hook catalogue, `native-hooks.json`, read from the Horizon source given (MIT);
-- later, Horizon's own `horizon-port-pack`, which is MIT.
+- Horizon's own content tools, `horizon-port-pack` and `cargo-horizon-mod` (MIT), built from its source
+  and run as programs of their own.
 
 `ModFrontend` is the seam. A loader's frontend reads a jar into data that doesn't depend on the loader
 (`ModInfo`), and everything after it works on that. If Horizon-Translator gets a licence, the NeoForge
@@ -146,7 +147,8 @@ What happens, in order:
      correspondence.
    - The `.hnmod` horizon-port packs when it sees nothing left is removed.
 5. **The mod's event listeners are put on Horizon's hook points** (below).
-6. **The copy and the decompiled source are deleted**, whether it worked or not.
+6. **The mod's data and assets are carried over into a content mod, a `.hmod`** (below).
+7. **The copy and the decompiled source are deleted**, whether it worked or not.
 
 `report/report.md` and `report.json` are `analyze`'s, with what the conversion made: the injections
 that are on and off, each Mixin handler's status and where it is in the bundle, each listener's hook
@@ -188,7 +190,48 @@ source (`horizon-port hooks`), with the game as its first parameter and every ty
   horizon-port writes a Mixin it leaves off.
 - `compatibility.json`'s `hooks` is raised to the hooks API the hook points switched on came in.
 
-- **Not converted yet:** registries. They are in the report and in `PORTING.md` as left to do.
+#### Content: the `.hmod`
+
+A mod's declarative content, its `assets/` and `data/`, becomes a Horizon content mod. Both steps are
+Horizon's own tools, run unchanged:
+
+1. `horizon-port-pack check <jar>` carries the jar's data and assets over into a folder content mod,
+   as Horizon's launcher does when it installs a Java mod: files are copied, recipes and the like are
+   upgraded to the game's version, and what a content mod may not hold is kept out.
+2. `cargo horizon-mod build` packs that folder as `<mod id>.hmod`, with the checks the game makes
+   when it reads content, and `cargo horizon-mod check` runs the registry's checks on the file.
+
+The tools are found in `--horizon-tools DIR`, else the `HORIZON_TOOLS` variable, else where cargo
+builds them in the Horizon source given (`target/release`, then `target/debug`). This tool never
+builds them; you do, once, in Horizon's source:
+
+```bash
+cargo build --release -p horizon-port-pack -p cargo-horizon-mod
+```
+
+One thing in a carry is a guess, and Horizon says so. Without NeoForge running, it declares a block
+for each blockstate file, as a copy of the vanilla block whose properties look closest (a block with
+none copies stone), and an item for each item model, as a copy of the stick. The mod's own hardness,
+sounds, shapes and stack sizes are in its code. So:
+
+| The carry | In the bundle |
+|---|---|
+| Data and assets, no block or item declared | `<mod id>.hmod`, and its folder in `content/` |
+| It declares blocks or items | the folder in `todo/content/`, **not packed**, each declaration listed with what it copies; `--allow-approximate` packs it as it is |
+| A tool refuses it | the folder in `todo/content/`, with what the tool said |
+| The jar has no data or assets | nothing |
+| The tools aren't built | nothing, and `PORTING.md` says the content is still to carry over |
+
+`PORTING.md` lists every declaration with the vanilla thing it copies and whether the mod's code
+really registers that id, the blocks and items the code registers that the content mod doesn't
+declare (the jar has no blockstate or model for them), and the files the carry kept out, each with
+why (`todo/content-left-out/`).
+
+- The `.hmod` holds content only. Horizon can also take a mod's content and native code as one
+  `.hmod`; this tool doesn't make that, and whether Horizon takes the content mod beside a native mod
+  of the same id wasn't tried.
+- Blocks and items with behaviour of their own, and everything else a mod registers (sounds, menus,
+  entities...), are in the report as left to do.
 - **Nothing is compiled or run**, by this tool or by horizon-port's `port`. Building a bundle is
   yours to decide (`PORTING.md`, "Build it").
 - **The Horizon commit** the bundle names is `--horizon-revision`, else the source's
@@ -211,6 +254,8 @@ second one of things done oddly, a third with nothing left to finish) with stand
 NeoForge and Horizon's source (a few hook points and a hook catalogue), packs them into jars and checks what
 the tool says about each and what `port` writes. No real mod, no game file, nothing of Horizon's, nothing downloaded. The licence
 and `port` checks need `horizon-port.jar` (above); `port` runs Vineflower from that clone's `tools/`.
+The checks that pack a `.hmod` need Horizon's content tools (above): `HORIZON_TOOLS`, or a `horizon/`
+clone beside this folder where cargo built them. Without them those checks are skipped, with a note.
 
 ## Rules of this repository
 

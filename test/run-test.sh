@@ -4,6 +4,8 @@
 # Needs a JDK 21 or newer. No real mod and no game file is used, and nothing is downloaded.
 # The licence checks run Horizon-Translator's horizon-port.jar: HORIZON_PORT_JAR, or the one built in
 # a Horizon-Translator clone beside this folder (bash mod-converter/build.sh there).
+# The checks that pack a .hmod run Horizon's own content tools: HORIZON_TOOLS, or the ones cargo built in a
+# Horizon clone beside this folder. They are skipped, with a note, when the tools aren't there.
 set -euo pipefail
 cd "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
@@ -347,6 +349,7 @@ if [ -f "${HORIZON_PORT_JAR:-}" ]; then
   says "$OUT" 'Mixin handlers: 2, 1 of them on'
   says "$OUT" 'Java translated to Rust: 3 of 21 methods, 1 of 14 static fields'
   says "$OUT" 'Event listeners: 12, 2 on a hook point, 10 written commented out'
+  says "$OUT" "Content: no content mod: Horizon's tools for it aren't built"
   says "$OUT" 'Not handed to horizon-port: the Mixin class UnlistedMixin'
   says "$OUT" 'have been deleted. Nothing was compiled or run.'
   M=$P/pc/mixins/pocketcompass
@@ -373,6 +376,7 @@ if [ -f "${HORIZON_PORT_JAR:-}" ]; then
   says "$P/pc/PORTING.md" '| hook `settings` | off | Commented out by horizon-port-neoforge'
   says "$P/pc/PORTING.md" '| hook `tick` | on |'
   says "$P/pc/PORTING.md" '## From a NeoForge mod'
+  says "$P/pc/PORTING.md" "**No content mod was made**: Horizon's tools for it aren't built"
   says "$P/pc/PORTING.md" "- 2 event listeners are on hook points, but their handlers aren't ported"
   says "$P/pc/PORTING.md" "- 10 event listeners aren't on a hook point"
   says "$P/pc/PORTING.md" '- 6 things registered with `DeferredRegister`'
@@ -513,6 +517,7 @@ if [ -f "${HORIZON_PORT_JAR:-}" ]; then
   exits 0 tool port "$B/jars/tidy.jar" --horizon-src "$H" --out "$P/tidy"
   says "$OUT" 'Injections: 1 on (list), 0 written commented out'
   says "$OUT" 'Event listeners: none'
+  says "$OUT" 'Content: no content mod, the jar holds no `assets/` and no `data/`'
   says "$P/tidy/PORTING.md" '**Not packed.**'
   lacks "$P/tidy/PORTING.md" 'Yes: this is a full port'
   says "$P/tidy/PORTING.md" "Nothing of the mod's NeoForge side is known to be left out."
@@ -536,6 +541,89 @@ if [ -f "${HORIZON_PORT_JAR:-}" ]; then
   lacks "$B/cwd-fabric/stdout.txt" 'a NeoForge mod'
   lacks "$B/cwd-fabric/fabric-bundle/PORTING.md" '## From a NeoForge mod'
   rm -rf "$B/cwd-fabric"
+fi
+
+echo; echo "== content"
+if [ -f "${HORIZON_PORT_JAR:-}" ]; then
+  # A carry that fails: the bundle is still written, and says why it has no content mod.
+  mkdir -p "$B/tools-broken" "$B/tools-none"
+  printf '#!/bin/sh\necho "error: boom" >&2\nexit 1\n' > "$B/tools-broken/horizon-port-pack"
+  cp "$B/tools-broken/horizon-port-pack" "$B/tools-broken/cargo-horizon-mod"
+  chmod +x "$B/tools-broken/horizon-port-pack" "$B/tools-broken/cargo-horizon-mod"
+  exits 0 tool port "$J" --horizon-src "$H" --out "$P/broken-tools" --horizon-tools "$B/tools-broken"
+  says "$OUT" 'Content: no content mod: horizon-port-pack refused the jar: boom'
+  says "$P/broken-tools/PORTING.md" '**No `.hmod` was made**: horizon-port-pack refused the jar: boom.'
+  # A folder that is named and doesn't hold the tools: refused before anything is done.
+  exits 1 tool port "$J" --horizon-src "$H" --out "$P/no-tools" --horizon-tools "$B/tools-none"
+  says "$ERR" "doesn't hold horizon-port-pack and cargo-horizon-mod"
+  no_file "$P/no-tools"
+
+  if [ -x "$TOOLS/horizon-port-pack" ] && [ -x "$TOOLS/cargo-horizon-mod" ]; then
+    T=$(cd "$TOOLS" && pwd)
+    # Data and assets only: packed, and nothing in it is a guess.
+    exits 0 tool port "$J" --horizon-src "$H" --out "$P/content" --horizon-tools "$T"
+    says "$OUT" 'Content: pocketcompass.hmod (1 file), packed and checked by `cargo horizon-mod`; it declares no block or item, so nothing in it is a guess'
+    is_file "$P/content/pocketcompass.hmod"
+    is_file "$P/content/content/horizon-mod.toml"
+    is_file "$P/content/content/assets/pocketcompass/lang/en_us.json"
+    no_file "$P/content/content/target"
+    jar tf "$P/content/pocketcompass.hmod" > "$B/out/hmod.txt"
+    says "$B/out/hmod.txt" 'horizon-mod.toml'
+    says "$B/out/hmod.txt" 'assets/pocketcompass/lang/en_us.json'
+    lacks "$B/out/hmod.txt" '.class'
+    # Its recipe makes an item the content mod doesn't declare: the carry keeps it out, and that is said.
+    lacks "$B/out/hmod.txt" 'recipe'
+    is_file "$P/content/todo/content-left-out/data/pocketcompass/recipe/pocket_compass.json"
+    says "$P/content/PORTING.md" "The mod's data and assets are in **\`pocketcompass.hmod\`**, a content mod (1 file; its folder is \`content/\`)"
+    says "$P/content/PORTING.md" "a recipe whose result is an item of the mod's that the content mod doesn't declare"
+    says "$P/content/PORTING.md" 'need a content mod (.hmod): `pocketcompass.hmod` (see "From a NeoForge mod").'
+    says "$P/content/PORTING.md" 'block `pocketcompass:spinning_block`'
+    says "$P/content/report/report.json" '"state": "packed"'
+    says "$P/content/report/report.md" '- Content: `pocketcompass.hmod`, packed and checked'
+
+    # A carry that declares a block and an item copies vanilla ones by guess: left as a folder to check.
+    fixture_jar content test/fixture/extras/content
+    exits 0 tool port "$B/jars/content.jar" --horizon-src "$H" --out "$P/guessed" --horizon-tools "$T"
+    says "$OUT" "Content: not packed: it declares 1 block and 1 item, each copying a vanilla one that is Horizon's guess."
+    no_file "$P/guessed/pocketcompass.hmod"
+    no_file "$P/guessed/content"
+    is_file "$P/guessed/todo/content/horizon-mod.toml"
+    is_file "$P/guessed/todo/content/data/pocketcompass/horizon/block/plain_block.json"
+    is_file "$P/guessed/todo/content/data/pocketcompass/recipe/pocket_compass.json"
+    says "$P/guessed/PORTING.md" '| block `pocketcompass:plain_block` | `minecraft:stone` | yes |'
+    says "$P/guessed/PORTING.md" '| item `pocketcompass:pocket_compass` | `minecraft:stick` | yes |'
+    says "$P/guessed/PORTING.md" 'TODO: check each declaration below against the mod'
+    says "$P/guessed/PORTING.md" "- The content mod isn't packed: its folder is \`todo/content/\`, with declarations to check first."
+    says "$P/guessed/PORTING.md" 'need a content mod (.hmod), which isn'"'"'t made (see "From a NeoForge mod").'
+    says "$P/guessed/report/report.md" "| needs-mapping | Declared in \`todo/content/\`, which isn't packed, as a copy of \`minecraft:stone\`: Horizon's guess"
+    says "$P/guessed/report/report.md" "| needs-translation | The content mod doesn't declare it"
+    says "$P/guessed/report/report.json" '"state": "todo"'
+
+    # With --allow-approximate it is packed as it is, and each guess is still listed.
+    exits 0 tool port "$B/jars/content.jar" --horizon-src "$H" --out "$P/guessed-packed" --horizon-tools "$T" --allow-approximate
+    says "$OUT" 'Content: pocketcompass.hmod (8 files), packed and checked by `cargo horizon-mod`; it declares 1 block and 1 item'
+    jar tf "$P/guessed-packed/pocketcompass.hmod" > "$B/out/hmod.txt"
+    says "$B/out/hmod.txt" 'data/pocketcompass/horizon/block/plain_block.json'
+    says "$B/out/hmod.txt" 'data/pocketcompass/horizon/item/pocket_compass.json'
+    says "$B/out/hmod.txt" 'data/pocketcompass/recipe/pocket_compass.json'
+    no_file "$P/guessed-packed/todo/content"
+    says "$P/guessed-packed/PORTING.md" '| block `pocketcompass:plain_block` | `minecraft:stone` | yes |'
+    says "$P/guessed-packed/PORTING.md" '6 things are registered with `DeferredRegister`: 2 are declared in `pocketcompass.hmod`, copying a vanilla template to check'
+    says "$P/guessed-packed/report/report.md" "| \`pocketcompass.hmod\` | content | Declared in \`pocketcompass.hmod\`, as a copy of \`minecraft:stick\`: Horizon's guess"
+
+    # The packing tool refuses: no .hmod, the folder is kept to pack by hand.
+    mkdir -p "$B/tools-half"
+    ln -sf "$T/horizon-port-pack" "$B/tools-half/horizon-port-pack"
+    cp "$B/tools-broken/cargo-horizon-mod" "$B/tools-half/cargo-horizon-mod"
+    exits 0 tool port "$J" --horizon-src "$H" --out "$P/half" --horizon-tools "$B/tools-half"
+    says "$OUT" 'Content: no content mod: cargo horizon-mod build refused it: boom'
+    no_file "$P/half/pocketcompass.hmod"
+    is_file "$P/half/todo/content/horizon-mod.toml"
+    says "$P/half/PORTING.md" 'The folder it was to be packed from is `todo/content/`.'
+  else
+    echo "  (skipped: the checks that pack a .hmod. Horizon's content tools aren't in $TOOLS: build them in Horizon's source,"
+    echo "   cargo build --release -p horizon-port-pack -p cargo-horizon-mod, or set HORIZON_TOOLS to their folder)"
+  fi
 fi
 
 echo; echo "== the command line"

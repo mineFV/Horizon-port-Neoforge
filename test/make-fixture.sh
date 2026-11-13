@@ -789,6 +789,12 @@ public interface IConfigScreenFactory {
 }
 EOF
 
+# Assets that a content mod declares things from: an item model, and a blockstate with no property.
+mkdir -p "$X/content/assets/pocketcompass/models/item" "$X/content/assets/pocketcompass/models/block" "$X/content/assets/pocketcompass/blockstates"
+echo '{ "parent": "minecraft:item/generated", "textures": { "layer0": "pocketcompass:item/pocket_compass" } }' > "$X/content/assets/pocketcompass/models/item/pocket_compass.json"
+echo '{ "variants": { "": { "model": "pocketcompass:block/plain_block" } } }' > "$X/content/assets/pocketcompass/blockstates/plain_block.json"
+echo '{ "parent": "minecraft:block/cube_all", "textures": { "all": "pocketcompass:block/plain_block" } }' > "$X/content/assets/pocketcompass/models/block/plain_block.json"
+
 # ---------------------------------------------------------------- a third mod: nothing a converter can't finish
 
 # No event, no registry, no Mixin: horizon-port sees nothing left to do in it.

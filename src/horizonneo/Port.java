@@ -25,8 +25,9 @@ import java.util.stream.Stream;
 final class Port {
     private Port() {}
 
-    /** horizonSrc: Horizon's source. revision, author, out: null when not given. approximate: also switch on listeners whose hook point comes with a note. */
-    record Options(Path horizonSrc, String revision, String author, Path out, String translator, boolean approximate) {}
+    /** horizonSrc: Horizon's source. revision, author, out: null when not given. tools: the folder of Horizon's content tools, null to look
+     * in the source. approximate: also switch on listeners whose hook point comes with a note, and pack content whose declarations are guesses. */
+    record Options(Path horizonSrc, String revision, String author, Path out, String translator, String tools, boolean approximate) {}
 
     /** How long horizon-port may take: it decompiles the jar and indexes Horizon's source. */
     private static final int SECONDS = 30 * 60;
@@ -43,6 +44,7 @@ final class Port {
             throw new IOException("--horizon-src: " + o.horizonSrc() + " isn't Horizon's source folder");
         }
         Translator translator = Translator.locate(o.translator());
+        HorizonTools tools = HorizonTools.locate(o.tools(), o.horizonSrc());
         LicenceCheck.Verdict verdict = LicenceCheck.run(jar, info, o.author(), translator);
         if (!verdict.allowed()) {
             out.print(verdict.report());
@@ -88,7 +90,9 @@ final class Port {
             }
 
             EventTable table = table(o.horizonSrc(), translator, work);
-            Bundle.Outcome outcome = Bundle.finish(bundle, decompiled, o.horizonSrc(), info, analysis, table, o.approximate());
+            Path carrying = Files.createDirectory(work.resolve("content"));
+            Bundle.Outcome outcome = Bundle.finish(bundle, decompiled, o.horizonSrc(), info, analysis, table, o.approximate(),
+                    into -> Content.carry(jar, analysis, tools, carrying, into, o.approximate()));
             Report.write(bundle.resolve("report"), jar, frontend, analysis, outcome);
             deliver(bundle, target);
 
@@ -107,6 +111,13 @@ final class Port {
             out.println("  Event listeners: " + (listeners == 0 ? "none" : table == null ? listeners + ", none on a hook point (this Horizon source has no native-hooks.json)"
                     : listeners + ", " + outcome.listenersOn() + " on a hook point, " + listenersOff + " written commented out"
                             + (listeners - outcome.listenersOn() - listenersOff > 0 ? ", " + (listeners - outcome.listenersOn() - listenersOff) + " of events of the mod's own" : "")));
+            Content.Result content = outcome.content();
+            out.println("  Content: " + switch (content.state()) {
+                case "packed" -> content.file() + " (" + content.files() + (content.files() == 1 ? " file" : " files") + "), " + content.why();
+                case "todo" -> content.why() + " (" + content.folder() + "/)";
+                case "none" -> "no content mod, " + content.why();
+                default -> "no content mod: " + content.why();
+            });
             for (String c : outcome.changes()) out.println("  Changed: " + c);
             for (String l : written.leftOut()) out.println("  Not handed to horizon-port: " + l + ".");
             out.println("Start with " + target.resolve("PORTING.md"));

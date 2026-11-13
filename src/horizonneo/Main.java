@@ -67,7 +67,7 @@ public final class Main {
             }
             case "port" -> {
                 return port(Line.read(args, Set.of("--loader", "--out", "--neoforge-jar", "--translator", "--horizon-src", "--horizon-revision",
-                        "--i-am-the-author"), Set.of("--allow-approximate")), out, err);
+                        "--i-am-the-author", "--horizon-tools"), Set.of("--allow-approximate")), out, err);
             }
             default -> throw new Usage("unknown command `" + args[0] + "`");
         }
@@ -97,7 +97,7 @@ public final class Main {
         }
         NeoForgeFrontend frontend = NeoForgeFrontend.read(jar);
         Port.Options options = new Port.Options(Path.of(horizonSrc), revision, author, outDir == null ? null : Path.of(outDir), line.options().get("--translator"),
-                line.has("--allow-approximate"));
+                line.options().get("--horizon-tools"), line.has("--allow-approximate"));
         return Port.run(jar, frontend, facts(line), options, out, err);
     }
 
@@ -346,7 +346,7 @@ public final class Main {
                   NeoForge's documentation tells it. A Fabric jar goes to horizon-port as it is.
 
               port <mod.jar> --horizon-src FOLDER [--horizon-revision SHA] [--i-am-the-author NAME] [--out DIR]
-                   [--allow-approximate] [--neoforge-jar JAR[:JAR...]] [--loader auto|neoforge|fabric]
+                   [--allow-approximate] [--horizon-tools DIR] [--neoforge-jar JAR[:JAR...]] [--loader auto|neoforge|fabric]
                   The licence check, then horizon-port's own `port` on a copy of the jar: it
                   decompiles it, matches its Mixins against that Horizon source and translates
                   the Java that doesn't need the game to Rust. Writes a Horizon native-mod bundle
@@ -357,8 +357,13 @@ public final class Main {
                   event: switched on when the catalogue names one hook point with nothing more
                   to read, written commented out with the reason otherwise. --allow-approximate
                   also switches on those whose hook point comes with a note. A listener's own
-                  code isn't translated: its helper has a TODO. Registries are reported, not
-                  converted yet. Nothing is compiled or run. The Horizon commit is
+                  code isn't translated: its helper has a TODO. The jar's data and assets are
+                  carried over by Horizon's own horizon-port-pack and packed as <mod id>.hmod, a
+                  content mod, by its cargo-horizon-mod (in --horizon-tools, else the
+                  HORIZON_TOOLS variable, else the source's target/release; this tool doesn't
+                  build them). A carry that declares blocks or items copies vanilla ones by
+                  guess: it is left as a folder under todo/, or packed as it is with
+                  --allow-approximate. Nothing of the mod is compiled or run. The Horizon commit is
                   --horizon-revision, else the source's .horizon-revision, else git's HEAD there.
                   A Fabric jar goes to horizon-port as it is.
 
