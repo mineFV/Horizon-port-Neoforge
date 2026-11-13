@@ -17,6 +17,10 @@ mkdir -p "$B/classes" "$B/stubs" "$B/mod" "$B/odd" "$B/tidy" "$B/stray" "$B/scre
 OUT=$B/out/stdout.txt
 ERR=$B/out/stderr.txt
 failures=0
+# Horizon's own content tools, built in its source with cargo: only the checks that pack a .hmod use them, and
+# they are skipped when the tools aren't there. Every other check runs without them, whatever the shell has set.
+TOOLS=${HORIZON_TOOLS:-../horizon/target/release}
+unset HORIZON_TOOLS
 
 # The made-up mods, compiled against the stand-ins. Their jars hold their own classes and resources only.
 javac --release 21 -d "$B/stubs" $(find test/fixture/stubs -name '*.java')
@@ -120,7 +124,7 @@ jar --create --file "$B/jars/tidy.jar" -C "$B/tidy" . -C test/fixture/tidy/resou
 
 echo; echo "== unit tests"
 javac --release 21 -Xlint:all -Werror -cp build/classes -d "$B/classes" test/java/horizonneo/*.java
-for t in TomlTest JsonTest MetadataTest LicenceCheckTest ClassDataTest AnalyzerTest ReportTest StandInTest BundleTest EventTableTest WiringTest; do
+for t in TomlTest JsonTest MetadataTest LicenceCheckTest ClassDataTest AnalyzerTest ReportTest StandInTest BundleTest EventTableTest WiringTest ContentTest; do
   # Their arguments, for the tests that read them: the first mod's classes, its jar, the stand-ins' jar, the second mod's jar.
   java -cp "build/classes:$B/classes" "horizonneo.$t" "$B/mod" "$J" "$B/jars/neoforge-stubs.jar" "$B/jars/oddities.jar" || failures=$((failures + 1))
 done
