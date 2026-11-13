@@ -75,15 +75,51 @@ licence.
 (`bash mod-converter/build.sh`). It is found through `--translator`, else the `HORIZON_PORT_JAR`
 variable, else a `Horizon-Translator/` folder beside this tool.
 
+### `analyze`: what the mod does
+
+```bash
+java -jar build/horizon-port-neoforge.jar analyze some-mod.jar [--out DIR] [--neoforge-jar JAR[:JAR...]]
+```
+
+Writes `DIR/report.md` and `DIR/report.json` (default `DIR`: `out/<mod id>`). It reads the jar's class
+files and resources: names, annotations, and the order of the calls in each method. Nothing is
+decompiled and nothing of the mod is run. It finds:
+
+| What | How it is read |
+|---|---|
+| Entry points | Each `@Mod` class, the side its `dist` names, and what its constructor is handed. |
+| Event listeners | `@SubscribeEvent` methods (of an `@EventBusSubscriber` class, or of a class or object given to `register`) and `addListener` with a lambda or a method reference. For each: its event, its bus, its side, its priority. |
+| Registries | Each `DeferredRegister`, what is registered with it, and the class of each thing. |
+| Configs | Each `registerConfig`: its type and its spec. |
+| Mixins | The classes the Mixin configs list, with their targets and injectors, and Mixin classes no config lists. |
+| Access transformers | Their entries. |
+| The rest of the code | Classes that extend the game's, and the other parts of NeoForge's API it uses (payloads, capabilities, attachments...). |
+
+- **A listener's bus.** NeoForge posts an event on the mod bus when its class implements
+  `IModBusEvent`, and on the game bus otherwise. That is written in NeoForge's own jars, not in the
+  mod's. So a bus is given when the mod's code shows it (the listener is added to
+  `NeoForge.EVENT_BUS`, or to the bus a `@Mod` constructor is handed), when NeoForge's documentation
+  names the event, or when NeoForge's jars are given with `--neoforge-jar` and the event's ancestry
+  is read from them. Otherwise it is "not known". It is never guessed from an event's name.
+- **What it can't read, it says.** A handler kept in a variable, a bus passed on to another method,
+  a `DeferredRegister` that isn't kept in a static field: the report says what wasn't read.
+- **Statuses.** Each part gets one of horizon-port's statuses (`auto`, `content`, `needs-mapping`,
+  `needs-translation`, `unsupported`), or `info` when there is nothing to convert. Nothing is `auto`
+  or `content` unless it is known to carry over. For now no listener names a Horizon hook and no
+  Mixin is matched to a Horizon function: both are `needs-mapping` until the milestones that do it.
+
+A Fabric jar goes to horizon-port's own `analyze` as it is.
+
 ## Tests
 
 ```bash
 bash test/run-test.sh
 ```
 
-It builds the tool, writes a made-up NeoForge mod ("Pocket Compass", `test/make-fixture.sh`), packs it
-into jars and checks what the tool says about each. No real mod, no game file, nothing downloaded.
-The licence checks need `horizon-port.jar` (above).
+It builds the tool, writes two made-up NeoForge mods (`test/make-fixture.sh`: "Pocket Compass", and a
+second one of things done oddly) with stand-ins for the game and NeoForge to compile them against,
+packs them into jars and checks what the tool says about each. No real mod, no game file, nothing
+downloaded. The licence checks need `horizon-port.jar` (above).
 
 ## Rules of this repository
 

@@ -87,7 +87,7 @@ jar --create --file "$B/jars/neoforge-stubs.jar" -C "$B/stubs" .
 
 echo; echo "== unit tests"
 javac --release 21 -Xlint:all -Werror -cp build/classes -d "$B/classes" test/java/horizonneo/*.java
-for t in TomlTest JsonTest MetadataTest LicenceCheckTest ClassDataTest AnalyzerTest; do
+for t in TomlTest JsonTest MetadataTest LicenceCheckTest ClassDataTest AnalyzerTest ReportTest; do
   # Their arguments, for the tests that read them: the first mod's classes, its jar, the stand-ins' jar, the second mod's jar.
   java -cp "build/classes:$B/classes" "horizonneo.$t" "$B/mod" "$J" "$B/jars/neoforge-stubs.jar" "$B/jars/oddities.jar" || failures=$((failures + 1))
 done
@@ -225,6 +225,68 @@ else
   says "$ERR" "isn't a file (from --translator)"
   exits 1 env HORIZON_PORT_JAR="$B/nowhere.jar" java -jar build/horizon-port-neoforge.jar license "$J"
   says "$ERR" "isn't a file (from HORIZON_PORT_JAR)"
+fi
+
+echo; echo "== analyze"
+exits 0 tool analyze "$J" --out "$B/report"
+says "$OUT" 'Pocket Compass 1.2.3: 13 classes, 2 @Mod classes, 14 event listeners, 6 registrations, 2 Mixin classes'
+says "$OUT" "Report: $B/report/report.md"
+R=$B/report/report.json
+says "$R" '"tool": "horizon-port-neoforge"'
+says "$R" '"class": "com.example.pocketcompass.PocketCompassClient"'
+says "$R" '"event": "net.neoforged.neoforge.client.event.ClientTickEvent$Post"'
+says "$R" '"registeredBy": "addListener in PocketCompass'"'"'s constructor"'
+says "$R" '"busFrom": "it is added to NeoForge.EVENT_BUS"'
+says "$R" '"id": "pocketcompass:spinning_block"'
+says "$R" '"class": "com.example.pocketcompass.SpinningBlock"'
+says "$R" '"spec": "Config.SPEC"'
+says "$R" '"annotation": "Redirect"'
+says "$R" '"needs-mapping": 15'
+says "$R" '"neoforgeJars": false'
+M=$B/report/report.md
+says "$M" '# Pocket Compass 1.2.3: what it does, and what converts to Horizon'
+says "$M" 'Nothing was decompiled, and nothing of the mod was run.'
+says "$M" '| `ClientTickEvent.Post` | not known | client | `ClientEvents.onClientTick` | @EventBusSubscriber on ClientEvents | needs-mapping |'
+says "$M" '| `BlockEvent.BreakEvent` | game | common | `PocketCompass.onBreak` |'
+says "$M" "The bus of 5 listeners isn't known."
+says "$M" '| BLOCK | `pocketcompass:spinning_block` | `SpinningBlock` | `register` | `ModRegistry.SPINNING_BLOCK` | needs-translation |'
+says "$M" '| `MinecraftMixin` | `Minecraft` | @Inject(HEAD) on tick, cancellable | `pocketcompass.mixins.json` (client) |'
+says "$M" '- `public-f net.minecraft.client.Minecraft otherField`'
+lacks "$M" '## Warnings'
+
+# With NeoForge's own jars (here the stand-ins), each event's bus is read, not left unknown.
+exits 0 tool analyze "$J" --out "$B/report-jars" --neoforge-jar "$B/jars/neoforge-stubs.jar"
+says "$B/report-jars/report.md" '| `ClientTickEvent.Post` | game | client | `ClientEvents.onClientTick` |'
+says "$B/report-jars/report.json" '"neoforgeJars": true'
+lacks "$B/report-jars/report.md" "isn't known."
+
+# Without --out, the report goes to out/<mod id> in the current folder.
+mkdir -p "$B/cwd"
+( cd "$B/cwd" && java -jar ../../../build/horizon-port-neoforge.jar analyze ../jars/pocketcompass.jar > /dev/null )
+if [ -f "$B/cwd/out/pocketcompass/report.md" ] && [ -f "$B/cwd/out/pocketcompass/report.json" ]; then
+  echo "  ok: the default folder is out/<mod id>"
+else
+  echo "  FAIL: no report in $B/cwd/out/pocketcompass"
+  failures=$((failures + 1))
+fi
+
+# What can't be read is said in the report.
+exits 0 tool analyze "$B/jars/oddities.jar" --out "$B/report-odd"
+says "$B/report-odd/report.md" '## Warnings'
+says "$B/report-odd/report.md" '- @Mod("somethingelse") on Oddities names no mod of META-INF/neoforge.mods.toml.'
+says "$B/report-odd/report.md" "The handler isn't a lambda or a method reference written at the call, so it wasn't read."
+says "$B/report-odd/report.md" 'in the jar, but the metadata doesn'"'"'t list it'
+
+exits 1 tool analyze "$J" --out "$B/report-x" --neoforge-jar "$B/jars/no-such.jar"
+says "$ERR" "--neoforge-jar: "
+exits 1 tool analyze "$B/jars/forge.jar" --out "$B/report-x"
+exits 1 tool analyze "$B/jars/broken.jar" --out "$B/report-x"
+exits 2 tool analyze
+if [ -f "${HORIZON_PORT_JAR:-}" ]; then
+  # A Fabric jar is horizon-port's: its own report (it gives a verdict, this tool's doesn't), written where asked.
+  exits 0 tool analyze "$B/jars/fabric.jar" --out "$B/report-fabric"
+  says "$B/report-fabric/report.json" '"verdict":'
+  lacks "$B/report-fabric/report.json" '"tool": "horizon-port-neoforge"'
 fi
 
 echo; echo "== the command line"

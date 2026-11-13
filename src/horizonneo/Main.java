@@ -62,8 +62,46 @@ public final class Main {
             case "license" -> {
                 return license(Line.read(args, Set.of("--loader", "--i-am-the-author", "--translator"), Set.of()), out, err);
             }
+            case "analyze" -> {
+                return analyze(Line.read(args, Set.of("--loader", "--out", "--neoforge-jar", "--translator"), Set.of()), out, err);
+            }
             default -> throw new Usage("unknown command `" + args[0] + "`");
         }
+    }
+
+    // ---- analyze ----
+
+    private static int analyze(Line line, PrintStream out, PrintStream err) throws Usage, IOException, ModsToml.Invalid {
+        Path path = line.only("mod jar");
+        ModJar jar = ModJar.open(path);
+        String outDir = line.options().get("--out");
+        if (loader(jar, line.option("--loader", "auto")) == Loader.FABRIC) {
+            // horizon-port's own job: it gets the jar as it is.
+            List<String> args = new ArrayList<>(List.of("analyze", path.toString()));
+            if (outDir != null) {
+                args.add("--out");
+                args.add(outDir);
+            }
+            Translator.Run run = Translator.locate(line.options().get("--translator")).run(args, 300);
+            out.print(run.out());
+            err.print(run.err());
+            return run.exit();
+        }
+        NeoForgeFrontend frontend = NeoForgeFrontend.read(jar);
+        BusFacts facts = BusFacts.documented();
+        String neoforge = line.options().get("--neoforge-jar");
+        if (neoforge != null) {
+            List<Path> jars = new ArrayList<>();
+            for (String one : neoforge.split(java.io.File.pathSeparator)) if (!one.isBlank()) jars.add(Path.of(one));
+            facts = BusFacts.fromJars(jars);
+        }
+        Analysis analysis = Analyzer.analyze(jar, frontend, facts);
+        // The mod's id comes from the jar: only its plain characters go into a folder's name.
+        Path dir = outDir != null ? Path.of(outDir) : Path.of("out", frontend.info().id().replaceAll("[^A-Za-z0-9_-]", "_"));
+        Report.write(dir, jar, frontend, analysis);
+        out.println(Report.summary(frontend, analysis));
+        out.println("Report: " + dir.resolve("report.md"));
+        return DONE;
     }
 
     // ---- license ----
@@ -263,6 +301,15 @@ public final class Main {
                   META-INF/neoforge.mods.toml and by the jar's LICENSE / COPYING files; the
                   strictest wins. Exit code 0 when it is allowed, 3 when it isn't.
                   A Fabric jar goes to horizon-port as it is.
+
+              analyze <mod.jar> [--out DIR] [--neoforge-jar JAR[:JAR...]] [--loader auto|neoforge|fabric]
+                  What the mod does, read from its class files and resources without decompiling
+                  anything: its @Mod classes, its event listeners with the bus and the side of
+                  each, what it registers, its configs, its Mixin classes and its access
+                  transformers. Writes DIR/report.md and DIR/report.json (default DIR:
+                  out/<mod id>). --neoforge-jar: NeoForge's own jars, read for the bus each event
+                  is posted on; without them a bus is given only where the mod's code or
+                  NeoForge's documentation tells it. A Fabric jar goes to horizon-port as it is.
 
             horizon-port.jar is Horizon-Translator's converter, built in its clone
             (bash mod-converter/build.sh). It is found through --translator, else the
