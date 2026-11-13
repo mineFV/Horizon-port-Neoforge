@@ -117,14 +117,20 @@ final class LicenceCheck {
      * the authors as the mod writes them (they were handed over as a list of names that each count).
      */
     static String report(String theirs, ModInfo info) {
-        String text = theirs.replace("Declared in " + ModJar.FABRIC, "Declared in " + info.metadataFile());
-        if (info.authors().size() > 1) text = text.replace(String.join(", ", info.authors()), info.authors().get(0));
+        String text = named(theirs, info);
         StringBuilder b = new StringBuilder(text);
         if (!text.endsWith("\n")) b.append('\n');
         b.append("\nChecked by horizon-port's licence rules, on what ").append(info.metadataFile())
                 .append(" declares and on the jar's licence files.\n");
         for (String warning : info.warnings()) b.append("Note: ").append(warning).append(".\n");
         return b.toString();
+    }
+
+    /** horizon-port's words on the licence, with the mod's real metadata file and its authors as the mod writes them. */
+    static String named(String theirs, ModInfo info) {
+        String text = theirs.replace("Declared in " + ModJar.FABRIC, "Declared in " + info.metadataFile());
+        if (info.authors().size() > 1) text = text.replace(String.join(", ", info.authors()), info.authors().get(0));
+        return text;
     }
 
     private static void put(ZipOutputStream zip, String name, byte[] bytes) throws IOException {
