@@ -7,6 +7,9 @@ import java.util.List;
  * where it was read. Nothing here says what becomes of it in Horizon; `Report` does.
  *
  * Class names are internal names (`com/example/Mod`), as class files write them.
+ *
+ * configScreens: the mod's classes that name NeoForge's `IConfigScreenFactory`, which is how a mod
+ * says it has a settings screen of its own.
  */
 record Analysis(
         Census census,
@@ -14,6 +17,7 @@ record Analysis(
         List<Listener> listeners,
         List<Registry> registries,
         List<ConfigUse> configs,
+        List<String> configScreens,
         List<MixinClass> mixins,
         List<AccessFile> accessTransformers,
         List<GameClass> gameClasses,
@@ -26,6 +30,7 @@ record Analysis(
         listeners = List.copyOf(listeners);
         registries = List.copyOf(registries);
         configs = List.copyOf(configs);
+        configScreens = List.copyOf(configScreens);
         mixins = List.copyOf(mixins);
         accessTransformers = List.copyOf(accessTransformers);
         gameClasses = List.copyOf(gameClasses);

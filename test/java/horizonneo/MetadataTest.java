@@ -160,6 +160,6 @@ final class MetadataTest {
     }
 
     private static ModJar jar(String modsToml, String jarVersion) {
-        return new ModJar(Path.of("test.jar"), modsToml != null, false, false, modsToml, jarVersion, List.of());
+        return new ModJar(Path.of("test.jar"), modsToml != null, false, false, modsToml, jarVersion, List.of(), List.of());
     }
 }

@@ -289,6 +289,13 @@ if [ -f "${HORIZON_PORT_JAR:-}" ]; then
   lacks "$B/report-fabric/report.json" '"tool": "horizon-port-neoforge"'
 fi
 
+# The older way to name a Mixin config, in the jar's manifest: said, not acted on.
+printf 'Implementation-Version: 1.2.3\nMixinConfigs: legacy.mixins.json, pocketcompass.mixins.json\n' > "$B/over/manifest.mf"
+jar --create --file "$B/jars/manifestmixins.jar" --manifest "$B/over/manifest.mf" -C "$B/mod" . -C "$F/resources" .
+exits 0 tool analyze "$B/jars/manifestmixins.jar" --out "$B/report-manifest"
+says "$B/report-manifest/report.md" "the jar's manifest names the Mixin config legacy.mixins.json"
+lacks "$B/report-manifest/report.md" "names the Mixin config pocketcompass.mixins.json"
+
 echo; echo "== the command line"
 exits 0 tool --help
 exits 2 tool

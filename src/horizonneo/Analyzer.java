@@ -60,6 +60,7 @@ final class Analyzer {
     static final String DIST = "net/neoforged/api/distmarker/Dist";
     static final String DEFERRED_REGISTER = "net/neoforged/neoforge/registries/DeferredRegister";
     static final String CONFIG_TYPE = "net/neoforged/fml/config/ModConfig$Type";
+    static final String CONFIG_SCREEN = "net/neoforged/neoforge/client/gui/IConfigScreenFactory";
     static final String MIXIN = "Lorg/spongepowered/asm/mixin/Mixin;";
     static final String DEFAULT_TRANSFORMER = "META-INF/accesstransformer.cfg";
 
@@ -138,7 +139,7 @@ final class Analyzer {
         a.subscribed();
         a.listeners.sort(Comparator.comparing(Listener::handlerClass));
         return new Analysis(new Census(a.classes.size(), a.assets, a.data), entryPoints, a.listeners, a.registries(), a.configs(),
-                mixins, a.accessTransformers(), a.gameClasses(), a.apiAreas(), facts.hasJars(), a.warnings);
+                a.configScreens(), mixins, a.accessTransformers(), a.gameClasses(), a.apiAreas(), facts.hasJars(), a.warnings);
     }
 
     // ---- the jar ----
@@ -591,10 +592,22 @@ final class Analyzer {
         return out;
     }
 
+    /** The classes that name NeoForge's config screen factory: they make one, or hand one to NeoForge. */
+    private List<String> configScreens() {
+        List<String> out = new ArrayList<>();
+        for (ClassData c : classes.values()) if (c.classRefs.contains(CONFIG_SCREEN)) out.add(c.name);
+        return out;
+    }
+
     // ---- Mixin classes ----
 
     private List<MixinClass> mixins() {
         Map<String, MixinClass> out = new LinkedHashMap<>();
+        for (String config : jar.manifestMixins()) {
+            if (info.mixinConfigs().contains(config)) continue;
+            warnings.add("the jar's manifest names the Mixin config " + config + " (`MixinConfigs`), which " + ModsToml.PATH
+                    + " doesn't list: whether NeoForge applies it isn't known here, so the classes it lists are taken as not applied");
+        }
         for (String config : info.mixinConfigs()) {
             String text = texts.get(config);
             if (text == null) {

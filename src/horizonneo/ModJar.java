@@ -24,7 +24,7 @@ import java.util.zip.ZipFile;
  * Implementation-Version in the manifest.
  */
 record ModJar(Path path, boolean neoforge, boolean fabric, boolean legacyForge, String modsToml, String jarVersion,
-              List<String> licenceFiles) {
+              List<String> manifestMixins, List<String> licenceFiles) {
 
     /** Fabric's metadata file, and the one Forge and NeoForge before 20.5 use. */
     static final String FABRIC = "fabric.mod.json", LEGACY_FORGE = "META-INF/mods.toml";
@@ -33,6 +33,7 @@ record ModJar(Path path, boolean neoforge, boolean fabric, boolean legacyForge, 
     static final int MAX_TEXT = 1 << 20;
 
     ModJar {
+        manifestMixins = List.copyOf(manifestMixins);
         licenceFiles = List.copyOf(licenceFiles);
     }
 
@@ -48,8 +49,15 @@ record ModJar(Path path, boolean neoforge, boolean fabric, boolean legacyForge, 
             ZipEntry toml = zip.getEntry(ModsToml.PATH);
             if (toml != null) modsToml = new String(read(zip, toml, MAX_TEXT), StandardCharsets.UTF_8);
             ZipEntry manifest = zip.getEntry("META-INF/MANIFEST.MF");
+            List<String> manifestMixins = new ArrayList<>();
             if (manifest != null) {
-                jarVersion = new Manifest(new ByteArrayInputStream(read(zip, manifest, MAX_TEXT))).getMainAttributes().getValue("Implementation-Version");
+                java.util.jar.Attributes main = new Manifest(new ByteArrayInputStream(read(zip, manifest, MAX_TEXT))).getMainAttributes();
+                jarVersion = main.getValue("Implementation-Version");
+                // The older way to name Mixin configs: a comma-separated list in the manifest.
+                String configs = main.getValue("MixinConfigs");
+                if (configs != null) {
+                    for (String one : configs.split(",")) if (!one.isBlank()) manifestMixins.add(one.strip());
+                }
             }
             List<String> licences = new ArrayList<>();
             Enumeration<? extends ZipEntry> entries = zip.entries();
@@ -58,7 +66,7 @@ record ModJar(Path path, boolean neoforge, boolean fabric, boolean legacyForge, 
                 if (!e.isDirectory() && licenceLike(e.getName())) licences.add(e.getName());
             }
             return new ModJar(path, toml != null, zip.getEntry(FABRIC) != null, zip.getEntry(LEGACY_FORGE) != null,
-                    modsToml, jarVersion, licences);
+                    modsToml, jarVersion, manifestMixins, licences);
         } catch (ZipException e) {
             throw new IOException(path.getFileName() + " isn't a jar (a zip file): " + e.getMessage());
         }
