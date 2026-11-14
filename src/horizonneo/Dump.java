@@ -1,52 +1,44 @@
 package horizonneo;
 
-import java.io.ByteArrayOutputStream;
 import java.io.IOException;
-import java.io.InputStream;
-import java.io.OutputStream;
 import java.io.PrintStream;
-import java.net.ServerSocket;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
+import java.nio.file.LinkOption;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
-import java.util.jar.Attributes;
-import java.util.jar.JarEntry;
-import java.util.jar.JarOutputStream;
-import java.util.jar.Manifest;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 import java.util.stream.Stream;
-import javax.tools.JavaCompiler;
-import javax.tools.ToolProvider;
 
 /**
- * `dump`: the mod's real facts, read in a NeoForge server. The dumper (dumper/ in this repository, carried in
- * this tool's jar as source) is compiled against that server's own jars, put beside the mod in a server folder
- * of its own, and the server is started without a window; once it has started, the dumper writes what the
- * game registered for the mod's namespaces and stops it.
+ * `dump`: the mod's real facts, read in NeoForge by Horizon's own oracle (`tools/neoforge_oracle.py` in
+ * Horizon's source, MIT, run unchanged). It starts a NeoForge server headless with the mod and its exporter
+ * and writes every block, item, recipe and tag of the mod's namespaces, and vanilla's blocks for templates,
+ * in the format `horizon-port-pack carry` reads (`port --facts`).
+ *
+ * The oracle installs NeoForge itself under `<horizon>/.local/neoforge-oracle/<version>` by downloading it.
+ * This never lets it: the server the maintainer installed is linked there first, for its version, so
+ * nothing is downloaded. The oracle writes eula=true in its own run folder; this checks first that the
+ * maintainer's server says it, and stops otherwise: Minecraft's EULA is theirs to accept, never this tool's.
  *
  * This runs the original mod's Java, in NeoForge: the one thing CLAUDE.md's rule 2 allows, at the
- * maintainer's request. Minecraft's EULA is the maintainer's to accept, in the server folder they give: this
- * never writes `eula=true`. The folder the server runs in is a temporary one, deleted afterwards, so the
- * given server folder isn't changed.
+ * maintainer's request.
  */
 final class Dump {
     private Dump() {}
 
-    /** How long a server may take to start and dump. */
-    static final int SECONDS = 600;
-    static final String DUMPER = "horizon_port_dumper";
+    /** How long the oracle may take: it builds its exporter, starts the server and dumps. */
+    static final int SECONDS = 15 * 60;
+    static final String ORACLE = "tools/neoforge_oracle.py", HOME = ".local/neoforge-oracle";
 
-    record Options(Path server, Path out, String java) {}
+    record Options(Path server, Path horizonSrc, Path out, String python) {}
 
     static int run(ModJar jar, NeoForgeFrontend frontend, Options o, PrintStream out, PrintStream err) throws IOException {
         List<String> ids = frontend.toml().mods().stream().map(ModsToml.Mod::modId).toList();
-        Path server = o.server().toAbsolutePath().normalize();
-        out.println("Dumping " + String.join(", ", ids) + " (" + jar.path().getFileName() + ") in the NeoForge server " + server);
+        Path server = o.server().toAbsolutePath().normalize(), horizon = o.horizonSrc().toAbsolutePath().normalize();
+        out.println("Dumping " + String.join(", ", ids) + " (" + jar.path().getFileName() + ") with Horizon's NeoForge oracle, in the server " + server);
 
         Path args = argsFile(server);
         if (args == null) {
@@ -54,42 +46,46 @@ final class Dump {
                     + " (made by NeoForge's installer: java -jar neoforge-<version>-installer.jar --install-server <folder>)");
             return Main.FAILED;
         }
+        String version = args.getParent().getFileName().toString();
         if (!eulaAccepted(server)) {
             out.println("  problem: " + server.resolve("eula.txt") + " doesn't say eula=true. Minecraft's EULA is yours to read and accept "
                     + "(https://aka.ms/MinecraftEULA): write eula=true in that file yourself; this tool never does.");
             return Main.FAILED;
         }
-        out.println("  ok: NeoForge " + args.getParent().getFileName() + ", and its EULA is accepted");
+        out.println("  ok: NeoForge " + version + ", and its EULA is accepted");
+        Path oracle = horizon.resolve(ORACLE);
+        if (!Files.isRegularFile(oracle)) {
+            out.println("  problem: " + horizon + " has no " + ORACLE + ": it is Horizon's NeoForge oracle, in Horizon's source");
+            return Main.FAILED;
+        }
+        String linked = link(horizon.resolve(HOME).resolve(version), server);
+        if (linked != null) {
+            out.println("  problem: " + linked);
+            return Main.FAILED;
+        }
+        out.println("  ok: the oracle uses this server for NeoForge " + version + " (" + horizon.resolve(HOME).resolve(version) + "), so it downloads nothing");
 
         Path facts = (o.out() == null ? Path.of("out", ids.get(0) + "-facts.json") : o.out()).toAbsolutePath().normalize();
         Files.createDirectories(facts.getParent());
         Files.deleteIfExists(facts);
         Path log = facts.resolveSibling(facts.getFileName().toString().replaceAll("\\.json$", "") + ".log");
-
         Path work = Files.createTempDirectory("horizon-dump-");
         try {
-            Path dumper = work.resolve("dumper.jar");
-            String compiled = compileDumper(server, work.resolve("dumper"), dumper);
-            if (compiled != null) {
-                out.println("  problem: the dumper doesn't compile against this server's jars:");
-                compiled.lines().limit(20).forEach(l -> out.println("    " + l));
+            Path jars = work.resolve("jars");
+            Files.createDirectories(jars);
+            Files.copy(jar.path(), jars.resolve(jar.path().getFileName()));
+            List<String> command = new ArrayList<>(List.of(o.python() == null ? "python3" : o.python(), oracle.toString(), "export",
+                    "--jars", jars.toString(), "--namespaces", String.join(",", ids), "--out", facts.toString()));
+            ProcessBuilder builder = new ProcessBuilder(command).directory(horizon.toFile()).redirectErrorStream(true).redirectOutput(log.toFile());
+            builder.environment().put("HORIZON_NEOFORGE", version);
+            out.println("  note: the oracle is running (its output goes to " + log + ")");
+            Process process;
+            try {
+                process = builder.start();
+            } catch (IOException e) {
+                out.println("  problem: " + command.get(0) + " couldn't be started (" + e.getMessage() + "): the oracle needs Python 3.11 or newer; --python names it");
                 return Main.FAILED;
             }
-            out.println("  ok: the dumper compiles against this server's jars");
-
-            Path run = work.resolve("server");
-            Files.createDirectories(run.resolve("mods"));
-            Files.copy(jar.path(), run.resolve("mods").resolve(jar.path().getFileName()));
-            Files.copy(dumper, run.resolve("mods/horizon-port-dumper.jar"));
-            Files.copy(server.resolve("eula.txt"), run.resolve("eula.txt"));
-            Files.writeString(run.resolve("server.properties"), properties(freePort()), StandardCharsets.UTF_8);
-            Files.writeString(run.resolve("args.txt"), absolute(Files.readString(args, StandardCharsets.UTF_8), server), StandardCharsets.UTF_8);
-
-            List<String> command = new ArrayList<>(List.of(o.java() == null ? java() : o.java(),
-                    "-Dhorizon.dump.namespaces=" + String.join(",", ids), "-Dhorizon.dump.out=" + facts, "@" + run.resolve("args.txt"), "nogui"));
-            ProcessBuilder builder = new ProcessBuilder(command).directory(run.toFile()).redirectErrorStream(true).redirectOutput(log.toFile());
-            out.println("  note: the server is starting (its output goes to " + log + "); it can take a few minutes");
-            Process process = builder.start();
             process.getOutputStream().close();
             boolean done;
             try {
@@ -100,17 +96,17 @@ final class Dump {
             }
             if (!done) {
                 process.destroyForcibly();
-                out.println("  problem: the server didn't stop within " + SECONDS + " seconds; it was stopped. Its output: " + log);
+                out.println("  problem: the oracle didn't finish within " + SECONDS + " seconds; it was stopped. Its output: " + log);
                 return Main.FAILED;
             }
-            if (!Files.isRegularFile(facts)) {
-                out.println("  problem: the server stopped (exit " + process.exitValue() + ") without the dumper writing anything. The end of its output:");
+            if (process.exitValue() != 0 || !Files.isRegularFile(facts)) {
+                out.println("  problem: the oracle failed (exit " + process.exitValue() + "). The end of its output:");
                 tail(log, 25).forEach(l -> out.println("    " + l));
                 return Main.FAILED;
             }
-            summary(facts, out);
-            out.println("Facts written to " + facts);
-            out.println("The mod was loaded and run in NeoForge, in a folder that has been deleted; nothing was compiled or run in Horizon.");
+            summary(facts, ids, out);
+            out.println("Facts written to " + facts + "; `port --facts` reads them");
+            out.println("The mod was loaded and run in NeoForge, in the oracle's run folder; nothing was compiled or run in Horizon.");
             return Main.DONE;
         } finally {
             Port.delete(work);
@@ -151,114 +147,42 @@ final class Dump {
         return false;
     }
 
-    private static final Pattern LIBRARIES = Pattern.compile("(^|[\\s:;=,])libraries(?=[/\\\\\\s]|$)", Pattern.MULTILINE);
-
-    /** The installer's arguments, with its paths into libraries/ made absolute, so the server can run in another folder. */
-    static String absolute(String args, Path server) {
-        String folder = server.resolve("libraries").toString().replace('\\', '/');
-        return LIBRARIES.matcher(args).replaceAll(m -> m.group(1) + Matcher.quoteReplacement(folder));
-    }
-
-    /** A server that listens on this machine alone, in a flat world with nothing to generate that a dump doesn't need. */
-    static String properties(int port) {
-        return String.join("\n",
-                "# Written by horizon-port-neoforge's dump: a server for reading registries, deleted afterwards.",
-                "server-ip=127.0.0.1",
-                "server-port=" + port,
-                "online-mode=false",
-                "level-name=dump",
-                "level-type=minecraft\\:flat",
-                "generator-settings={\"biome\"\\:\"minecraft\\:the_void\",\"layers\"\\:[{\"block\"\\:\"minecraft\\:air\",\"height\"\\:1}]}",
-                "generate-structures=false",
-                "spawn-protection=0",
-                "max-players=1",
-                "enable-query=false",
-                "enable-rcon=false",
-                "");
-    }
-
-    private static int freePort() throws IOException {
-        try (ServerSocket socket = new ServerSocket(0)) {
-            return socket.getLocalPort();
+    /**
+     * Makes the oracle's folder for that version show the given server: a link, made when there is nothing
+     * there. One already there is used when it is this server, or another install of that version; null when
+     * the oracle can use it, else why not.
+     */
+    static String link(Path home, Path server) throws IOException {
+        if (Files.isSymbolicLink(home)) {
+            Path to = Files.readSymbolicLink(home);
+            if (!to.isAbsolute()) to = home.resolveSibling(to);
+            if (Files.exists(to) && Files.isSameFile(to, server)) return null;
+            return home + " already links to another folder (" + to + "): remove that link, or give that server";
         }
-    }
-
-    private static String java() {
-        return Path.of(System.getProperty("java.home"), "bin", "java").toString();
-    }
-
-    // ---- the dumper ----
-
-    /** Where the dumper's files are in this tool's jar, and where they go in the dumper's own. */
-    static final Map<String, String> DUMPER_FILES = Map.of(
-            "dumper/horizonneo/dumper/Dumper.java", "horizonneo/dumper/Dumper.java",
-            "dumper/META-INF/neoforge.mods.toml", "META-INF/neoforge.mods.toml");
-
-    /** The jars the dumper compiles against: NeoForge's patched classes first, then the game's, then the rest. */
-    static List<Path> classpath(Path server) throws IOException {
-        Path libraries = server.resolve("libraries");
-        List<Path> all;
-        try (Stream<Path> s = Files.walk(libraries)) {
-            all = s.filter(p -> p.toString().endsWith(".jar")).sorted().toList();
+        if (Files.exists(home, LinkOption.NOFOLLOW_LINKS)) {
+            return argsFile(home) != null ? null : home + " is there but holds no NeoForge server: remove it, and the oracle uses yours";
         }
-        List<Path> out = new ArrayList<>();
-        all.stream().filter(p -> p.getFileName().toString().matches("neoforge-.*-server\\.jar")).forEach(out::add);
-        all.stream().filter(p -> p.getFileName().toString().matches("server-.*-srg\\.jar")).forEach(out::add);
-        // The game's other jars there are the installer's inputs (obfuscated, or the vanilla bundler): not what runs.
-        Path game = libraries.resolve("net/minecraft/server");
-        all.stream().filter(p -> !out.contains(p) && !p.startsWith(game)).forEach(out::add);
-        return out;
-    }
-
-    /** Compiles the dumper into a jar; null when it compiled, else what the compiler said. */
-    private static String compileDumper(Path server, Path dir, Path jarFile) throws IOException {
-        Path src = dir.resolve("src"), classes = dir.resolve("classes");
-        Files.createDirectories(classes);
-        for (Map.Entry<String, String> f : DUMPER_FILES.entrySet()) {
-            Path to = (f.getValue().endsWith(".java") ? src : classes).resolve(f.getValue());
-            Files.createDirectories(to.getParent());
-            try (InputStream in = Dump.class.getResourceAsStream("/" + f.getKey())) {
-                if (in == null) return "this tool's jar doesn't carry " + f.getKey() + " (build it with build.sh)";
-                Files.copy(in, to);
-            }
-        }
-        JavaCompiler javac = ToolProvider.getSystemJavaCompiler();
-        if (javac == null) return "this Java has no compiler (a JDK is needed, not a JRE)";
-        String cp = String.join(java.io.File.pathSeparator, classpath(server).stream().map(Path::toString).toList());
-        ByteArrayOutputStream said = new ByteArrayOutputStream();
-        int exit = javac.run(null, said, said, "--release", "21", "-proc:none", "-nowarn", "-cp", cp, "-d", classes.toString(),
-                src.resolve("horizonneo/dumper/Dumper.java").toString());
-        if (exit != 0) return said.toString(StandardCharsets.UTF_8);
-        Manifest manifest = new Manifest();
-        manifest.getMainAttributes().put(Attributes.Name.MANIFEST_VERSION, "1.0");
-        try (OutputStream file = Files.newOutputStream(jarFile); JarOutputStream jar = new JarOutputStream(file, manifest);
-             Stream<Path> s = Files.walk(classes)) {
-            for (Path p : s.filter(Files::isRegularFile).sorted().toList()) {
-                jar.putNextEntry(new JarEntry(classes.relativize(p).toString().replace('\\', '/')));
-                Files.copy(p, jar);
-                jar.closeEntry();
-            }
+        Files.createDirectories(home.getParent());
+        try {
+            Files.createSymbolicLink(home, server);
+        } catch (UnsupportedOperationException | IOException e) {
+            return "the link " + home + " -> " + server + " couldn't be made (" + e.getMessage() + ")";
         }
         return null;
     }
 
     // ---- what came out ----
 
-    private static void summary(Path facts, PrintStream out) throws IOException {
+    private static void summary(Path facts, List<String> ids, PrintStream out) throws IOException {
         Map<String, Object> f;
         try {
             f = Json.object(Json.parse(Files.readString(facts, StandardCharsets.UTF_8)));
         } catch (Json.Invalid e) {
-            throw new IOException("the dumper wrote " + facts + ", which isn't JSON: " + e.getMessage());
+            throw new IOException("the oracle wrote " + facts + ", which isn't JSON: " + e.getMessage());
         }
-        for (String key : List.of("blocks", "items", "blockEntityTypes", "menus", "fluids", "creativeTabs")) {
-            List<Object> things = Json.array(f.get(key));
-            int unread = 0;
-            for (Object t : things) {
-                Object u = Json.object(t).get("unread");
-                if (u instanceof Map<?, ?> m && !m.isEmpty()) unread++;
-            }
-            out.println("  ok: " + things.size() + " " + key + (unread == 0 ? "" : " (" + unread + " with values not read: their `unread` says why)"));
+        for (String key : List.of("blocks", "items", "recipes")) {
+            long mine = Json.object(f.get(key)).keySet().stream().filter(k -> ids.contains(k.substring(0, Math.max(0, k.indexOf(':'))))).count();
+            out.println("  ok: " + mine + " " + key + " of the mod's");
         }
     }
 

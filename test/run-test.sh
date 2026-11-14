@@ -610,6 +610,18 @@ if [ -f "${HORIZON_PORT_JAR:-}" ]; then
     lacks "$P/wrapped/PORTING.md" "the code doesn't register it"
     says "$P/wrapped/report/report.md" "makes a DeferredRegister that isn't kept in a static field"
 
+    # With the mod's facts, horizon-port-pack's pipeline declares each block and item from them: packed, nothing guessed.
+    exits 0 tool port "$B/jars/content.jar" --horizon-src "$H" --out "$P/facts" --horizon-tools "$T" --facts test/fixture/facts/pocketcompass.json
+    says "$OUT" 'Content: pocketcompass.hmod'
+    says "$OUT" "it declares 1 block and 1 item, each from the mod's facts in NeoForge"
+    is_file "$P/facts/pocketcompass.hmod"
+    no_file "$P/facts/todo/content/horizon-mod.toml"
+    says "$P/facts/content/data/pocketcompass/horizon/block/plain_block.json" '"hardness": 5.0'
+    says "$P/facts/content/data/pocketcompass/horizon/block/plain_block.json" '"light": 7'
+    says "$P/facts/content/data/pocketcompass/horizon/item/pocket_compass.json" '"max_stack_size": 1'
+    says "$P/facts/PORTING.md" '| block `pocketcompass:plain_block` | `minecraft:stone` | yes |'
+    lacks "$P/facts/PORTING.md" "Horizon's guess"
+
     # With --allow-approximate it is packed as it is, and each guess is still listed.
     exits 0 tool port "$B/jars/content.jar" --horizon-src "$H" --out "$P/guessed-packed" --horizon-tools "$T" --allow-approximate
     says "$OUT" 'Content: pocketcompass.hmod (8 files), packed and checked by `cargo horizon-mod`; it declares 1 block and 1 item'
@@ -850,33 +862,56 @@ if [ -f "${HORIZON_PORT_JAR:-}" ]; then
 fi
 
 echo; echo "== dump"
-# Without NeoForge: what it checks before starting anything. The dumper itself only runs against a real server.
+# Against a stand-in server and a stand-in for Horizon's oracle (test/fixture/horizon-src/tools): nothing starts.
 D=$B/dump
-exits 2 tool dump "$J"
+exits 2 tool dump "$J" --horizon-src "$H"
 says "$ERR" '`dump` needs --server'
-exits 1 tool dump "$J" --server "$D/nothing" --out "$D/facts.json"
+exits 2 tool dump "$J" --server "$D/server"
+says "$ERR" '`dump` needs --horizon-src'
+exits 1 tool dump "$J" --server "$D/nothing" --horizon-src "$H" --out "$D/facts.json"
 says "$OUT" "isn't a NeoForge server: there is no libraries/net/neoforged/neoforge/<version>/"
 no_file "$D/facts.json"
 mkdir -p "$D/server/libraries/net/neoforged/neoforge/21.1.1"
 echo '-p libraries/a.jar' > "$D/server/libraries/net/neoforged/neoforge/21.1.1/unix_args.txt"
-exits 1 tool dump "$J" --server "$D/server" --out "$D/facts.json"
+exits 1 tool dump "$J" --server "$D/server" --horizon-src "$H" --out "$D/facts.json"
 says "$OUT" "doesn't say eula=true. Minecraft's EULA is yours to read and accept"
 says "$OUT" "this tool never does"
 no_file "$D/server/eula.txt"
 no_file "$D/facts.json"
 echo 'eula=false' > "$D/server/eula.txt"
-exits 1 tool dump "$J" --server "$D/server"
+exits 1 tool dump "$J" --server "$D/server" --horizon-src "$H"
 says "$OUT" "doesn't say eula=true"
 says "$D/server/eula.txt" 'eula=false'
-# With the EULA accepted, the stand-in server has no NeoForge jars: the dumper doesn't compile, nothing starts.
 echo 'eula=true' > "$D/server/eula.txt"
-exits 1 tool dump "$J" --server "$D/server" --out "$D/facts.json"
+mkdir -p "$D/no-oracle"
+exits 1 tool dump "$J" --server "$D/server" --horizon-src "$D/no-oracle"
 says "$OUT" "ok: NeoForge 21.1.1, and its EULA is accepted"
-says "$OUT" "problem: the dumper doesn't compile against this server's jars"
-lacks "$OUT" "the server is starting"
-no_file "$D/facts.json"
-exits 2 tool dump "$B/jars/fabric.jar" --server "$D/server"
+says "$OUT" "has no tools/neoforge_oracle.py"
+if command -v python3 > /dev/null; then
+  exits 0 tool dump "$J" --server "$D/server" --horizon-src "$H" --out "$D/facts.json"
+  says "$OUT" "ok: the oracle uses this server for NeoForge 21.1.1"
+  says "$OUT" "ok: 1 blocks of the mod's"
+  says "$OUT" "port --facts"
+  says "$D/facts.json" '"pocketcompass:plain_block"'
+  says "$D/facts.json" '"pocketcompass.jar"'
+  says "$D/facts.log" "fake oracle, NeoForge 21.1.1"
+  if [ -L "$H/.local/neoforge-oracle/21.1.1" ]; then echo "  ok: the oracle's folder for 21.1.1 links to the server"; else echo "  FAIL: no link in $H/.local/neoforge-oracle/"; failures=$((failures + 1)); fi
+  exits 1 env FAKE_ORACLE=fail java -Djava.io.tmpdir="$PWD/$B/tmp" -jar build/horizon-port-neoforge.jar dump "$J" --server "$D/server" --horizon-src "$H" --out "$D/failed.json"
+  says "$OUT" "problem: the oracle failed (exit 1)"
+  says "$OUT" "the mod crashed the server"
+  no_file "$D/failed.json"
+  mkdir -p "$D/server2/libraries/net/neoforged/neoforge/21.1.1"
+  cp "$D/server/libraries/net/neoforged/neoforge/21.1.1/unix_args.txt" "$D/server2/libraries/net/neoforged/neoforge/21.1.1/"
+  echo 'eula=true' > "$D/server2/eula.txt"
+  exits 1 tool dump "$J" --server "$D/server2" --horizon-src "$H"
+  says "$OUT" "already links to another folder"
+else
+  echo "  (skipped: a dump through the stand-in oracle: there is no python3 here)"
+fi
+exits 2 tool dump "$B/jars/fabric.jar" --server "$D/server" --horizon-src "$H"
 says "$ERR" '`dump` takes a NeoForge mod'
+exits 2 tool port "$J" --horizon-src "$H" --out "$P/no-facts" --facts "$D/none.json"
+says "$ERR" "which isn't a file"
 
 echo; echo "== the command line"
 exits 0 tool --help

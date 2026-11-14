@@ -5,6 +5,7 @@
 #   tidy/           a third one, with nothing in it that a converter can't finish;
 #   extras/         classes laid over Pocket Compass for one test each;
 #   horizon-src/    a stand-in for Horizon's source: a few hook points, to convert against;
+#   facts/          made-up facts in the NeoForge oracle's format, for `port --facts`;
 #   fake-port/      a stand-in for horizon-port.jar that compiles nothing, for `check --compile`;
 #   stubs/          stand-ins for the game, NeoForge, FML, the event bus and Mixin that they compile
 #                   against. Only their names and shapes matter: they do nothing and aren't put in the
@@ -1012,6 +1013,83 @@ public final class FakePort {
         System.out.println("ok: the bundle's Rust compiles against Horizon's helpers");
     }
 }
+EOF
+
+# Facts in the NeoForge oracle's format (Horizon's tools/neoforge_oracle.py), made up for Pocket Compass: its
+# plain block, as hard as iron and lit, and its compass, one to a stack. A vanilla block too, for a template.
+# `port --facts` hands them to horizon-port-pack's carry.
+mkdir -p fixture/facts
+cat > fixture/facts/pocketcompass.json <<'EOF'
+{
+  "schema": 1,
+  "minecraft": "1.21.1",
+  "namespaces": ["pocketcompass"],
+  "tools": ["hand", "diamond_pickaxe"],
+  "blocks": {
+    "minecraft:stone": {
+      "class": ["net.minecraft.world.level.block.Block", "net.minecraft.world.level.block.state.BlockBehaviour"],
+      "properties": {}, "default": "", "item": "minecraft:stone",
+      "explosion_resistance": 6.0, "friction": 0.6, "speed_factor": 1.0, "jump_factor": 1.0,
+      "states": { "": { "hardness": 1.5, "emission": 0, "requires_tool": true, "can_occlude": true, "replaceable": false,
+        "random_ticks": false, "map_color": 7368816, "map_color_id": 11,
+        "sound": { "volume": 1.0, "pitch": 1.0, "break": "minecraft:block.stone.break", "step": "minecraft:block.stone.step",
+          "place": "minecraft:block.stone.place", "hit": "minecraft:block.stone.hit", "fall": "minecraft:block.stone.fall" },
+        "outline": [[0.0, 0.0, 0.0, 1.0, 1.0, 1.0]], "collision": [[0.0, 0.0, 0.0, 1.0, 1.0, 1.0]],
+        "drops": { "hand": {}, "diamond_pickaxe": { "minecraft:cobblestone": 1 } } } },
+      "placement": { "up": "", "north": "" }
+    },
+    "pocketcompass:plain_block": {
+      "class": ["net.minecraft.world.level.block.Block", "net.minecraft.world.level.block.state.BlockBehaviour"],
+      "properties": {}, "default": "", "item": "pocketcompass:plain_block",
+      "explosion_resistance": 6.0, "friction": 0.6, "speed_factor": 1.0, "jump_factor": 1.0,
+      "states": { "": { "hardness": 5.0, "emission": 7, "requires_tool": true, "can_occlude": true, "replaceable": false,
+        "random_ticks": false, "map_color": 7368816, "map_color_id": 11,
+        "sound": { "volume": 1.0, "pitch": 1.0, "break": "minecraft:block.stone.break", "step": "minecraft:block.stone.step",
+          "place": "minecraft:block.stone.place", "hit": "minecraft:block.stone.hit", "fall": "minecraft:block.stone.fall" },
+        "outline": [[0.0, 0.0, 0.0, 1.0, 1.0, 1.0]], "collision": [[0.0, 0.0, 0.0, 1.0, 1.0, 1.0]],
+        "drops": { "hand": {}, "diamond_pickaxe": { "pocketcompass:plain_block": 1 } } } },
+      "placement": { "up": "", "north": "" }
+    }
+  },
+  "vanilla_items": [],
+  "items": {
+    "pocketcompass:plain_block": { "class": "net.minecraft.world.item.BlockItem", "max_stack_size": 64, "rarity": "common",
+      "block": "pocketcompass:plain_block", "components": { "minecraft:max_stack_size": 64, "minecraft:rarity": "common" } },
+    "pocketcompass:pocket_compass": { "class": "net.minecraft.world.item.Item", "max_stack_size": 1, "rarity": "common",
+      "components": { "minecraft:max_stack_size": 1, "minecraft:rarity": "common" } }
+  },
+  "recipes": {},
+  "tags": { "block": {}, "item": {} }
+}
+EOF
+
+# A stand-in for Horizon's NeoForge oracle: it does what the real one is asked to (find NeoForge under
+# .local/neoforge-oracle/$HORIZON_NEOFORGE, write the facts of --namespaces to --out) without starting
+# anything. FAKE_ORACLE=fail makes it fail as a server that crashed would.
+mkdir -p "$H/tools"
+cat > "$H/tools/neoforge_oracle.py" <<'EOF'
+#!/usr/bin/env python3
+"""A stand-in for Horizon's NeoForge oracle, for horizon-port-neoforge's tests: it starts nothing."""
+import argparse, json, os, sys
+from pathlib import Path
+p = argparse.ArgumentParser()
+p.add_argument('command')
+p.add_argument('--jars', required=True)
+p.add_argument('--namespaces', required=True)
+p.add_argument('--out', required=True)
+a = p.parse_args()
+version = os.environ.get('HORIZON_NEOFORGE', '')
+home = Path('.local/neoforge-oracle') / version
+if not (home / 'libraries/net/neoforged/neoforge' / version / 'unix_args.txt').exists():
+    sys.exit(f'fake oracle: no NeoForge {version} under {home}: it would download it')
+if os.environ.get('FAKE_ORACLE') == 'fail':
+    print('[Server thread/ERROR]: the mod crashed the server'); sys.exit(1)
+jars = sorted(Path(a.jars).glob('*.jar'))
+ns = a.namespaces.split(',')
+Path(a.out).write_text(json.dumps({'schema': 1, 'minecraft': '1.21.1', 'namespaces': ns, 'tools': [],
+    'blocks': {f'{n}:plain_block': {} for n in ns}, 'items': {f'{n}:pocket_compass': {} for n in ns},
+    'recipes': {}, 'tags': {}, 'vanilla_items': [], 'fake': [j.name for j in jars]}))
+print(f'{a.out}: {len(ns)} mod blocks (fake oracle, NeoForge {version})')
 EOF
 
 # ---------------------------------------------------------------- a second mod: things done oddly

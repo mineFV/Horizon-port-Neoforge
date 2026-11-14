@@ -13,8 +13,9 @@ native-mod bundle, in the format Horizon-Translator's Fabric converter (`horizon
 its machines (block entities, menus, screens) and its logic, not only its wiring. The plan, in order:
 
 0. the rules below, and a report that owns up to what it didn't read;
-1. `dump`: the mod's real facts (blocks, items, block entities, menus, fluids), read in a NeoForge server;
-2. the content mod from those facts: properties, states, shapes, stack sizes, the blocks the carry left out;
+1. `dump`: the mod's real facts, read in NeoForge by Horizon's own oracle (done);
+2. the content mod from those facts: `port --facts` runs horizon-port-pack's pipeline on them (done); then
+   the blocks it leaves out (no vanilla template with their states), declared with state properties of their own;
 3. the machines wired on Horizon's block-entity, container and screen hook points;
 4. **our own translator**, from bytecode to Rust, written from scratch here. It replaces horizon-port's
    translation of the mod's code (2% of Mekanism's methods). horizon-port keeps the licence check, the Mixin
@@ -24,7 +25,8 @@ It is separate code that **calls** other programs and never contains theirs:
 
 - `horizon-port.jar` (Horizon-Translator): licence check, decompiling, Mixin matching, Java to Rust (until ours), `hooks`, `check`;
 - Horizon's `native-hooks.json`: which hook point stands for which NeoForge event;
-- Horizon's `horizon-port-pack` and `cargo-horizon-mod`: the content mod (`.hmod`), and checking a `.hmod` or `.hnmod`.
+- Horizon's `horizon-port-pack` and `cargo-horizon-mod`: the content mod (`.hmod`), and checking a `.hmod` or `.hnmod`;
+- Horizon's `tools/neoforge_oracle.py` (Python 3.11+): a NeoForge server with the mod and Horizon's exporter, for `dump`.
 
 Java 21, no dependencies, one jar.
 
@@ -59,9 +61,10 @@ The tool's commands: `metadata`, `license`, `analyze`, `port`, `check`, `pack`, 
 2. **A converted mod is never compiled or run on your own.** `port`, `check` and `pack` compile nothing.
    `check --compile` (cargo type-checks the bundle) only when the maintainer asks for that run. Never start
    `horizon-launcher native-build` or pass `--trust-native-code`: Horizon's docs make that the player's decision.
-   One exception, decided by the maintainer (2026-11-14): `dump` loads the original NeoForge mod in a NeoForge
-   server, in a folder under `essais/`, to read its registries. Run it only when the maintainer asks for that
-   mod; accepting Minecraft's EULA for that server is the maintainer's to do, never yours.
+   One exception, decided by the maintainer (2026-11-14): `dump` has Horizon's oracle load the original NeoForge
+   mod in a NeoForge server (the one the maintainer installed, linked into Horizon's `.local/neoforge-oracle/`
+   so the oracle downloads nothing) to read its registries. Run it only when the maintainer asks for that mod;
+   accepting Minecraft's EULA for that server is the maintainer's to do, never yours: `dump` stops without it.
 3. **Ask before downloading anything**: mods, NeoForge's installer or jars, the game, tools. Each time.
 4. **No guessed correspondence.** Something is switched on only when it is certain (the catalogue names one
    hook point for the event, the target is in the source, ...). Anything else is written commented out with a
@@ -87,13 +90,10 @@ The tool's commands: `metadata`, `license`, `analyze`, `port`, `check`, `pack`, 
 | `EventTable`, `Wiring` | Horizon's catalogue as an event table; listeners put on hook points, or commented out with why |
 | `Content`, `HorizonTools` | The jar's data and assets as a content mod, through Horizon's own tools |
 | `Check`, `RustText` | `check`: a bundle against a Horizon source, by reading; `--compile` hands it to horizon-port's check |
-| `Dump` | `dump`: compiles `dumper/` against a NeoForge server's jars, runs that server in a folder of its own, reads `facts.json` |
+| `Dump` | `dump`: links the maintainer's NeoForge server into Horizon's oracle folder and runs Horizon's oracle |
 | `Pack` | `pack`: the bundle as a `.hnmod`, written as Horizon's `docs/api/mod-files.md` says |
 | `Report` | `report.md` and `report.json` |
 | `Toml`, `Json`, `Translator` | Small readers, and the one place that starts `horizon-port.jar` |
-
-`dumper/` is a NeoForge mod of this repository's, carried in the jar as source: `build.sh` doesn't compile it
-(it needs NeoForge's jars), `dump` does, against the server it is given.
 
 ## How the code and the tests are written
 
@@ -108,6 +108,12 @@ The tool's commands: `metadata`, `license`, `analyze`, `port`, `check`, `pack`, 
 - Every change comes with its test, and `--help` says what a command does and what it doesn't.
 
 ## Found the hard way
+
+- **horizon-port-pack's `check` never reads the oracle's facts**; its pipeline does (`import`, `inventory --offline`,
+  `carry <work> <key>`, with `<work>/oracle/facts.json`). And `carry` without a key takes only the mods the
+  inventory classed as content: a mod it doesn't know (`unknown`) is carried only when named.
+- **horizon-port-pack's carry declares a block only when a vanilla template has exactly its state properties**:
+  Mekanism's machines (`active`, `facing`, `fluid_logged`) are all left out, though Horizon takes declared ones.
 
 - **Run horizon-port with `-Xss512m`** on a real Horizon source: its comment stripper overflows Java's default
   stack on Horizon's long lines. `Port.STACK` does it everywhere.
@@ -133,8 +139,8 @@ Say so rather than assume it works:
 - no bundle or `.hnmod` it made has been built by the launcher or loaded in the game;
 - a content `.hmod` beside a `.hnmod` of the same id hasn't been tried, and the combined `.hmod` isn't made;
 - `analyze --neoforge-jar` has only seen stand-ins, never NeoForge's own jars;
-- the dumper has run on one mod (Mekanism 10.7.19, NeoForge 21.1.266, Java 25, 2026-11-14): 200 blocks, 381 items,
-  nothing unread but 5 item components. The tests stop `dump` before anything starts: the dumper itself is only
-  checked by hand;
-- the dump reads blocks without a level: what a block decides from its neighbours or its block entity (a cable's
-  connections, in Mekanism) isn't in it.
+- `dump` and `port --facts` have run on one real mod (Mekanism 10.7.19, NeoForge 21.1.266, Java 25, 2026-11-14):
+  200 blocks, 381 items, 1578 recipes; 64 blocks and 199 items declared, 136 blocks left out with why. The tests
+  run `dump` against a stand-in for the oracle, never a server;
+- the facts read blocks without a level: what a block decides from its neighbours or its block entity (a cable's
+  connections, in Mekanism) isn't in them.

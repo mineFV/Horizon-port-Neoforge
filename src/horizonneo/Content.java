@@ -28,6 +28,12 @@ import java.util.stream.Stream;
  * hardness, sounds, shapes and stack sizes are in its code. So a carry that declares anything is
  * packed only when the user asked for approximate answers too; otherwise its folder is written
  * under `todo/`, with every declaration listed, for a person to check and pack.
+ *
+ * With the mod's facts (`dump`, Horizon's NeoForge oracle), the carry is Horizon's pipeline instead
+ * (`import`, `inventory`, `carry`), which reads them: each block gets the vanilla template of its class
+ * and states, with the mod's own hardness, resistance, light, tool need, map colour and sounds, and
+ * each item its stack size and components. Nothing is a guess then, so it is packed; what a template
+ * doesn't reproduce, and what has no template, is listed (`Oracle`).
  */
 final class Content {
     private Content() {}
@@ -48,7 +54,7 @@ final class Content {
      * out, each with why, as paths in the bundle. why: what state it is and why, in words.
      */
     record Result(String state, String file, String folder, int files, String summary, List<String> ports, List<String> skipped,
-                  List<Declared> declared, List<String> undeclared, Map<String, String> leftOut, String why) {
+                  List<Declared> declared, List<String> undeclared, Map<String, String> leftOut, String why, Oracle oracle) {
         Result {
             ports = List.copyOf(ports);
             skipped = List.copyOf(skipped);
@@ -56,8 +62,26 @@ final class Content {
             undeclared = List.copyOf(undeclared);
         }
 
+        /** A carry without the mod's facts. */
+        Result(String state, String file, String folder, int files, String summary, List<String> ports, List<String> skipped,
+               List<Declared> declared, List<String> undeclared, Map<String, String> leftOut, String why) {
+            this(state, file, folder, files, summary, ports, skipped, declared, undeclared, leftOut, why, null);
+        }
+
         boolean packed() {
             return state.equals("packed");
+        }
+    }
+
+    /**
+     * What a carry made from the mod's facts says beyond its declarations. unknown: the blocks and items it
+     * left out, each with why (no vanilla template with that class and those states, or its block left out).
+     * differences: for a declared one, what its template doesn't reproduce.
+     */
+    record Oracle(Map<String, String> unknown, Map<String, List<String>> differences) {
+        Oracle {
+            unknown = Map.copyOf(unknown);
+            differences = Map.copyOf(differences);
         }
     }
 
@@ -67,9 +91,10 @@ final class Content {
 
     /**
      * Carries the jar's content over and writes it into the bundle. work: an empty temporary
-     * folder. approximate: pack a carry that declares blocks or items too.
+     * folder. approximate: pack a carry that declares blocks or items too. facts: the mod's facts, in the
+     * NeoForge oracle's format (`dump`), or null.
      */
-    static Result carry(ModJar jar, Analysis analysis, HorizonTools tools, Path work, Path bundle, boolean approximate) throws IOException {
+    static Result carry(ModJar jar, Analysis analysis, HorizonTools tools, Path work, Path bundle, boolean approximate, Path facts) throws IOException {
         if (analysis.census().assets() + analysis.census().data() == 0) {
             return none("none", null, "the jar holds no `assets/` and no `data/`: there is nothing to carry");
         }
@@ -97,20 +122,31 @@ final class Content {
             return none("failed", summary, "what horizon-port-pack wrote about the jar can't be read (" + e.getMessage() + ")");
         }
 
-        Path carried = out.resolve("carry");
+        Path from = out;
+        Oracle oracle = null;
+        if (facts != null) {
+            from = pipeline(jar, tools, facts, work.resolve("pipeline"));
+            try {
+                report = Json.object(Json.parse(Files.readString(from.resolve("carry-report.json"), StandardCharsets.UTF_8)));
+            } catch (Json.Invalid e) {
+                return none("failed", summary, "what horizon-port-pack wrote about the carry can't be read (" + e.getMessage() + ")");
+            }
+            oracle = oracle(report, from.getFileName().toString());
+        }
+        Path carried = from.resolve("carry");
         List<Path> files = Files.isDirectory(carried) ? files(carried) : List.of();
         int count = (int) files.stream().filter(f -> !f.equals(carried.resolve("horizon-mod.toml"))).count();
-        Map<String, String> leftOut = leftOut(out.resolve("outside"), report, bundle);
+        Map<String, String> leftOut = leftOut(from.resolve("outside"), report, bundle);
         if (count == 0) {
             return new Result("none", null, null, 0, summary, ports, skipped, List.of(), List.of(), leftOut,
                     summary != null && !Files.isDirectory(carried) ? "horizon-port-pack carried nothing over: " + summary
                             : "horizon-port-pack found nothing of it that a content mod holds");
         }
 
-        List<Declared> declared = declared(carried, analysis);
-        List<String> undeclared = undeclared(declared, analysis);
+        List<Declared> declared = facts == null ? declared(carried, analysis) : declared(carried, factIds(facts));
+        List<String> undeclared = facts == null ? undeclared(declared, analysis) : List.of();
         String guessed = declared.isEmpty() ? null : guessed(declared);
-        if (guessed != null && !approximate) {
+        if (guessed != null && !approximate && facts == null) {
             copy(carried, bundle.resolve(TODO_FOLDER));
             return new Result("todo", null, TODO_FOLDER, count, summary, ports, skipped, declared, undeclared, leftOut,
                     "not packed: it declares " + guessed + ", each copying a vanilla one that is Horizon's guess. `--allow-approximate` packs it as it is");
@@ -133,7 +169,7 @@ final class Content {
         if (refused != null) {
             delete(carried.resolve("target"));
             copy(carried, bundle.resolve(TODO_FOLDER));
-            return new Result("failed", null, TODO_FOLDER, count, summary, ports, skipped, declared, undeclared, leftOut, refused);
+            return new Result("failed", null, TODO_FOLDER, count, summary, ports, skipped, declared, undeclared, leftOut, refused, oracle);
         }
         String name = packed.getFileName().toString();
         Files.copy(packed, bundle.resolve(name), StandardCopyOption.REPLACE_EXISTING);
@@ -141,7 +177,82 @@ final class Content {
         copy(carried, bundle.resolve(FOLDER));
         return new Result("packed", name, FOLDER, count, summary, ports, skipped, declared, undeclared, leftOut,
                 "packed and checked by `cargo horizon-mod`" + (guessed == null ? "; it declares no block or item, so nothing in it is a guess"
-                        : "; it declares " + guessed + ", each copying a vanilla one that is Horizon's guess, as `--allow-approximate` asked"));
+                        : facts != null ? "; it declares " + guessed + ", each from the mod's facts in NeoForge"
+                        : "; it declares " + guessed + ", each copying a vanilla one that is Horizon's guess, as `--allow-approximate` asked"), oracle);
+    }
+
+    // ---- with the mod's facts: Horizon's pipeline ----
+
+    /**
+     * The jar through `horizon-port-pack`'s pipeline, as a one-mod instance with the facts in its work
+     * folder: `import`, `inventory --offline`, `carry`. Returns the mod's folder in it (`carry/`,
+     * `carry-report.json`, `outside/`).
+     */
+    private static Path pipeline(ModJar jar, HorizonTools tools, Path facts, Path dir) throws IOException {
+        Path instance = dir.resolve("instance").toAbsolutePath(), w = dir.resolve("work").toAbsolutePath();
+        Files.createDirectories(instance.resolve("mods"));
+        Files.copy(jar.path(), instance.resolve("mods").resolve(jar.path().getFileName()));
+        step(tools, List.of("import", instance.toString(), w.toString()), "import");
+        step(tools, List.of("inventory", w.toString(), "--offline"), "inventory");
+        Files.createDirectories(w.resolve("oracle"));
+        Files.copy(facts, w.resolve("oracle/facts.json"));
+        // The jar by the key the inventory gave it: carry takes only the mods it classed as content otherwise.
+        List<String> keys = new ArrayList<>();
+        try {
+            for (Object r : Json.array(Json.parse(Files.readString(w.resolve("inventory.json"), StandardCharsets.UTF_8)))) {
+                String key = Json.text(Json.object(r), "key");
+                if (key != null) keys.add(key);
+            }
+        } catch (Json.Invalid e) {
+            throw new IOException("horizon-port-pack's inventory.json can't be read: " + e.getMessage());
+        }
+        if (keys.size() != 1) throw new IOException("horizon-port-pack's inventory holds " + keys.size() + " mods for one jar");
+        step(tools, List.of("carry", w.toString(), keys.get(0)), "carry");
+        Path mods = w.resolve("mods");
+        List<Path> carried;
+        try (Stream<Path> s = Files.isDirectory(mods) ? Files.list(mods) : Stream.empty()) {
+            carried = s.filter(Files::isDirectory).toList();
+        }
+        if (carried.size() != 1) throw new IOException("horizon-port-pack's carry made " + carried.size() + " mod folders out of one jar, in " + mods);
+        return carried.get(0);
+    }
+
+    private static void step(HorizonTools tools, List<String> args, String what) throws IOException {
+        HorizonTools.Run run = tools.portPack(args, SECONDS);
+        if (run.exit() != 0) throw new IOException("horizon-port-pack " + what + " failed: " + last(run.err().isBlank() ? run.out() : run.err()));
+    }
+
+    /** The ids the facts hold, as `block namespace:name` and `item namespace:name`: what NeoForge has registered. */
+    static List<String> factIds(Path facts) throws IOException {
+        Map<String, Object> f;
+        try {
+            f = Json.object(Json.parse(Files.readString(facts, StandardCharsets.UTF_8)));
+        } catch (Json.Invalid e) {
+            throw new IOException(facts + " isn't JSON: " + e.getMessage());
+        }
+        List<String> out = new ArrayList<>();
+        for (String id : Json.object(f.get("blocks")).keySet()) out.add("block " + id);
+        for (String id : Json.object(f.get("items")).keySet()) out.add("item " + id);
+        return out;
+    }
+
+    /**
+     * What the carry report says of the blocks and items: those left out, and what each template doesn't
+     * reproduce. The report names them without their namespace, the carried mod's.
+     */
+    static Oracle oracle(Map<String, Object> report, String namespace) {
+        Map<String, String> unknown = new TreeMap<>();
+        for (String kind : List.of("block", "item")) {
+            Map<String, Object> left = Json.object(report.get(kind + "s_unknown"));
+            for (Map.Entry<String, Object> e : left.entrySet()) unknown.put(kind + " " + namespace + ":" + e.getKey(), String.valueOf(e.getValue()));
+        }
+        Map<String, List<String>> differences = new TreeMap<>();
+        for (Map.Entry<String, Object> e : Json.object(report.get("differences")).entrySet()) {
+            List<String> what = new ArrayList<>();
+            for (Object o : Json.array(e.getValue())) what.add(String.valueOf(o));
+            differences.put(namespace + ":" + e.getKey(), what);
+        }
+        return new Oracle(unknown, differences);
     }
 
     private static Result none(String state, String summary, String why) {
@@ -152,11 +263,21 @@ final class Content {
 
     /** The blocks, items and the like under `data/<namespace>/horizon/<kind>/`, in path order. */
     static List<Declared> declared(Path carried, Analysis analysis) throws IOException {
+        List<String> registered = registered(analysis);
+        boolean allRead = allRead(analysis);
+        return declared(carried, key -> registered.contains(key) ? Boolean.TRUE : allRead ? Boolean.FALSE : null);
+    }
+
+    /** The declarations of a carry made from facts: registered is what NeoForge registered, so never unknown. */
+    static List<Declared> declared(Path carried, List<String> registered) throws IOException {
+        return declared(carried, key -> registered.contains(key));
+    }
+
+    /** registered: for `block namespace:name`, whether the mod registers it (null: not known). */
+    private static List<Declared> declared(Path carried, java.util.function.Function<String, Boolean> registered) throws IOException {
         List<Declared> out = new ArrayList<>();
         Path data = carried.resolve("data");
         if (!Files.isDirectory(data)) return out;
-        List<String> registered = registered(analysis);
-        boolean allRead = allRead(analysis);
         for (Path f : files(data)) {
             Path rel = data.relativize(f);
             if (rel.getNameCount() < 4 || !rel.getName(1).toString().equals("horizon") || !f.getFileName().toString().endsWith(".json")) continue;
@@ -169,8 +290,7 @@ final class Content {
             } catch (Json.Invalid e) {
                 // Left without a template: the list still names it.
             }
-            boolean found = registered.contains(kind + " " + id);
-            out.add(new Declared(kind, id, template, found ? Boolean.TRUE : allRead ? Boolean.FALSE : null));
+            out.add(new Declared(kind, id, template, registered.apply(kind + " " + id)));
         }
         return out;
     }
@@ -283,6 +403,20 @@ final class Content {
             out.add("");
             out.add("Registered by the mod's code, but not declared in the content mod (the jar has no blockstate or item model for them): "
                     + String.join(", ", r.undeclared().stream().map(u -> u.substring(0, u.indexOf(' ')) + " `" + u.substring(u.indexOf(' ') + 1) + "`").toList()) + ".");
+        }
+        if (r.oracle() != null && !r.oracle().unknown().isEmpty()) {
+            out.add("");
+            out.add("TODO: " + r.oracle().unknown().size() + " blocks and items the mod registers aren't declared. horizon-port-pack declares only "
+                    + "a block a vanilla template takes as it is; these need a declaration with state properties of its own (Horizon's "
+                    + "docs/mods.md), which this tool doesn't write yet:");
+            out.add("");
+            r.oracle().unknown().forEach((what, why) -> out.add("- " + what.substring(0, what.indexOf(' ')) + " `" + what.substring(what.indexOf(' ') + 1) + "`: " + why + "."));
+        }
+        if (r.oracle() != null && !r.oracle().differences().isEmpty()) {
+            out.add("");
+            out.add("What a declaration's template doesn't reproduce of the mod's (horizon-port-pack's words), for " + r.oracle().differences().size() + " of them:");
+            out.add("");
+            r.oracle().differences().forEach((id, what) -> out.add("- `" + id + "`: " + String.join("; ", what) + "."));
         }
         if (!r.leftOut().isEmpty()) {
             out.add("");

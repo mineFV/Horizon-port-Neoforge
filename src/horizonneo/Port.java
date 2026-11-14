@@ -27,7 +27,7 @@ final class Port {
 
     /** horizonSrc: Horizon's source. revision, author, out: null when not given. tools: the folder of Horizon's content tools, null to look
      * in the source. approximate: also switch on listeners whose hook point comes with a note, and pack content whose declarations are guesses. */
-    record Options(Path horizonSrc, String revision, String author, Path out, String translator, String tools, boolean approximate) {}
+    record Options(Path horizonSrc, String revision, String author, Path out, String translator, String tools, boolean approximate, Path facts) {}
 
     /** How long horizon-port may take: it decompiles the jar and indexes Horizon's source. */
     private static final int SECONDS = 30 * 60;
@@ -92,7 +92,7 @@ final class Port {
             EventTable table = table(o.horizonSrc(), translator, work);
             Path carrying = Files.createDirectory(work.resolve("content"));
             Bundle.Outcome outcome = Bundle.finish(bundle, decompiled, o.horizonSrc(), info, analysis, table, o.approximate(),
-                    into -> Content.carry(jar, analysis, tools, carrying, into, o.approximate()));
+                    into -> Content.carry(jar, analysis, tools, carrying, into, o.approximate(), o.facts()));
             Report.write(bundle.resolve("report"), jar, frontend, analysis, outcome);
             deliver(bundle, target);
 

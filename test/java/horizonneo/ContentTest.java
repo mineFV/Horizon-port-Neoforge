@@ -62,10 +62,10 @@ final class ContentTest {
 
             // ---- when nothing is carried ----
             ModJar jar = new ModJar(dir.resolve("m.jar"), true, false, false, "", null, List.of(), List.of());
-            Result none = Content.carry(jar, analysis(0, 0, List.of()), null, dir.resolve("work"), dir.resolve("bundle"), false);
+            Result none = Content.carry(jar, analysis(0, 0, List.of()), null, dir.resolve("work"), dir.resolve("bundle"), false, null);
             c.same("a jar with no assets and no data", "none", none.state());
             c.yes("that is said", none.why().startsWith("the jar holds no `assets/` and no `data/`"));
-            Result noTools = Content.carry(jar, a, null, dir.resolve("work"), dir.resolve("bundle"), false);
+            Result noTools = Content.carry(jar, a, null, dir.resolve("work"), dir.resolve("bundle"), false, null);
             c.same("content, but Horizon's tools aren't built", "no-tools", noTools.state());
             c.yes("with how to build them", noTools.why().contains("cargo build --release -p horizon-port-pack -p cargo-horizon-mod"));
             c.yes("nothing was written for either", !Files.exists(dir.resolve("bundle")) && !Files.exists(dir.resolve("work")));
@@ -114,6 +114,22 @@ final class ContentTest {
                 .get(0).equals("**No content mod was made**: they aren't built. The jar's data and assets are still to carry over."));
         c.yes("a tool that refused: why, and the folder", Content.words(new Result("failed", null, "todo/content", 2, null, List.of(), List.of(), List.of(), List.of(), Map.of(), "cargo horizon-mod build refused it: bad"))
                 .get(0).equals("**No `.hmod` was made**: cargo horizon-mod build refused it: bad. The folder it was to be packed from is `todo/content/`."));
+
+        // ---- with the mod's facts ----
+        Content.Oracle oracle = Content.oracle(Map.of(
+                "blocks_unknown", Map.of("bin", "no vanilla Block with properties [active, facing]"),
+                "items_unknown", Map.of("bin", "its block is left out"),
+                "differences", Map.of("gem_block", List.of("class com.example.GemBlock (behaviour beyond Block)"))), "m");
+        c.same("what was left out, each named in the mod's namespace, with why", Map.of(
+                "block m:bin", "no vanilla Block with properties [active, facing]", "item m:bin", "its block is left out"), oracle.unknown());
+        c.same("what a template doesn't reproduce", Map.of("m:gem_block", List.of("class com.example.GemBlock (behaviour beyond Block)")), oracle.differences());
+        c.same("a report that says nothing of them", new Content.Oracle(Map.of(), Map.of()), Content.oracle(Map.of(), "m"));
+        String withFacts = String.join("\n", Content.words(new Result("packed", "m.hmod", "content", 3, null, List.of(), List.of(),
+                List.of(new Declared("block", "m:gem_block", "minecraft:stone", true)), List.of(), Map.of(), "packed", oracle)));
+        c.yes("the ones left out are a TODO, with why", withFacts.contains("TODO: 2 blocks and items the mod registers aren't declared")
+                && withFacts.contains("- block `m:bin`: no vanilla Block with properties [active, facing]."));
+        c.yes("and what a template doesn't reproduce is listed", withFacts.contains("- `m:gem_block`: class com.example.GemBlock (behaviour beyond Block)."));
+        c.yes("without facts, neither is said", !packed.contains("TODO: ") && !packed.contains("doesn't reproduce"));
         System.exit(c.done());
     }
 

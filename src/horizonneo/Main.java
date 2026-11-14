@@ -67,13 +67,13 @@ public final class Main {
             }
             case "port" -> {
                 return port(Line.read(args, Set.of("--loader", "--out", "--neoforge-jar", "--translator", "--horizon-src", "--horizon-revision",
-                        "--i-am-the-author", "--horizon-tools"), Set.of("--allow-approximate")), out, err);
+                        "--i-am-the-author", "--horizon-tools", "--facts"), Set.of("--allow-approximate")), out, err);
             }
             case "check" -> {
                 return check(Line.read(args, Set.of("--horizon-src", "--translator", "--horizon-tools"), Set.of("--compile")), out, err);
             }
             case "dump" -> {
-                return dump(Line.read(args, Set.of("--server", "--out", "--java"), Set.of()), out, err);
+                return dump(Line.read(args, Set.of("--server", "--horizon-src", "--out", "--python"), Set.of()), out, err);
             }
             case "pack" -> {
                 return pack(Line.read(args, Set.of("--horizon-src", "--translator", "--horizon-tools", "--out"), Set.of()), out, err);
@@ -96,11 +96,12 @@ public final class Main {
 
     private static int dump(Line line, PrintStream out, PrintStream err) throws Usage, IOException, ModsToml.Invalid {
         Path path = line.only("mod jar");
-        String server = line.options().get("--server"), file = line.options().get("--out");
+        String server = line.options().get("--server"), file = line.options().get("--out"), horizonSrc = line.options().get("--horizon-src");
         if (server == null) throw new Usage("`dump` needs --server <a NeoForge server folder, made by NeoForge's installer>");
+        if (horizonSrc == null) throw new Usage("`dump` needs --horizon-src <Horizon's source folder, which holds its NeoForge oracle>");
         ModJar jar = ModJar.open(path);
         if (!jar.neoforge()) throw new Usage("`dump` takes a NeoForge mod: " + path.getFileName() + " has no " + ModsToml.PATH);
-        return Dump.run(jar, NeoForgeFrontend.read(jar), new Dump.Options(Path.of(server), file == null ? null : Path.of(file), line.options().get("--java")), out, err);
+        return Dump.run(jar, NeoForgeFrontend.read(jar), new Dump.Options(Path.of(server), Path.of(horizonSrc), file == null ? null : Path.of(file), line.options().get("--python")), out, err);
     }
 
     // ---- pack ----
@@ -122,6 +123,7 @@ public final class Main {
         ModJar jar = ModJar.open(path);
         String outDir = line.options().get("--out"), revision = line.options().get("--horizon-revision"), author = line.options().get("--i-am-the-author");
         if (loader(jar, line.option("--loader", "auto")) == Loader.FABRIC) {
+            if (line.has("--facts")) throw new Usage("--facts is for a NeoForge mod: a Fabric jar goes to horizon-port as it is");
             // horizon-port's own job: it gets the jar as it is, with the options it knows (and the stack Horizon's source takes).
             List<String> args = new ArrayList<>(List.of("port", path.toString(), "--horizon-src", horizonSrc));
             for (String option : List.of("--horizon-revision", "--i-am-the-author", "--out")) {
@@ -136,8 +138,11 @@ public final class Main {
             return run.exit();
         }
         NeoForgeFrontend frontend = NeoForgeFrontend.read(jar);
+        if (line.has("--facts") && !java.nio.file.Files.isRegularFile(Path.of(line.options().get("--facts")))) {
+            throw new Usage("--facts names " + line.options().get("--facts") + ", which isn't a file (`dump` writes it)");
+        }
         Port.Options options = new Port.Options(Path.of(horizonSrc), revision, author, outDir == null ? null : Path.of(outDir), line.options().get("--translator"),
-                line.options().get("--horizon-tools"), line.has("--allow-approximate"));
+                line.options().get("--horizon-tools"), line.has("--allow-approximate"), line.has("--facts") ? Path.of(line.options().get("--facts")) : null);
         return Port.run(jar, frontend, facts(line), options, out, err);
     }
 
@@ -387,6 +392,7 @@ public final class Main {
 
               port <mod.jar> --horizon-src FOLDER [--horizon-revision SHA] [--i-am-the-author NAME] [--out DIR]
                    [--allow-approximate] [--horizon-tools DIR] [--neoforge-jar JAR[:JAR...]] [--loader auto|neoforge|fabric]
+                   [--facts FILE]
                   The licence check, then horizon-port's own `port` on a copy of the jar: it
                   decompiles it, matches its Mixins against that Horizon source and translates
                   the Java that doesn't need the game to Rust. Writes a Horizon native-mod bundle
@@ -403,7 +409,11 @@ public final class Main {
                   HORIZON_TOOLS variable, else the source's target/release; this tool doesn't
                   build them). A carry that declares blocks or items copies vanilla ones by
                   guess: it is left as a folder under todo/, or packed as it is with
-                  --allow-approximate. Nothing of the mod is compiled or run. The Horizon commit is
+                  --allow-approximate. With --facts (what `dump` wrote), the carry is
+                  horizon-port-pack's pipeline (import, inventory, carry), which takes each
+                  block's template and properties, and each item's, from those facts: it is
+                  packed, and PORTING.md lists the blocks with no template and what a
+                  template doesn't reproduce. Nothing of the mod is compiled or run. The Horizon commit is
                   --horizon-revision, else the source's .horizon-revision, else git's HEAD there.
                   A Fabric jar goes to horizon-port as it is.
 
@@ -421,20 +431,20 @@ public final class Main {
                   mod is run). The last line is `RESULT: ok`, `RESULT: ok, not compiled` or
                   `RESULT: failed (...)`; exit code 0 or 1.
 
-              dump <mod.jar> --server FOLDER [--out FILE] [--java PROGRAM]
-                  The mod's real facts, read in NeoForge itself: what the game registered for
-                  the mod's namespaces once a server has started (blocks: hardness, sound,
-                  states, light, shape and collision of each state, block entity types;
-                  items: stack size and default components; block entity types, menus, fluids,
-                  creative tabs). FOLDER is a NeoForge server made by NeoForge's installer
-                  (--install-server), for the game version of the mod; its eula.txt must say
-                  eula=true, which is yours to write: this tool never does. A small mod of
-                  this tool's (dumper/, compiled against that server's jars) is put beside the
-                  mod in a server folder of its own, which is deleted afterwards; FOLDER isn't
-                  changed. This runs the original mod's Java in NeoForge, on this machine,
-                  listening on 127.0.0.1 only. Writes FILE (default: out/<mod id>-facts.json)
-                  and the server's output beside it. A value that couldn't be read is named
-                  under `unread`, with why. Nothing is compiled or run in Horizon.
+              dump <mod.jar> --server FOLDER --horizon-src FOLDER [--out FILE] [--python PROGRAM]
+                  The mod's real facts, read in NeoForge itself by Horizon's own oracle
+                  (tools/neoforge_oracle.py in Horizon's source, run unchanged): every block
+                  of the mod's namespaces with each state's hardness, light, tool need, map
+                  colour, sounds, shapes and drops; its items with their components; its
+                  recipes and tags; and vanilla's blocks, for templates. --server is a
+                  NeoForge server made by NeoForge's installer (--install-server) for the
+                  mod's game version: the oracle is given it (a link in Horizon's
+                  .local/neoforge-oracle/), so it downloads nothing. Its eula.txt must say
+                  eula=true, which is yours to write: this tool never does, and stops
+                  without it. This runs the original mod's Java in NeoForge, on this
+                  machine. Writes FILE (default: out/<mod id>-facts.json), the format
+                  `port --facts` reads, and the oracle's output beside it. Nothing is
+                  compiled or run in Horizon.
 
               pack <bundle-folder> --horizon-src FOLDER [--out FILE] [--horizon-tools DIR]
                   Packs a bundle as <mod id>.hnmod, the file Horizon's launcher installs and
