@@ -281,6 +281,44 @@ uses the game's own types even when they are right; its `compile` checks those a
 itself. horizon-port is made for one Horizon commit: on a source where the Game state it reads
 has changed, its check stops before compiling, and `check` says so as what it is.
 
+### `pack`: the `.hnmod`
+
+```bash
+java -jar build/horizon-port-neoforge.jar pack out/mymod-horizon --horizon-src ~/horizon
+```
+
+Packs a bundle as `<mod id>.hnmod`, the file Horizon's launcher installs and builds into the game.
+First the checks of `check`, by reading: a bundle with a problem isn't packed. The file is made as
+Horizon's own `docs/api/mod-files.md` says it is read:
+
+- `horizon-native.json`: schema 1, the mod's id and version, the game version, the Horizon commit
+  and the horizon-mixins commit from `compatibility.json`, and `hooks` (the hooks API) when hook
+  points are all the bundle touches, so that the launcher also builds it on a later Horizon;
+- the files of `mixins/<id>/`, with `[compatibility] horizon_revision` added to the packed
+  `horizon-mixin.toml` (Horizon wants the commit there too; the bundle's own file isn't touched).
+
+Not packed, with why: a mod id Horizon doesn't take (`[a-z0-9_]`, 64 at most), no Horizon or
+horizon-mixins commit, a file under `mixins/<id>/` that a native file can't hold (only `.rs`,
+`.toml`, `data/`, `README`, `LICENSE`...), more than 511 files or 64 MiB. The file then goes
+through Horizon's own `cargo horizon-mod check`, which reads it as the launcher and the registry
+do; one it refuses isn't kept.
+
+horizon-port packs a bundle only once nothing is left to finish in it. This packs it as it is:
+what is commented out stays out, each `TODO` stays a `TODO`, and built into the game it changes
+nothing yet. That is the point: the launcher's build applies the bundle to Horizon itself with
+horizon-mixins and compiles it there, with the game's real types, which no check here does.
+
+**Nothing is compiled and nothing is installed.** Native mods aren't sandboxed, so starting that
+build is the player's decision:
+
+```bash
+horizon-launcher native-build out/mymod-horizon --instance <name> --trust-native-code
+```
+
+or put the `.hnmod` in the instance's `horizon-native-mods/` folder and press **Build** on the
+launcher's Mods page. The content mod (`.hmod`) stays a file of its own; Horizon can take both in
+one `.hmod`, which this tool doesn't make.
+
 ## Tried on real mods
 
 Three open-source NeoForge mods from Modrinth (2026-11-13), against Horizon `a21f8a39`. Each went
@@ -359,6 +397,7 @@ clone beside this folder where cargo built them. Without them those checks are s
 - No mod jars, game files or decompiled code are committed, ever. `.gitignore` refuses `*.jar` and `*.class`.
 - Decompiled code stays out of the bundles this tool writes, and is deleted when a conversion ends.
 - A converted mod is never compiled or run by this tool on its own: only `check --compile` type-checks one, when asked.
+  `pack` writes a file and stops there: it builds nothing and installs nothing.
 - No guessed correspondences: a mapping is switched on only when it is certain.
 
 ## Licence

@@ -72,6 +72,9 @@ public final class Main {
             case "check" -> {
                 return check(Line.read(args, Set.of("--horizon-src", "--translator", "--horizon-tools"), Set.of("--compile")), out, err);
             }
+            case "pack" -> {
+                return pack(Line.read(args, Set.of("--horizon-src", "--translator", "--horizon-tools", "--out"), Set.of()), out, err);
+            }
             default -> throw new Usage("unknown command `" + args[0] + "`");
         }
     }
@@ -84,6 +87,16 @@ public final class Main {
         if (horizonSrc == null) throw new Usage("`check` needs --horizon-src <Horizon's source folder>");
         return Check.run(bundle, new Check.Options(Path.of(horizonSrc), line.options().get("--translator"), line.options().get("--horizon-tools"),
                 line.has("--compile")), out, err);
+    }
+
+    // ---- pack ----
+
+    private static int pack(Line line, PrintStream out, PrintStream err) throws Usage, IOException {
+        Path bundle = line.only("bundle folder");
+        String horizonSrc = line.options().get("--horizon-src"), file = line.options().get("--out");
+        if (horizonSrc == null) throw new Usage("`pack` needs --horizon-src <Horizon's source folder>");
+        return Pack.run(bundle, new Pack.Options(Path.of(horizonSrc), line.options().get("--translator"), line.options().get("--horizon-tools"),
+                file == null ? null : Path.of(file)), out, err);
     }
 
     // ---- port ----
@@ -393,6 +406,17 @@ public final class Main {
                   stand-ins for Horizon's helpers (it writes <bundle>/target/; nothing of the
                   mod is run). The last line is `RESULT: ok`, `RESULT: ok, not compiled` or
                   `RESULT: failed (...)`; exit code 0 or 1.
+
+              pack <bundle-folder> --horizon-src FOLDER [--out FILE] [--horizon-tools DIR]
+                  Packs a bundle as <mod id>.hnmod, the file Horizon's launcher installs and
+                  builds into the game (default FILE: in the bundle's folder). First the checks
+                  of `check`, by reading; a bundle with a problem isn't packed. The file is made
+                  as Horizon's docs/api/mod-files.md says: horizon-native.json, then the files of
+                  mixins/<id>/, with the Horizon commit pinned in horizon-mixin.toml, and it is
+                  put through `cargo horizon-mod check`. A bundle that isn't a finished port is
+                  packed as it is, TODOs and all: built, it changes nothing in the game yet, and
+                  the build tells whether Horizon takes it and compiles it. Nothing is compiled
+                  and nothing is installed here: building native code is yours to start.
 
             horizon-port.jar is Horizon-Translator's converter, built in its clone
             (bash mod-converter/build.sh). It is found through --translator, else the

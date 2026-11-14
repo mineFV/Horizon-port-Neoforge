@@ -126,7 +126,7 @@ jar --create --file "$B/jars/tidy.jar" -C "$B/tidy" . -C test/fixture/tidy/resou
 
 echo; echo "== unit tests"
 javac --release 21 -Xlint:all -Werror -cp build/classes -d "$B/classes" test/java/horizonneo/*.java
-for t in TomlTest JsonTest MetadataTest LicenceCheckTest ClassDataTest AnalyzerTest ReportTest StandInTest BundleTest EventTableTest WiringTest ContentTest RustTextTest; do
+for t in TomlTest JsonTest MetadataTest LicenceCheckTest ClassDataTest AnalyzerTest ReportTest StandInTest BundleTest EventTableTest WiringTest ContentTest RustTextTest PackTest; do
   # Their arguments, for the tests that read them: the first mod's classes, its jar, the stand-ins' jar, the second mod's jar.
   java -cp "build/classes:$B/classes" "horizonneo.$t" "$B/mod" "$J" "$B/jars/neoforge-stubs.jar" "$B/jars/oddities.jar" || failures=$((failures + 1))
 done
@@ -763,6 +763,77 @@ if [ -f "${HORIZON_PORT_JAR:-}" ]; then
     says "$OUT" "problem: pocketcompass.hmod doesn't pass \`cargo horizon-mod check\`"
   else
     echo "  (skipped: the checks of a .hmod, as above)"
+  fi
+fi
+
+echo; echo "== pack"
+exits 2 tool pack "$B/port/pc"
+says "$ERR" 'needs --horizon-src'
+if [ -f "${HORIZON_PORT_JAR:-}" ]; then
+  K=$B/pack
+  mkdir -p "$K"
+  # The bundle `port` wrote, as a .hnmod: Horizon's manifest, then the files of mixins/<id>/, the commit pinned.
+  rm -rf "$K/pc"; cp -r "$P/pc" "$K/pc"
+  exits 0 tool pack "$K/pc" --horizon-src "$H"
+  says "$OUT" "Packed $PWD/$K/pc/pocketcompass.hnmod: 6 files of mixins/pocketcompass/, for Horizon 0123456789abcdef0123456789abcdef01234567."
+  says "$OUT" 'It touches hook points only (API 1): the launcher also builds it on a later Horizon that has that API.'
+  says "$OUT" "It isn't a finished port: 3 TODOs in the code that is on, 13 injections commented out."
+  says "$OUT" 'horizon-launcher native-build'
+  says "$OUT" 'Nothing was compiled or installed here.'
+  says "$OUT" "not checked: the file, by Horizon's own check"
+  is_file "$K/pc/pocketcompass.hnmod"
+  no_file "$K/pc/pocketcompass.hnmod.part"
+  no_file "$K/pc/target"
+  jar tf "$K/pc/pocketcompass.hnmod" > "$B/out/hnmod.txt"
+  says "$B/out/hnmod.txt" 'horizon-native.json'
+  for f in horizon-mixin.toml runtime.rs game_side.rs tick.rs list.rs destroy-block.rs; do says "$B/out/hnmod.txt" "mixins/pocketcompass/$f"; done
+  lacks "$B/out/hnmod.txt" 'todo/'
+  lacks "$B/out/hnmod.txt" 'report/'
+  lacks "$B/out/hnmod.txt" 'PORTING.md'
+  if [ "$(head -1 "$B/out/hnmod.txt")" = "horizon-native.json" ]; then echo "  ok: the manifest comes first"; else echo "  FAIL: the manifest isn't the first entry"; failures=$((failures + 1)); fi
+  unzip -p "$K/pc/pocketcompass.hnmod" horizon-native.json > "$B/out/native.json"
+  says "$B/out/native.json" '"schema": 1'
+  says "$B/out/native.json" '"id": "pocketcompass"'
+  says "$B/out/native.json" '"version": "1.2.3"'
+  says "$B/out/native.json" '"game": "26.3"'
+  says "$B/out/native.json" '"horizon": "0123456789abcdef0123456789abcdef01234567"'
+  says "$B/out/native.json" '"mixins": "89abcdef0123456789abcdef0123456789abcdef"'
+  says "$B/out/native.json" '"hooks": 1'
+  unzip -p "$K/pc/pocketcompass.hnmod" mixins/pocketcompass/horizon-mixin.toml > "$B/out/packed.toml"
+  says "$B/out/packed.toml" '[compatibility]'
+  says "$B/out/packed.toml" 'horizon_revision = "0123456789abcdef0123456789abcdef01234567"'
+  # The bundle's own manifest isn't touched, and the same bundle packs to the same file.
+  lacks "$K/pc/mixins/pocketcompass/horizon-mixin.toml" '[compatibility]'
+  exits 0 tool pack "$K/pc" --horizon-src "$H" --out "$K/again/pc.hnmod"
+  if cmp -s "$K/pc/pocketcompass.hnmod" "$K/again/pc.hnmod"; then echo "  ok: packed twice, the same file"; else echo "  FAIL: packed twice, two different files"; failures=$((failures + 1)); fi
+  # It still passes `check` with its .hnmod beside it.
+  exits 0 tool check "$K/pc" --horizon-src "$H"
+
+  # Not packed: a bundle with a problem, a file Horizon doesn't take, no Horizon commit.
+  rm -rf "$K/broken"; cp -r "$P/pc" "$K/broken"; rm "$K/broken/mixins/pocketcompass/tick.rs"
+  exits 1 tool pack "$K/broken" --horizon-src "$H"
+  says "$OUT" 'Not packed: 1 problem above.'
+  no_file "$K/broken/pocketcompass.hnmod"
+  rm -rf "$K/extra"; cp -r "$P/pc" "$K/extra"; echo "notes" > "$K/extra/mixins/pocketcompass/notes.txt"
+  exits 1 tool pack "$K/extra" --horizon-src "$H"
+  says "$OUT" "mixins/pocketcompass/ holds 1 file Horizon doesn't take in a native file (notes.txt)"
+  no_file "$K/extra/pocketcompass.hnmod"
+  rm -rf "$K/nocommit"; cp -r "$P/pc" "$K/nocommit"; sed -i '/"horizon_revision"/d' "$K/nocommit/compatibility.json"
+  exits 1 tool pack "$K/nocommit" --horizon-src "$H"
+  says "$OUT" 'the bundle names no Horizon commit (compatibility.json, `horizon_revision`)'
+  no_file "$K/nocommit/pocketcompass.hnmod"
+
+  # Horizon's own check of the file, when its tools are built.
+  if [ -x "$TOOLS/horizon-port-pack" ] && [ -x "$TOOLS/cargo-horizon-mod" ]; then
+    rm -rf "$K/checked"; cp -r "$P/pc" "$K/checked"
+    exits 0 tool pack "$K/checked" --horizon-src "$H" --horizon-tools "$T"
+    says "$OUT" "ok: Horizon's own check takes the file (\`cargo horizon-mod check\`)"
+    is_file "$K/checked/pocketcompass.hnmod"
+    # A mod id Horizon doesn't take in a native file.
+    exits 1 tool pack "$K/checked" --horizon-src "$H" --horizon-tools "$B/tools-broken"
+    says "$OUT" "Not packed: Horizon's own check refuses the file: error: boom."
+  else
+    echo "  (skipped: Horizon's own check of a .hnmod, as above)"
   fi
 fi
 

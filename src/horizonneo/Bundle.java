@@ -657,7 +657,10 @@ final class Bundle {
             }
         }
         b.append("\n`report/report.md` is the mod as NeoForge sees it (entry points, listeners, registries, Mixins) with what became of each part; ")
-                .append("`report/horizon-port-report.md` is horizon-port's own report, on the copy.\n");
+                .append("`report/horizon-port-report.md` is horizon-port's own report, on the copy.\n")
+                .append("\nTo go over this folder against a Horizon source, by reading: `horizon-port-neoforge check <this folder> --horizon-src <source>`. ")
+                .append("To have Horizon's launcher build it as it is, TODOs and all: `horizon-port-neoforge pack <this folder> --horizon-src <source>` makes `")
+                .append(o.modId()).append(".hnmod`. Built, it changes nothing in the game until the TODOs are filled in.\n");
         return b.toString();
     }
 

@@ -43,8 +43,17 @@ final class Check {
     private static final Pattern ONE_NAME = Pattern.compile("(?:&\\s*(?:mut\\s+)?)?\\*?\\s*([a-z_][a-z0-9_]*)");
     private static final Pattern MOD_FILE = Pattern.compile("(?m)^\\s*(?:pub(?:\\([a-z:\\s]*\\))?\\s+)?mod\\s+[A-Za-z_][A-Za-z0-9_]*\\s*;");
 
+    /**
+     * What reading a bundle gave, for `pack`. hookTargets: the targets of that source's hook points,
+     * null when horizon-port's list of them couldn't be had.
+     */
+    record Facts(int problems, int unchecked, Path mod, String id, Set<String> hookTargets, int todos, int off) {}
+
     private final PrintStream out;
-    private int problems, unchecked;
+    private int problems, unchecked, todos, off;
+    private Path mod;
+    private String id;
+    private Set<String> hookTargets;
 
     private Check(PrintStream out) {
         this.out = out;
@@ -66,6 +75,15 @@ final class Check {
         }
         out.println("RESULT: ok" + (compiled ? "" : ", not compiled") + (check.unchecked > 0 ? " (" + check.unchecked + " not checked, above)" : ""));
         return Main.DONE;
+    }
+
+    /** The checks made by reading, said on `out`; null when the folder isn't a bundle that can be read. */
+    static Facts read(Path bundle, Options o, PrintStream out) throws IOException {
+        if (!Files.isDirectory(bundle)) throw new IOException(bundle + " isn't a folder: it takes the bundle `port` wrote");
+        if (!Files.isDirectory(o.horizonSrc())) throw new IOException("--horizon-src: " + o.horizonSrc() + " isn't a folder");
+        Check check = new Check(out);
+        if (!check.read(bundle, o)) return null;
+        return new Facts(check.problems, check.unchecked, check.mod, check.id, check.hookTargets, check.todos, check.off);
     }
 
     private void ok(String what) {
@@ -90,7 +108,7 @@ final class Check {
 
     /** false when the bundle can't be read at all. */
     private boolean read(Path bundle, Options o) throws IOException {
-        Path mod = modFolder(bundle);
+        mod = modFolder(bundle);
         if (mod == null) return false;
         String manifest = Files.readString(mod.resolve(MANIFEST), StandardCharsets.UTF_8);
         Map<String, Object> root;
@@ -100,7 +118,7 @@ final class Check {
             problem(MANIFEST + " can't be read: " + e.getMessage());
             return false;
         }
-        String id = Toml.text(Toml.table(root.get("mod")), "id");
+        id = Toml.text(Toml.table(root.get("mod")), "id");
         List<Map<String, Object>> injections = Toml.tables(root.get("injection"));
         List<String> off = new ArrayList<>();
         Matcher commented = COMMENTED_ID.matcher(manifest);
@@ -114,6 +132,7 @@ final class Check {
         modules(mod, root, rust);
         Map<String, Hook> hooks = new LinkedHashMap<>();
         Integer api = hookList(o, hooks);
+        hookTargets = api == null ? null : Set.copyOf(hooks.keySet());
         helpers(mod, injections, rust);
         targets(injections, o.horizonSrc(), api == null ? null : hooks);
         api(bundle, injections, api, hooks);
@@ -403,7 +422,8 @@ final class Check {
 
     /** What is left to do: not a problem, the bundle is made that way. */
     private void todo(Path bundle, Set<Path> rust, int off) throws IOException {
-        int todos = 0, files = 0;
+        this.off = off;
+        int files = 0;
         for (Path file : rust) {
             long n = Files.readString(file, StandardCharsets.UTF_8).lines().filter(l -> l.contains("TODO")).count();
             todos += (int) n;
