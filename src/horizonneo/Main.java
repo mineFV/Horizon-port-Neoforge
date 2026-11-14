@@ -72,6 +72,9 @@ public final class Main {
             case "check" -> {
                 return check(Line.read(args, Set.of("--horizon-src", "--translator", "--horizon-tools"), Set.of("--compile")), out, err);
             }
+            case "translate" -> {
+                return translate(Line.read(args, Set.of("--out"), Set.of()), out, err);
+            }
             case "dump" -> {
                 return dump(Line.read(args, Set.of("--server", "--horizon-src", "--out", "--python"), Set.of()), out, err);
             }
@@ -90,6 +93,28 @@ public final class Main {
         if (horizonSrc == null) throw new Usage("`check` needs --horizon-src <Horizon's source folder>");
         return Check.run(bundle, new Check.Options(Path.of(horizonSrc), line.options().get("--translator"), line.options().get("--horizon-tools"),
                 line.has("--compile")), out, err);
+    }
+
+    // ---- translate ----
+
+    private static int translate(Line line, PrintStream out, PrintStream err) throws Usage, IOException, ModsToml.Invalid {
+        Path path = line.only("mod jar");
+        ModJar jar = ModJar.open(path);
+        if (!jar.neoforge()) throw new Usage("`translate` takes a NeoForge mod: " + path.getFileName() + " has no " + ModsToml.PATH);
+        String id = NeoForgeFrontend.read(jar).info().id();
+        Path dir = line.options().containsKey("--out") ? Path.of(line.options().get("--out")) : Path.of("out", id.replaceAll("[^A-Za-z0-9_-]", "_") + "-translated");
+        JarRust.Result r = JarRust.translate(jar);
+        java.nio.file.Files.createDirectories(dir);
+        java.nio.file.Files.writeString(dir.resolve("translated.rs"), r.rust(), java.nio.charset.StandardCharsets.UTF_8);
+        java.nio.file.Files.writeString(dir.resolve("translation.md"), JarRust.report(r, -1), java.nio.charset.StandardCharsets.UTF_8);
+        out.println(jar.path().getFileName() + ": " + r.translated().size() + " of " + r.methods() + " methods translated from their bytecode, by this tool's own translator");
+        int shown = 0;
+        for (var e : r.reasons().entrySet()) {
+            if (shown++ == 8) break;
+            out.println("  not translated: " + e.getValue() + ", " + e.getKey());
+        }
+        out.println("Written: " + dir.resolve("translated.rs") + " and " + dir.resolve("translation.md") + ". Nothing was compiled or run.");
+        return DONE;
     }
 
     // ---- dump ----
@@ -434,6 +459,15 @@ public final class Main {
                   stand-ins for Horizon's helpers (it writes <bundle>/target/; nothing of the
                   mod is run). The last line is `RESULT: ok`, `RESULT: ok, not compiled` or
                   `RESULT: failed (...)`; exit code 0 or 1.
+
+              translate <mod.jar> [--out DIR]
+                  This tool's own translator, from the mod's bytecode to Rust (no decompiling):
+                  for now, the static methods that need nothing but numbers (int, long,
+                  float, double, boolean, byte, char, short), their arithmetic, branches,
+                  loops and switches with Java's exact semantics, calls between them and
+                  Math's methods that have an exact counterpart. Writes DIR/translated.rs
+                  and DIR/translation.md (default: out/<mod id>-translated/), which says
+                  why each other method isn't translated. Nothing is compiled or run.
 
               dump <mod.jar> --server FOLDER --horizon-src FOLDER [--out FILE] [--python PROGRAM]
                   The mod's real facts, read in NeoForge itself by Horizon's own oracle

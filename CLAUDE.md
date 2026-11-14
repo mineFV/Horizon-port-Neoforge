@@ -20,7 +20,9 @@ its machines (block entities, menus, screens) and its logic, not only its wiring
    file): type, ticking, item slots and their faces, energy, fluid tanks (done); menus and screens are left (below);
 4. **our own translator**, from bytecode to Rust, written from scratch here. It replaces horizon-port's
    translation of the mod's code (2% of Mekanism's methods). horizon-port keeps the licence check, the Mixin
-   matching and the Fabric path.
+   matching and the Fabric path. Step (a) is done: `translate` writes the static methods of numbers, with Java's
+   exact semantics. Next: (b) objects, inheritance and lambdas, (c) collections and null, (d) the game's API;
+   then its output goes into `port`'s bundle, and its flow is rebuilt as loops and `if`s.
 
 It is separate code that **calls** other programs and never contains theirs:
 
@@ -52,7 +54,7 @@ bash test/run-test.sh         # builds, writes the fixture, runs everything; end
 java -jar build/horizon-port-neoforge.jar --help
 ```
 
-The tool's commands: `metadata`, `license`, `analyze`, `port`, `check`, `pack`, `dump`. The tests need
+The tool's commands: `metadata`, `license`, `analyze`, `port`, `check`, `pack`, `dump`, `translate`. The tests need
 `horizon-port.jar`; the ones that pack a `.hmod` or check a `.hnmod` are skipped, with a note, without Horizon's tools.
 
 ## Rules that are not up for interpretation
@@ -98,6 +100,7 @@ The tool's commands: `metadata`, `license`, `analyze`, `port`, `check`, `pack`, 
 | `Dump` | `dump`: links the maintainer's NeoForge server into Horizon's oracle folder, compiles our machines exporter against its jars, runs Horizon's oracle with it |
 | `Machines` | The block entities in the machines file, on Horizon's block-entity hook points; `report/machines.md` |
 | `exporter/` (not in `src/`) | The NeoForge mod `dump` compiles at run time: places each block with a block entity and writes `<facts>.machines.json` |
+| `Bytecode`, `MethodRust`, `JarRust` | `translate`, our own translator: every opcode decoded; a method's bytecode as a Rust function (each basic block an arm of a `match` in a `loop`); the jar's methods, callers of untranslated ones dropped, as one module with why for the rest |
 | `Pack` | `pack`: the bundle as a `.hnmod`, written as Horizon's `docs/api/mod-files.md` says |
 | `Report` | `report.md` and `report.json` |
 | `Toml`, `Json`, `Translator` | Small readers, and the one place that starts `horizon-port.jar` |
@@ -113,7 +116,9 @@ The tool's commands: `metadata`, `license`, `analyze`, `port`, `check`, `pack`, 
 - The fixture is written by `test/make-fixture.sh`: made-up mods and stand-ins for NeoForge, the game and
   Horizon's source. Nothing in it comes from a real mod. When a real jar shows a bug, reproduce its shape in
   the fixture, then fix it.
-- The tests compile nothing but their own Java: `check --compile` runs against a stand-in for horizon-port.
+- The tests compile nothing but their own Java: `check --compile` runs against a stand-in for horizon-port. One
+  exception: where `rustc` is, the translation of their own made-up class (`test/translate/`) is compiled and run
+  beside the Java, on the same inputs, and the outputs must be the same. Never a real mod's translation.
 - Every change comes with its test, and `--help` says what a command does and what it doesn't.
 
 ## Found the hard way
@@ -126,6 +131,9 @@ The tool's commands: `metadata`, `license`, `analyze`, `port`, `check`, `pack`, 
 - **Horizon's oracle stops the server in its `ServerStartedEvent` listener**: the machines exporter listens at
   `HIGHEST` to run first. And NeoForge calls a block entity's `onLoad` only at the level's next tick, which never
   comes: the exporter calls it, then takes it off `freshBlockEntities`. Mekanism sets up its sides there.
+- **Rust's `as` from a float to an int is Java's cast** (saturating, NaN to 0), but `f64::min`/`max` and `signum`
+  aren't Java's on NaN and negative zero, and `Math.sin` and its kin have no exact counterpart: the translator
+  writes helpers of its own for the first ones and refuses the others.
 - **A face's item handler may be a proxy with its own slot numbers** (Mekanism's): where a face slot is in the
   container is measured by putting an item through it. Slots no item goes into (outputs only a machine fills)
   stay unmapped, and said.
@@ -166,5 +174,7 @@ Say so rather than assume it works:
   82 with energy, 16 with tanks, no menu NeoForge could be asked for. The tests run `Machines` on a made-up
   machines file; the exporter itself only compiles and runs against a real server;
 - the machine helpers passed `check` (by reading) on Mekanism's bundle, never cargo nor the game;
+- our translator's output has been compiled and run on the test's made-up class only: Mekanism's 99 translated
+  methods (of 24149; 17416 are instance methods) haven't been compiled;
 - the facts read blocks without a level: what a block decides from its neighbours or its block entity (a cable's
   connections, in Mekanism) isn't in them.

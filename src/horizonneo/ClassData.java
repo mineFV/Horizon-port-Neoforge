@@ -54,8 +54,11 @@ final class ClassData {
         }
     }
 
-    /** code: the steps of the method's body the analysis looks at, in order; empty without a body. */
-    record Method(int access, String name, String descriptor, List<Annotation> annotations, List<Op> code) {
+    /**
+     * code: the steps of the method's body the analysis looks at, in order; empty without a body. body: the
+     * body itself, as bytes, for the translator (`Bytecode` decodes it); null without one.
+     */
+    record Method(int access, String name, String descriptor, List<Annotation> annotations, List<Op> code, Body body) {
         boolean isStatic() {
             return (access & STATIC) != 0;
         }
@@ -63,6 +66,33 @@ final class ClassData {
         Annotation annotation(String type) {
             return find(annotations, type);
         }
+    }
+
+    /** A method's Code attribute: its bytecode, its limits and its exception handlers, in the class's order. */
+    record Body(byte[] code, int maxStack, int maxLocals, List<Handler> handlers) {}
+
+    /** An exception handler: [start, end) of the code it covers, where it goes, and what it catches (null for any). */
+    record Handler(int start, int end, int handler, String type) {}
+
+    /**
+     * The constant pool, read only through what a method's code names: a number, a text or a class for `ldc`,
+     * a field or method for the instructions that name one, a class for `new`, `checkcast` and the like.
+     */
+    interface Pool {
+        /** What `ldc` loads: an Integer, Float, Long, Double, String, or a TypeName for a class; null for any other. */
+        Object constant(int index);
+
+        /** A field or method: owner, name, descriptor. */
+        String[] member(int index);
+
+        /** A class's internal name (or an array's descriptor). */
+        String className(int index);
+
+        /** An invokedynamic made by javac for a lambda or a method reference; null for any other. */
+        Op lambda(int index);
+
+        /** An invokedynamic's name and descriptor. */
+        String[] dynamic(int index);
     }
 
     /** What a step of a method's code is. */
@@ -117,9 +147,11 @@ final class ClassData {
      * calls, as internal names (`net/minecraft/client/Minecraft`), sorted.
      */
     final Set<String> classRefs;
+    /** The constant pool, for the translator. */
+    final Pool pool;
 
     private ClassData(String name, String superName, List<String> interfaces, int access, List<Annotation> annotations,
-                      List<Field> fields, List<Method> methods, Set<String> classRefs) {
+                      List<Field> fields, List<Method> methods, Set<String> classRefs, Pool pool) {
         this.name = name;
         this.superName = superName;
         this.interfaces = List.copyOf(interfaces);
@@ -128,6 +160,7 @@ final class ClassData {
         this.fields = List.copyOf(fields);
         this.methods = List.copyOf(methods);
         this.classRefs = classRefs;
+        this.pool = pool;
     }
 
     Annotation annotation(String type) {
@@ -183,7 +216,7 @@ final class ClassData {
 
     // ---- reading ----
 
-    private static final class Parser {
+    private static final class Parser implements Pool {
         private static final String LAMBDA_FACTORY = "java/lang/invoke/LambdaMetafactory";
 
         private final ByteBuffer in;
@@ -230,7 +263,13 @@ final class ClassData {
             for (Object[] head : methodHeads) {
                 Attributes a = (Attributes) head[3];
                 List<Op> code = a.codeLength < 0 ? List.of() : code(a.codeStart, a.codeLength);
-                methods.add(new Method((Integer) head[0], (String) head[1], (String) head[2], a.annotations, code));
+                Body body = null;
+                if (a.codeLength >= 0) {
+                    byte[] bytes = new byte[a.codeLength];
+                    in.get(a.codeStart, bytes);
+                    body = new Body(bytes, a.maxStack, a.maxLocals, List.copyOf(a.handlers));
+                }
+                methods.add(new Method((Integer) head[0], (String) head[1], (String) head[2], a.annotations, code, body));
             }
 
             Set<String> classRefs = new TreeSet<>();
@@ -247,7 +286,7 @@ final class ClassData {
             }
             for (Field f : fields) named(f.descriptor(), classRefs);
             for (Method m : methods) named(m.descriptor(), classRefs);
-            return new ClassData(name, superName, interfaces, access, own.annotations, fields, methods, classRefs);
+            return new ClassData(name, superName, interfaces, access, own.annotations, fields, methods, classRefs, this);
         }
 
         /** Adds the classes a descriptor names: `(ILfoo/Bar;)Lfoo/Baz;` names foo/Bar and foo/Baz. */
@@ -318,13 +357,34 @@ final class ClassData {
             return (String) value[index];
         }
 
-        private String className(int index) {
+        @Override
+        public String className(int index) {
             expect(index, 7);
             return utf(first[index]);
         }
 
+        @Override
+        public Object constant(int index) {
+            expect(index, 3, 4, 5, 6, 7, 8, 15, 16, 17);
+            return switch (tag[index]) {
+                case 3, 4, 5, 6 -> value[index];
+                case 8 -> utf(first[index]);
+                case 7 -> new TypeName(utf(first[index]));
+                default -> null;
+            };
+        }
+
+        @Override
+        public String[] dynamic(int index) {
+            expect(index, 18);
+            int nameAndType = second[index];
+            expect(nameAndType, 12);
+            return new String[] {utf(first[nameAndType]), utf(second[nameAndType])};
+        }
+
         /** A field or method reference as owner, name, descriptor. */
-        private String[] member(int index) {
+        @Override
+        public String[] member(int index) {
             expect(index, 9, 10, 11);
             int nameAndType = second[index];
             expect(nameAndType, 12);
@@ -337,7 +397,8 @@ final class ClassData {
         private static final class Attributes {
             final List<Annotation> annotations = new ArrayList<>();
             String signature;
-            int codeStart, codeLength = -1;
+            int codeStart, codeLength = -1, maxStack, maxLocals;
+            final List<Handler> handlers = new ArrayList<>();
         }
 
         private Attributes attributes() {
@@ -353,10 +414,16 @@ final class ClassData {
                     }
                     case "Signature" -> out.signature = utf(u2());
                     case "Code" -> {
-                        in.getInt();
+                        out.maxStack = u2();
+                        out.maxLocals = u2();
                         out.codeLength = in.getInt();
                         out.codeStart = in.position();
                         if (out.codeLength < 0 || out.codeLength > end - out.codeStart) throw new Malformed("a method's code runs past its attribute");
+                        in.position(out.codeStart + out.codeLength);
+                        for (int k = u2(); k > 0; k--) {
+                            int from = u2(), to = u2(), handler = u2(), type = u2();
+                            out.handlers.add(new Handler(from, to, handler, type == 0 ? null : className(type)));
+                        }
                     }
                     case "BootstrapMethods" -> {
                         for (int k = u2(); k > 0; k--) {
@@ -508,7 +575,8 @@ final class ClassData {
          * An invokedynamic made by javac for a lambda or a method reference (its bootstrap method is
          * LambdaMetafactory's): the method it runs and the types it is used with. Null for any other.
          */
-        private Op lambda(int index) {
+        @Override
+        public Op lambda(int index) {
             expect(index, 18);
             int nameAndType = second[index];
             expect(nameAndType, 12);
