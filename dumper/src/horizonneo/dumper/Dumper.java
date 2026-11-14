@@ -225,12 +225,16 @@ public final class Dumper {
         return a;
     }
 
-    /** Each vanilla sound type, as the first vanilla block (in registry order) that has it. */
+    /**
+     * Each vanilla sound type, as the first vanilla block (by id) that has it and isn't air: air shares stone's
+     * sound type, and a block named after air says nothing to whoever reads it.
+     */
     private static Map<SoundType, String> vanillaSounds() {
         Map<SoundType, String> out = new IdentityHashMap<>();
         for (ResourceLocation id : BuiltInRegistries.BLOCK.keySet().stream().filter(k -> k.getNamespace().equals("minecraft")).sorted().toList()) {
             try {
-                out.putIfAbsent(BuiltInRegistries.BLOCK.get(id).defaultBlockState().getSoundType(), id.toString());
+                BlockState state = BuiltInRegistries.BLOCK.get(id).defaultBlockState();
+                if (!state.isAir()) out.putIfAbsent(state.getSoundType(), id.toString());
             } catch (RuntimeException e) {
                 // That block's sound isn't a reference for any other.
             }

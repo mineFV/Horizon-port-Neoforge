@@ -168,6 +168,7 @@ final class Dump {
                 "online-mode=false",
                 "level-name=dump",
                 "level-type=minecraft\\:flat",
+                "generator-settings={\"biome\"\\:\"minecraft\\:the_void\",\"layers\"\\:[{\"block\"\\:\"minecraft\\:air\",\"height\"\\:1}]}",
                 "generate-structures=false",
                 "spawn-protection=0",
                 "max-players=1",

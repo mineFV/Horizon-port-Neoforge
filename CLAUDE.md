@@ -133,5 +133,8 @@ Say so rather than assume it works:
 - no bundle or `.hnmod` it made has been built by the launcher or loaded in the game;
 - a content `.hmod` beside a `.hnmod` of the same id hasn't been tried, and the combined `.hmod` isn't made;
 - `analyze --neoforge-jar` has only seen stand-ins, never NeoForge's own jars;
-- the dumper compiles against NeoForge 21.1.266's jars (by hand), but hasn't run in a server yet; the tests stop
-  `dump` before anything starts.
+- the dumper has run on one mod (Mekanism 10.7.19, NeoForge 21.1.266, Java 25, 2026-11-14): 200 blocks, 381 items,
+  nothing unread but 5 item components. The tests stop `dump` before anything starts: the dumper itself is only
+  checked by hand;
+- the dump reads blocks without a level: what a block decides from its neighbours or its block entity (a cable's
+  connections, in Mekanism) isn't in it.

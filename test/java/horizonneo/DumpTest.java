@@ -58,6 +58,11 @@ final class DumpTest {
             String properties = Dump.properties(25565);
             c.yes("it listens on this machine alone", properties.contains("\nserver-ip=127.0.0.1\n") && properties.contains("\nserver-port=25565\n"));
             c.yes("in a flat world with no structures", properties.contains("\nlevel-type=minecraft\\:flat\n") && properties.contains("\ngenerate-structures=false\n"));
+            c.yes("a flat world says its layers, or the server logs that it has none", properties.contains("\ngenerator-settings={"));
+            java.util.Properties read = new java.util.Properties();
+            read.load(new java.io.StringReader(properties));
+            c.same("which read back as JSON the game takes", "{\"biome\":\"minecraft:the_void\",\"layers\":[{\"block\":\"minecraft:air\",\"height\":1}]}",
+                    read.getProperty("generator-settings"));
             c.yes("and no remote console", properties.contains("\nenable-rcon=false\n"));
 
             // ---- the dumper in this tool's jar ----
