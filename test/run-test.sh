@@ -127,7 +127,7 @@ jar --create --file "$B/jars/tidy.jar" -C "$B/tidy" . -C test/fixture/tidy/resou
 
 echo; echo "== unit tests"
 javac --release 21 -Xlint:all -Werror -cp build/classes -d "$B/classes" test/java/horizonneo/*.java
-for t in TomlTest JsonTest MetadataTest LicenceCheckTest ClassDataTest AnalyzerTest ReportTest StandInTest BundleTest EventTableTest WiringTest ContentTest RustTextTest PackTest DumpTest; do
+for t in TomlTest JsonTest MetadataTest LicenceCheckTest ClassDataTest AnalyzerTest ReportTest StandInTest BundleTest EventTableTest WiringTest ContentTest RustTextTest PackTest DumpTest DeclarationsTest; do
   # Their arguments, for the tests that read them: the first mod's classes, its jar, the stand-ins' jar, the second mod's jar.
   java -cp "build/classes:$B/classes" "horizonneo.$t" "$B/mod" "$J" "$B/jars/neoforge-stubs.jar" "$B/jars/oddities.jar" || failures=$((failures + 1))
 done
@@ -611,9 +611,12 @@ if [ -f "${HORIZON_PORT_JAR:-}" ]; then
     says "$P/wrapped/report/report.md" "makes a DeferredRegister that isn't kept in a static field"
 
     # With the mod's facts, horizon-port-pack's pipeline declares each block and item from them: packed, nothing guessed.
-    exits 0 tool port "$B/jars/content.jar" --horizon-src "$H" --out "$P/facts" --horizon-tools "$T" --facts test/fixture/facts/pocketcompass.json
+    mkdir -p "$B/machine-content"
+    cp -r test/fixture/extras/content/. test/fixture/extras/machine/. "$B/machine-content/"
+    fixture_jar machine "$B/machine-content"
+    exits 0 tool port "$B/jars/machine.jar" --horizon-src "$H" --out "$P/facts" --horizon-tools "$T" --facts test/fixture/facts/pocketcompass.json
     says "$OUT" 'Content: pocketcompass.hmod'
-    says "$OUT" "it declares 1 block and 1 item, each from the mod's facts in NeoForge"
+    says "$OUT" "it declares 2 blocks and 1 item, each from the mod's facts in NeoForge"
     is_file "$P/facts/pocketcompass.hmod"
     no_file "$P/facts/todo/content/horizon-mod.toml"
     says "$P/facts/content/data/pocketcompass/horizon/block/plain_block.json" '"hardness": 5.0'
@@ -621,6 +624,17 @@ if [ -f "${HORIZON_PORT_JAR:-}" ]; then
     says "$P/facts/content/data/pocketcompass/horizon/item/pocket_compass.json" '"max_stack_size": 1'
     says "$P/facts/PORTING.md" '| block `pocketcompass:plain_block` | `minecraft:stone` | yes |'
     lacks "$P/facts/PORTING.md" "Horizon's guess"
+    # The machine no vanilla template takes: declared with state properties of its own, its recipe back.
+    says "$P/facts/content/data/pocketcompass/horizon/block/machine_block.json" '"state_properties"'
+    says "$P/facts/content/data/pocketcompass/horizon/block/machine_block.json" '"active": "false"'
+    says "$P/facts/content/data/pocketcompass/horizon/block/machine_block.json" '"state_light"'
+    says "$P/facts/content/data/pocketcompass/horizon/block/machine_block.json" '"minecraft:rarity": "uncommon"'
+    is_file "$P/facts/content/data/pocketcompass/recipe/machine_block.json"
+    no_file "$P/facts/todo/content-left-out/data/pocketcompass/recipe/machine_block.json"
+    says "$P/facts/PORTING.md" '| block `pocketcompass:machine_block` | `minecraft:stone` | yes |'
+    says "$P/facts/PORTING.md" '- `pocketcompass:machine_block`: declared by this tool on minecraft:stone, with state properties of its own (active, facing)'
+    says "$P/facts/PORTING.md" 'class com.example.pocketcompass.MachineBlock (behaviour beyond net.minecraft.world.level.block.Block): its code isn'"'"'t ported'
+    lacks "$P/facts/PORTING.md" "aren't declared. horizon-port-pack declares only"
 
     # With --allow-approximate it is packed as it is, and each guess is still listed.
     exits 0 tool port "$B/jars/content.jar" --horizon-src "$H" --out "$P/guessed-packed" --horizon-tools "$T" --allow-approximate

@@ -14,8 +14,8 @@ its machines (block entities, menus, screens) and its logic, not only its wiring
 
 0. the rules below, and a report that owns up to what it didn't read;
 1. `dump`: the mod's real facts, read in NeoForge by Horizon's own oracle (done);
-2. the content mod from those facts: `port --facts` runs horizon-port-pack's pipeline on them (done); then
-   the blocks it leaves out (no vanilla template with their states), declared with state properties of their own;
+2. the content mod from those facts: `port --facts` runs horizon-port-pack's pipeline on them, then declares
+   the blocks it leaves out (no vanilla template with their states) with state properties of their own (done);
 3. the machines wired on Horizon's block-entity, container and screen hook points;
 4. **our own translator**, from bytecode to Rust, written from scratch here. It replaces horizon-port's
    translation of the mod's code (2% of Mekanism's methods). horizon-port keeps the licence check, the Mixin
@@ -90,6 +90,7 @@ The tool's commands: `metadata`, `license`, `analyze`, `port`, `check`, `pack`, 
 | `Port` | `port`: the whole conversion, in a temporary folder that is always deleted |
 | `Bundle` | Goes over horizon-port's bundle: strips decompiled Java, turns off what isn't certain, rewrites `PORTING.md` |
 | `EventTable`, `Wiring` | Horizon's catalogue as an event table; listeners put on hook points, or commented out with why |
+| `Declarations` | Blocks the carry left out, declared from the facts on a plain template with state properties of their own |
 | `Content`, `HorizonTools` | The jar's data and assets as a content mod, through Horizon's own tools |
 | `Check`, `RustText` | `check`: a bundle against a Horizon source, by reading; `--compile` hands it to horizon-port's check |
 | `Dump` | `dump`: links the maintainer's NeoForge server into Horizon's oracle folder and runs Horizon's oracle |
@@ -144,5 +145,7 @@ Say so rather than assume it works:
 - `dump` and `port --facts` have run on one real mod (Mekanism 10.7.19, NeoForge 21.1.266, Java 25, 2026-11-14):
   200 blocks, 381 items, 1578 recipes; 64 blocks and 199 items declared, 136 blocks left out with why. The tests
   run `dump` against a stand-in for the oracle, never a server;
+- a block declared with state properties of its own, a state light table or shape tables has passed
+  `cargo horizon-mod check`, never Horizon's loader: Mekanism's 136 such blocks haven't been loaded in the game;
 - the facts read blocks without a level: what a block decides from its neighbours or its block entity (a cable's
   connections, in Mekanism) isn't in them.

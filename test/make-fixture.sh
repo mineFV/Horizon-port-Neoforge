@@ -800,6 +800,13 @@ echo '{ "parent": "minecraft:item/generated", "textures": { "layer0": "pocketcom
 echo '{ "variants": { "": { "model": "pocketcompass:block/plain_block" } } }' > "$X/content/assets/pocketcompass/blockstates/plain_block.json"
 echo '{ "parent": "minecraft:block/cube_all", "textures": { "all": "pocketcompass:block/plain_block" } }' > "$X/content/assets/pocketcompass/models/block/plain_block.json"
 
+# A machine: a blockstate with properties no vanilla block has, and a recipe that makes it. With facts, its
+# declaration has state properties of its own, and its recipe comes back.
+mkdir -p "$X/machine/assets/pocketcompass/blockstates" "$X/machine/assets/pocketcompass/models/block" "$X/machine/data/pocketcompass/recipe"
+echo '{ "variants": { "active=false,facing=north": { "model": "pocketcompass:block/machine_block" }, "active=true,facing=north": { "model": "pocketcompass:block/machine_block" }, "active=false,facing=south": { "model": "pocketcompass:block/machine_block" }, "active=true,facing=south": { "model": "pocketcompass:block/machine_block" } } }' > "$X/machine/assets/pocketcompass/blockstates/machine_block.json"
+echo '{ "parent": "minecraft:block/cube_all", "textures": { "all": "pocketcompass:block/machine_block" } }' > "$X/machine/assets/pocketcompass/models/block/machine_block.json"
+echo '{ "type": "minecraft:crafting_shaped", "pattern": ["##", "##"], "key": { "#": { "item": "minecraft:iron_ingot" } }, "result": { "count": 1, "id": "pocketcompass:machine_block" } }' > "$X/machine/data/pocketcompass/recipe/machine_block.json"
+
 # A block registered through a register wrapper of the mod's own, as large mods do: the analysis can't read
 # what it registers, so a content mod's declaration of that block is "not read", never "no".
 javafile $X/wrapped com.example.pocketcompass.WrappedBlocks <<'EOF'
@@ -1049,12 +1056,43 @@ cat > fixture/facts/pocketcompass.json <<'EOF'
         "outline": [[0.0, 0.0, 0.0, 1.0, 1.0, 1.0]], "collision": [[0.0, 0.0, 0.0, 1.0, 1.0, 1.0]],
         "drops": { "hand": {}, "diamond_pickaxe": { "pocketcompass:plain_block": 1 } } } },
       "placement": { "up": "", "north": "" }
+    },
+    "pocketcompass:machine_block": {
+      "class": ["com.example.pocketcompass.MachineBlock", "net.minecraft.world.level.block.Block", "net.minecraft.world.level.block.state.BlockBehaviour"],
+      "properties": { "active": ["true", "false"], "facing": ["north", "south"] }, "default": "active=false,facing=north",
+      "item": "pocketcompass:machine_block",
+      "explosion_resistance": 9.0, "friction": 0.6, "speed_factor": 1.0, "jump_factor": 1.0,
+      "states": {
+        "active=true,facing=north": { "hardness": 3.5, "emission": 12, "requires_tool": true, "can_occlude": true, "replaceable": false,
+        "random_ticks": false, "map_color": 7368816, "map_color_id": 11,
+        "sound": { "volume": 1.0, "pitch": 1.0, "break": "minecraft:block.stone.break", "step": "minecraft:block.stone.step",
+          "place": "minecraft:block.stone.place", "hit": "minecraft:block.stone.hit", "fall": "minecraft:block.stone.fall" },
+        "outline": [[0.0, 0.0, 0.0, 1.0, 1.0, 1.0]], "collision": [[0.0, 0.0, 0.0, 1.0, 1.0, 1.0]] },
+        "active=true,facing=south": { "hardness": 3.5, "emission": 12, "requires_tool": true, "can_occlude": true, "replaceable": false,
+        "random_ticks": false, "map_color": 7368816, "map_color_id": 11,
+        "sound": { "volume": 1.0, "pitch": 1.0, "break": "minecraft:block.stone.break", "step": "minecraft:block.stone.step",
+          "place": "minecraft:block.stone.place", "hit": "minecraft:block.stone.hit", "fall": "minecraft:block.stone.fall" },
+        "outline": [[0.0, 0.0, 0.0, 1.0, 0.5, 1.0]], "collision": [[0.0, 0.0, 0.0, 1.0, 0.5, 1.0]] },
+        "active=false,facing=north": { "hardness": 3.5, "emission": 0, "requires_tool": true, "can_occlude": true, "replaceable": false,
+        "random_ticks": false, "map_color": 7368816, "map_color_id": 11,
+        "sound": { "volume": 1.0, "pitch": 1.0, "break": "minecraft:block.stone.break", "step": "minecraft:block.stone.step",
+          "place": "minecraft:block.stone.place", "hit": "minecraft:block.stone.hit", "fall": "minecraft:block.stone.fall" },
+        "outline": [[0.0, 0.0, 0.0, 1.0, 1.0, 1.0]], "collision": [[0.0, 0.0, 0.0, 1.0, 1.0, 1.0]] },
+        "active=false,facing=south": { "hardness": 3.5, "emission": 0, "requires_tool": true, "can_occlude": true, "replaceable": false,
+        "random_ticks": false, "map_color": 7368816, "map_color_id": 11,
+        "sound": { "volume": 1.0, "pitch": 1.0, "break": "minecraft:block.stone.break", "step": "minecraft:block.stone.step",
+          "place": "minecraft:block.stone.place", "hit": "minecraft:block.stone.hit", "fall": "minecraft:block.stone.fall" },
+        "outline": [[0.0, 0.0, 0.0, 1.0, 0.5, 1.0]], "collision": [[0.0, 0.0, 0.0, 1.0, 0.5, 1.0]] }
+      },
+      "placement": { "up": "active=false,facing=north", "north": "active=false,facing=north" }
     }
   },
   "vanilla_items": [],
   "items": {
     "pocketcompass:plain_block": { "class": "net.minecraft.world.item.BlockItem", "max_stack_size": 64, "rarity": "common",
       "block": "pocketcompass:plain_block", "components": { "minecraft:max_stack_size": 64, "minecraft:rarity": "common" } },
+    "pocketcompass:machine_block": { "class": "net.minecraft.world.item.BlockItem", "max_stack_size": 64, "rarity": "uncommon",
+      "block": "pocketcompass:machine_block", "components": { "minecraft:max_stack_size": 64, "minecraft:rarity": "uncommon" } },
     "pocketcompass:pocket_compass": { "class": "net.minecraft.world.item.Item", "max_stack_size": 1, "rarity": "common",
       "components": { "minecraft:max_stack_size": 1, "minecraft:rarity": "common" } }
   },

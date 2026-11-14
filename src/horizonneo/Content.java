@@ -134,6 +134,7 @@ final class Content {
             oracle = oracle(report, from.getFileName().toString());
         }
         Path carried = from.resolve("carry");
+        if (facts != null && Files.isDirectory(carried)) oracle = declareLeftOut(facts, carried, from.resolve("outside"), report, oracle);
         List<Path> files = Files.isDirectory(carried) ? files(carried) : List.of();
         int count = (int) files.stream().filter(f -> !f.equals(carried.resolve("horizon-mod.toml"))).count();
         Map<String, String> leftOut = leftOut(from.resolve("outside"), report, bundle);
@@ -220,6 +221,57 @@ final class Content {
     private static void step(HorizonTools tools, List<String> args, String what) throws IOException {
         HorizonTools.Run run = tools.portPack(args, SECONDS);
         if (run.exit() != 0) throw new IOException("horizon-port-pack " + what + " failed: " + last(run.err().isBlank() ? run.out() : run.err()));
+    }
+
+    /**
+     * Declares the blocks the carry left out for want of a template (`Declarations`), puts back the recipes it
+     * kept out only because their result wasn't declared, and returns what is still left out and what each
+     * declaration doesn't reproduce.
+     */
+    private static Oracle declareLeftOut(Path facts, Path carried, Path outside, Map<String, Object> report, Oracle oracle) throws IOException {
+        Map<String, Object> f;
+        try {
+            f = Json.object(Json.parse(Files.readString(facts, StandardCharsets.UTF_8)));
+        } catch (Json.Invalid e) {
+            throw new IOException(facts + " isn't JSON: " + e.getMessage());
+        }
+        List<String> blocks = new ArrayList<>();
+        for (String what : oracle.unknown().keySet()) if (what.startsWith("block ")) blocks.add(what.substring("block ".length()));
+        Declarations.Made made = Declarations.declare(f, carried, blocks);
+
+        Map<String, String> unknown = new TreeMap<>(oracle.unknown());
+        for (String id : made.declared()) {
+            unknown.remove("block " + id);
+            unknown.remove("item " + id);
+        }
+        made.left().forEach((id, why) -> unknown.put("block " + id, unknown.get("block " + id) + "; " + why));
+        Map<String, List<String>> differences = new TreeMap<>(oracle.differences());
+        made.notes().forEach((id, what) -> differences.merge(id, what, (a, b) -> {
+            List<String> both = new ArrayList<>(a);
+            both.addAll(b);
+            return both;
+        }));
+
+        // A recipe kept out only because its result wasn't declared goes back once it is.
+        for (Object o : Json.array(report.get("recipes_unregistered"))) {
+            String path = String.valueOf(o);
+            Path file = outside.resolve(path);
+            if (!Files.isRegularFile(file)) continue;
+            String result;
+            try {
+                Map<String, Object> recipe = Json.object(Json.parse(Files.readString(file, StandardCharsets.UTF_8)));
+                Object r = recipe.get("result");
+                result = r instanceof String text ? text : Json.text(Json.object(r), "id");
+            } catch (Json.Invalid e) {
+                continue;
+            }
+            if (result != null && made.declared().contains(result)) {
+                Path to = carried.resolve(path);
+                Files.createDirectories(to.getParent());
+                Files.move(file, to);
+            }
+        }
+        return new Oracle(unknown, differences);
     }
 
     /** The ids the facts hold, as `block namespace:name` and `item namespace:name`: what NeoForge has registered. */
@@ -414,7 +466,7 @@ final class Content {
         }
         if (r.oracle() != null && !r.oracle().differences().isEmpty()) {
             out.add("");
-            out.add("What a declaration's template doesn't reproduce of the mod's (horizon-port-pack's words), for " + r.oracle().differences().size() + " of them:");
+            out.add("What a declaration's template doesn't reproduce of the mod's (horizon-port-pack's words, then this tool's), for " + r.oracle().differences().size() + " of them:");
             out.add("");
             r.oracle().differences().forEach((id, what) -> out.add("- `" + id + "`: " + String.join("; ", what) + "."));
         }
