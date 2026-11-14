@@ -47,6 +47,18 @@ final class ContentTest {
             c.same("what the code registers that isn't declared: a block's own item goes with its block", List.of("block m:odd_block"), Content.undeclared(declared, a));
             c.same("with nothing declared, every block and item", List.of("block m:gem_block", "block m:odd_block", "item m:gem", "item m:gem_block"),
                     Content.undeclared(List.of(), a));
+            Analysis wrapped = new Analysis(a.census(), List.of(), List.of(), a.registries(), List.of(), List.of(), List.of(), List.of(), List.of(), List.of(), false,
+                    List.of("MyBlockRegister"), List.of());
+            c.same("with a register that wasn't read, one not found isn't known: not read, not no", List.of(
+                    new Declared("block", "m:gem_block", "minecraft:stone", true),
+                    new Declared("item", "m:gem", "minecraft:stick", true),
+                    new Declared("item", "m:tools/pick", "minecraft:stick", null),
+                    new Declared("block", "other:broken", null, null)), Content.declared(carried, wrapped));
+            Analysis kindless = analysis(1, 1, List.of(new Registry(null, "m", "com/example/Reg", "THINGS", true,
+                    List.of(new Registration("pick", "register", null, null, null)))));
+            c.same("so is one beside a register whose kind wasn't read", null, Content.declared(carried, kindless).get(2).registered());
+            c.same("an empty register of unknown kind changes nothing", false, Content.declared(carried,
+                    analysis(1, 1, List.of(new Registry(null, "m", "com/example/Reg", "THINGS", true, List.of())))).get(2).registered());
 
             // ---- when nothing is carried ----
             ModJar jar = new ModJar(dir.resolve("m.jar"), true, false, false, "", null, List.of(), List.of());
@@ -84,6 +96,9 @@ final class ContentTest {
         c.yes("that it wasn't tried beside the native mod", packed.contains("whether it takes the two side by side wasn't tried"));
         c.yes("Horizon's own words on the jar", packed.contains("What `horizon-port-pack` says of the jar: Content only: 1 block port. It carries: 1 block; 2 recipes."));
         c.yes("each declaration, with what it copies", packed.contains("| block `m:gem_block` | `minecraft:stone` | yes |"));
+        c.yes("one whose registers weren't all read says so", String.join("\n", Content.words(new Result("todo", null, "todo/content", 1, null, List.of(), List.of(),
+                List.of(new Declared("item", "m:pick", "minecraft:stick", null)), List.of(), Map.of(), "not packed")))
+                .contains("| item `m:pick` | `minecraft:stick` | not read: some of the mod's registers weren't read (`report/report.md` names them) |"));
         c.yes("one the code doesn't register stands out", packed.contains("| item `m:pick` | `minecraft:stick` | **no**: the carry declares it from an asset, the code doesn't register it |"));
         c.yes("what the code registers that isn't declared", packed.contains("not declared in the content mod (the jar has no blockstate or item model for them): block `m:odd_block`."));
         c.yes("what the carry kept out, with why", packed.contains("- `todo/content-left-out/data/m/recipe/x.json`: a recipe whose NeoForge conditions don't pass."));
@@ -103,7 +118,7 @@ final class ContentTest {
     }
 
     private static Analysis analysis(int assets, int data, List<Registry> registries) {
-        return new Analysis(new Analysis.Census(1, assets, data), List.of(), List.of(), registries, List.of(), List.of(), List.of(), List.of(), List.of(), List.of(), false, List.of());
+        return new Analysis(new Analysis.Census(1, assets, data), List.of(), List.of(), registries, List.of(), List.of(), List.of(), List.of(), List.of(), List.of(), false, List.of(), List.of());
     }
 
     private static void write(Path file, String text) throws Exception {

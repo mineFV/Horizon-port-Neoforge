@@ -78,7 +78,7 @@ final class ReportTest {
         }
 
         // A mod with no code to speak of: every section still says something.
-        Analysis empty = new Analysis(new Analysis.Census(0, 0, 0), List.of(), List.of(), List.of(), List.of(), List.of(), List.of(), List.of(), List.of(), List.of(), false, List.of());
+        Analysis empty = new Analysis(new Analysis.Census(0, 0, 0), List.of(), List.of(), List.of(), List.of(), List.of(), List.of(), List.of(), List.of(), List.of(), false, List.of(), List.of());
         String bare = Report.markdown(jar, frontend, empty);
         c.yes("no @Mod class", bare.contains("No class has `@Mod`"));
         c.yes("no listener, registry, config or Mixin", bare.contains("## Event listeners\n\nNone.\n") && bare.contains("No `DeferredRegister`.")

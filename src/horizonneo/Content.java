@@ -34,9 +34,10 @@ final class Content {
 
     /**
      * Something the content mod declares. kind: `block`, `item`... id: `namespace:name`.
-     * template: the vanilla thing it copies. registered: the mod's code registers that id.
+     * template: the vanilla thing it copies. registered: the mod's code registers that id; null when the
+     * analysis didn't find it and couldn't read every register, so whether the code registers it isn't known.
      */
-    record Declared(String kind, String id, String template, boolean registered) {}
+    record Declared(String kind, String id, String template, Boolean registered) {}
 
     /**
      * What became of the content. state: "packed" (file is the `.hmod`, folder its source),
@@ -155,6 +156,7 @@ final class Content {
         Path data = carried.resolve("data");
         if (!Files.isDirectory(data)) return out;
         List<String> registered = registered(analysis);
+        boolean allRead = allRead(analysis);
         for (Path f : files(data)) {
             Path rel = data.relativize(f);
             if (rel.getNameCount() < 4 || !rel.getName(1).toString().equals("horizon") || !f.getFileName().toString().endsWith(".json")) continue;
@@ -167,9 +169,22 @@ final class Content {
             } catch (Json.Invalid e) {
                 // Left without a template: the list still names it.
             }
-            out.add(new Declared(kind, id, template, registered.contains(kind + " " + id)));
+            boolean found = registered.contains(kind + " " + id);
+            out.add(new Declared(kind, id, template, found ? Boolean.TRUE : allRead ? Boolean.FALSE : null));
         }
         return out;
+    }
+
+    /**
+     * Whether the analysis read every register that could hold a block or an item: none behind a wrapper of the
+     * mod's own, none it couldn't tell, none whose registry kind or namespace it couldn't read.
+     */
+    private static boolean allRead(Analysis analysis) {
+        if (!analysis.unreadRegisters().isEmpty()) return false;
+        for (Registry r : analysis.registries()) {
+            if ((r.kind() == null || r.namespace() == null) && !r.entries().isEmpty()) return false;
+        }
+        return true;
     }
 
     /** Every block and item the mod's code registers, as `block namespace:name`. */
@@ -260,7 +275,8 @@ final class Content {
             out.add("|---|---|---|");
             for (Declared d : r.declared()) {
                 out.add("| " + d.kind() + " `" + d.id() + "` | " + (d.template() == null ? "not read" : "`" + d.template() + "`") + " | "
-                        + (d.registered() ? "yes" : "**no**: the carry declares it from an asset, the code doesn't register it") + " |");
+                        + (d.registered() == null ? "not read: some of the mod's registers weren't read (`report/report.md` names them)"
+                            : d.registered() ? "yes" : "**no**: the carry declares it from an asset, the code doesn't register it") + " |");
             }
         }
         if (!r.undeclared().isEmpty() && (r.packed() || r.state().equals("todo"))) {

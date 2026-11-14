@@ -15,7 +15,7 @@ bash test/make-fixture.sh
 B=test/build
 F=test/fixture/pocketcompass
 rm -rf "$B"
-mkdir -p "$B/classes" "$B/stubs" "$B/mod" "$B/odd" "$B/tidy" "$B/stray" "$B/screen" "$B/jars" "$B/over" "$B/out" "$B/tmp"
+mkdir -p "$B/classes" "$B/stubs" "$B/mod" "$B/odd" "$B/tidy" "$B/stray" "$B/screen" "$B/wrapped" "$B/jars" "$B/over" "$B/out" "$B/tmp"
 OUT=$B/out/stdout.txt
 ERR=$B/out/stderr.txt
 failures=0
@@ -32,6 +32,7 @@ javac --release 21 -cp "$B/stubs" -d "$B/tidy" $(find test/fixture/tidy/src -nam
 # Classes laid over the first mod's, for one test each.
 javac --release 21 -cp "$B/stubs:$B/mod" -d "$B/stray" $(find test/fixture/extras/stray -name '*.java')
 javac --release 21 -cp "$B/stubs:$B/mod" -d "$B/screen" $(find test/fixture/extras/screen -name '*.java')
+javac --release 21 -cp "$B/stubs:$B/mod" -d "$B/wrapped" $(find test/fixture/extras/wrapped -name '*.java')
 
 # The tool, with its temporary files in the build folder, so the tests can see that none is left.
 tool() { java -Djava.io.tmpdir="$PWD/$B/tmp" -jar build/horizon-port-neoforge.jar "$@"; }
@@ -598,6 +599,16 @@ if [ -f "${HORIZON_PORT_JAR:-}" ]; then
     says "$P/guessed/report/report.md" "| needs-mapping | Declared in \`todo/content/\`, which isn't packed, as a copy of \`minecraft:stone\`: Horizon's guess"
     says "$P/guessed/report/report.md" "| needs-translation | The content mod doesn't declare it"
     says "$P/guessed/report/report.json" '"state": "todo"'
+
+    # A block registered through the mod's own register wrapper: whether the code registers it isn't known.
+    mkdir -p "$B/wrapped-content"
+    cp -r test/fixture/extras/content/. test/fixture/extras/wrapped-assets/. "$B/wrapped/." "$B/wrapped-content/"
+    fixture_jar wrapped "$B/wrapped-content"
+    exits 0 tool port "$B/jars/wrapped.jar" --horizon-src "$H" --out "$P/wrapped" --horizon-tools "$T"
+    says "$P/wrapped/PORTING.md" '| block `pocketcompass:wrapped_block` | `minecraft:stone` | not read: some of the mod'"'"'s registers weren'"'"'t read'
+    says "$P/wrapped/PORTING.md" '| block `pocketcompass:plain_block` | `minecraft:stone` | yes |'
+    lacks "$P/wrapped/PORTING.md" "the code doesn't register it"
+    says "$P/wrapped/report/report.md" "makes a DeferredRegister that isn't kept in a static field"
 
     # With --allow-approximate it is packed as it is, and each guess is still listed.
     exits 0 tool port "$B/jars/content.jar" --horizon-src "$H" --out "$P/guessed-packed" --horizon-tools "$T" --allow-approximate

@@ -799,6 +799,38 @@ echo '{ "parent": "minecraft:item/generated", "textures": { "layer0": "pocketcom
 echo '{ "variants": { "": { "model": "pocketcompass:block/plain_block" } } }' > "$X/content/assets/pocketcompass/blockstates/plain_block.json"
 echo '{ "parent": "minecraft:block/cube_all", "textures": { "all": "pocketcompass:block/plain_block" } }' > "$X/content/assets/pocketcompass/models/block/plain_block.json"
 
+# A block registered through a register wrapper of the mod's own, as large mods do: the analysis can't read
+# what it registers, so a content mod's declaration of that block is "not read", never "no".
+javafile $X/wrapped com.example.pocketcompass.WrappedBlocks <<'EOF'
+package com.example.pocketcompass;
+
+import net.minecraft.world.level.block.state.BlockBehaviour;
+import net.neoforged.neoforge.registries.DeferredRegister;
+
+public final class WrappedBlocks {
+    static final class BlockRegister {
+        private final DeferredRegister.Blocks inner;
+
+        BlockRegister(String namespace) {
+            inner = DeferredRegister.createBlocks(namespace);
+        }
+
+        void add(String name) {
+            inner.registerSimpleBlock(name, BlockBehaviour.Properties.of());
+        }
+    }
+
+    public static final BlockRegister BLOCKS = new BlockRegister(PocketCompass.MODID);
+
+    static {
+        BLOCKS.add("wrapped_block");
+    }
+}
+EOF
+mkdir -p "$X/wrapped-assets/assets/pocketcompass/blockstates" "$X/wrapped-assets/assets/pocketcompass/models/block"
+echo '{ "variants": { "": { "model": "pocketcompass:block/wrapped_block" } } }' > "$X/wrapped-assets/assets/pocketcompass/blockstates/wrapped_block.json"
+echo '{ "parent": "minecraft:block/cube_all", "textures": { "all": "pocketcompass:block/wrapped_block" } }' > "$X/wrapped-assets/assets/pocketcompass/models/block/wrapped_block.json"
+
 # ---------------------------------------------------------------- a third mod: nothing a converter can't finish
 
 # No event, no registry, no Mixin: horizon-port sees nothing left to do in it.

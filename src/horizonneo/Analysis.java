@@ -10,6 +10,10 @@ import java.util.List;
  *
  * configScreens: the mod's classes that name NeoForge's `IConfigScreenFactory`, which is how a mod
  * says it has a settings screen of its own.
+ *
+ * unreadRegisters: where the mod makes or uses a DeferredRegister whose entries couldn't be read (a register
+ * not kept in a static field, one reached through the mod's own wrapper). What it registers isn't in
+ * `registries`, so a block or item missing from there may still be registered.
  */
 record Analysis(
         Census census,
@@ -23,6 +27,7 @@ record Analysis(
         List<GameClass> gameClasses,
         List<ApiArea> apiAreas,
         boolean neoforgeJars,
+        List<String> unreadRegisters,
         List<String> warnings) {
 
     Analysis {
@@ -35,6 +40,7 @@ record Analysis(
         accessTransformers = List.copyOf(accessTransformers);
         gameClasses = List.copyOf(gameClasses);
         apiAreas = List.copyOf(apiAreas);
+        unreadRegisters = List.copyOf(unreadRegisters);
         warnings = List.copyOf(warnings);
     }
 

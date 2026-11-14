@@ -600,7 +600,7 @@ final class Bundle {
         }
         int registered = analysis.registries().stream().mapToInt(r -> r.entries().size()).sum();
         Content.Result content = o.content();
-        long declared = content == null ? 0 : content.declared().stream().filter(Content.Declared::registered).count();
+        long declared = content == null ? 0 : content.declared().stream().filter(d -> Boolean.TRUE.equals(d.registered())).count();
         if (registered > 0 && content != null && content.packed() && declared > 0) {
             left.add(registered + (registered == 1 ? " thing is" : " things are") + " registered with `DeferredRegister`: " + declared + (declared == 1 ? " is" : " are")
                     + " declared in `" + content.file() + "`, copying a vanilla template to check; the rest " + (registered - declared == 1 ? "isn't" : "aren't")

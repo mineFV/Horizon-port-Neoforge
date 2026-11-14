@@ -89,7 +89,7 @@ final class WiringTest {
                 listener("net/neoforged/neoforge/client/event/RenderHandEvent", "Handlers", "onHand", true, "NORMAL", false, "both", null, List.of()),
                 listener("net/neoforged/fml/event/lifecycle/FMLClientSetupEvent", "Handlers", null, true, "NORMAL", false, "both", null, List.of()),
                 listener(E + "level/BlockEvent$BreakEvent", "Other", "alsoBreak", true, "NORMAL", true, "both", null, List.of()));
-        Analysis a = new Analysis(new Analysis.Census(0, 0, 0), List.of(), listeners, List.of(), List.of(), List.of(), List.of(), List.of(), List.of(), List.of(), false, List.of());
+        Analysis a = new Analysis(new Analysis.Census(0, 0, 0), List.of(), listeners, List.of(), List.of(), List.of(), List.of(), List.of(), List.of(), List.of(), false, List.of(), List.of());
 
         Path dir = Files.createTempDirectory("wiring-test-");
         try {
@@ -164,7 +164,7 @@ final class WiringTest {
 
             // ---- no listener: nothing is touched ----
             Path quiet = bundle(dir.resolve("quiet"));
-            Analysis none = new Analysis(new Analysis.Census(0, 0, 0), List.of(), List.of(), List.of(), List.of(), List.of(), List.of(), List.of(), List.of(), List.of(), false, List.of());
+            Analysis none = new Analysis(new Analysis.Census(0, 0, 0), List.of(), List.of(), List.of(), List.of(), List.of(), List.of(), List.of(), List.of(), List.of(), false, List.of(), List.of());
             c.same("no listener, no answer", List.of(), Wiring.apply(quiet, "m", none, table, false));
             c.same("and the manifest is as it was", MANIFEST, Files.readString(quiet.resolve("horizon-mixin.toml")));
         } finally {

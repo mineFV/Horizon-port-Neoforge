@@ -77,7 +77,7 @@ final class StandInTest {
             }
             ModInfo info = new ModInfo("neoforge", ModsToml.PATH, "made", "Made", "1", "", List.of("Mine"), List.of("MIT"), List.of(), List.of());
             Analysis none = new Analysis(new Analysis.Census(0, 0, 0), List.of(), List.of(), List.of(), List.of(), List.of(), List.of(), List.of(), List.of(), List.of(),
-                    false, List.of());
+                    false, List.of(), List.of());
             Path madeCopy = dir.resolve("made-copy.jar");
             StandIn.Written madeWritten = StandIn.write(ModJar.open(made), info, none, madeCopy);
             try (ZipFile zip = new ZipFile(madeCopy.toFile())) {

@@ -111,6 +111,7 @@ final class Analyzer {
     private final List<Listener> listeners = new ArrayList<>();
     private final List<Registered> registered = new ArrayList<>();
     private final List<String> warnings = new ArrayList<>();
+    private final List<String> unreadRegisters = new ArrayList<>();
     private int assets, data;
 
     /** `bus.register(...)` seen in the code: the class registered, as an object or as itself, and on which bus. */
@@ -140,6 +141,7 @@ final class Analyzer {
         a.listeners.sort(Comparator.comparing(Listener::handlerClass));
         return new Analysis(new Census(a.classes.size(), a.assets, a.data), entryPoints, a.listeners, a.registries(), a.configs(),
                 a.configScreens(), mixins, a.accessTransformers(), a.gameClasses(), a.apiAreas(), facts.hasJars(),
+                a.unreadRegisters.stream().distinct().toList(),
                 // The same thing seen twice (two constructors of one class) is said once.
                 a.warnings.stream().distinct().toList());
     }
@@ -533,6 +535,7 @@ final class Analyzer {
                         drafts.put(store.owner() + "#" + store.name(),
                                 new Draft(kind, namespace == null ? null : (String) namespace.value(), store.owner(), store.name()));
                     } else {
+                        unreadRegisters.add(where(c, m));
                         warnings.add(where(c, m) + " makes a DeferredRegister that isn't kept in a static field: what is registered with it wasn't read");
                     }
                     window = i + 1;
@@ -567,6 +570,7 @@ final class Analyzer {
                             store == null ? null : ClassData.simple(store.owner()) + "." + store.name()));
                 }
             }
+            if (unread) unreadRegisters.add(ClassData.simple(c.name));
             if (unread) warnings.add(ClassData.simple(c.name) + " registers things with a DeferredRegister that couldn't be told: they aren't in this report");
         }
         List<Registry> out = new ArrayList<>();
