@@ -462,10 +462,12 @@ public final class Main {
 
               translate <mod.jar> [--out DIR]
                   This tool's own translator, from the mod's bytecode to Rust (no decompiling):
-                  for now, the static methods that need nothing but numbers (int, long,
-                  float, double, boolean, byte, char, short), their arithmetic, branches,
-                  loops and switches with Java's exact semantics, calls between them and
-                  Math's methods that have an exact counterpart. Writes DIR/translated.rs
+                  numbers with Java's exact semantics (wrapping arithmetic, NaN, casts),
+                  branches, loops and switches, Math's methods with an exact counterpart;
+                  objects, fields, static fields and class initializers, arrays,
+                  inheritance, interfaces and default methods, lambdas and method
+                  references, casts and null, in one uniform object model. Not yet: texts,
+                  exceptions, Java's library beyond Math, the game. Writes DIR/translated.rs
                   and DIR/translation.md (default: out/<mod id>-translated/), which says
                   why each other method isn't translated. Nothing is compiled or run.
 

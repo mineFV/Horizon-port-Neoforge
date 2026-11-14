@@ -20,9 +20,11 @@ its machines (block entities, menus, screens) and its logic, not only its wiring
    file): type, ticking, item slots and their faces, energy, fluid tanks (done); menus and screens are left (below);
 4. **our own translator**, from bytecode to Rust, written from scratch here. It replaces horizon-port's
    translation of the mod's code (2% of Mekanism's methods). horizon-port keeps the licence check, the Mixin
-   matching and the Fabric path. Step (a) is done: `translate` writes the static methods of numbers, with Java's
-   exact semantics. Next: (b) objects, inheritance and lambdas, (c) collections and null, (d) the game's API;
-   then its output goes into `port`'s bundle, and its flow is rebuilt as loops and `if`s.
+   matching and the Fabric path. Steps (a) and (b) are done: `translate` writes methods of numbers with Java's exact
+   semantics, and objects in a uniform model chosen by the maintainer (2026-11-14): every object is an
+   `Arc<Obj>` with a class id and its fields in slots, `null` is `None`, a virtual or interface call matches on
+   the class, lambdas and arrays are objects too. Next: (c) texts, exceptions and Java's library, (d) the game's
+   API; then its output goes into `port`'s bundle, and its flow is rebuilt as loops and `if`s.
 
 It is separate code that **calls** other programs and never contains theirs:
 
@@ -100,7 +102,7 @@ The tool's commands: `metadata`, `license`, `analyze`, `port`, `check`, `pack`, 
 | `Dump` | `dump`: links the maintainer's NeoForge server into Horizon's oracle folder, compiles our machines exporter against its jars, runs Horizon's oracle with it |
 | `Machines` | The block entities in the machines file, on Horizon's block-entity hook points; `report/machines.md` |
 | `exporter/` (not in `src/`) | The NeoForge mod `dump` compiles at run time: places each block with a block entity and writes `<facts>.machines.json` |
-| `Bytecode`, `MethodRust`, `JarRust` | `translate`, our own translator: every opcode decoded; a method's bytecode as a Rust function (each basic block an arm of a `match` in a `loop`); the jar's methods, callers of untranslated ones dropped, as one module with why for the rest |
+| `Bytecode`, `MethodRust`, `JarRust`, `JavaWorld` | `translate`, our own translator: every opcode decoded; a method's bytecode as a Rust function (each basic block an arm of a `match` in a `loop`) and what it needs; the classes as the JVM resolves them (field slots, call selection, subtypes, class ids); the jar's methods, kept until what each needs is translated, as one module with the object model's runtime, dispatchers, type tests, class initializers and lambda classes, and why for the rest |
 | `Pack` | `pack`: the bundle as a `.hnmod`, written as Horizon's `docs/api/mod-files.md` says |
 | `Report` | `report.md` and `report.json` |
 | `Toml`, `Json`, `Translator` | Small readers, and the one place that starts `horizon-port.jar` |
@@ -134,6 +136,11 @@ The tool's commands: `metadata`, `license`, `analyze`, `port`, `check`, `pack`, 
 - **Rust's `as` from a float to an int is Java's cast** (saturating, NaN to 0), but `f64::min`/`max` and `signum`
   aren't Java's on NaN and negative zero, and `Math.sin` and its kin have no exact counterpart: the translator
   writes helpers of its own for the first ones and refuses the others.
+- **The translator's world is closed, and a type outside the jar hides its own supertypes**: a type test or a
+  virtual call that would need them isn't translated. A type outside the jar can't be a subtype of one of the
+  jar's (the game doesn't know the mod), so questions about the jar's own types stay certain. The fixed point
+  only drops methods: one dropped for an uncertain question asked about an object another dropped method made
+  stays dropped, which is sound but keeps out some that could be translated.
 - **A face's item handler may be a proxy with its own slot numbers** (Mekanism's): where a face slot is in the
   container is measured by putting an item through it. Slots no item goes into (outputs only a machine fills)
   stay unmapped, and said.
@@ -174,7 +181,8 @@ Say so rather than assume it works:
   82 with energy, 16 with tanks, no menu NeoForge could be asked for. The tests run `Machines` on a made-up
   machines file; the exporter itself only compiles and runs against a real server;
 - the machine helpers passed `check` (by reading) on Mekanism's bundle, never cargo nor the game;
-- our translator's output has been compiled and run on the test's made-up class only: Mekanism's 99 translated
-  methods (of 24149; 17416 are instance methods) haven't been compiled;
+- our translator's output has been compiled and run on the test's made-up classes only: Mekanism's 4363 translated
+  methods (of 24149; horizon-port translates 350) haven't been compiled. Nothing calls them yet: the world of
+  objects is closed, and a translated method called from the game with an object of the game's would break that;
 - the facts read blocks without a level: what a block decides from its neighbours or its block entity (a cable's
   connections, in Mekanism) isn't in them.

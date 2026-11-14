@@ -102,4 +102,16 @@ fn main() {
         p("roundD", d(a), numbers__round_d(a).to_string());
         p("sig", d(a), db(numbers__sig(a)).to_string());
     }
+    // Objects: built and answered with numbers inside Shapes.
+    for n in 0..=12 {
+        p("areas", n.to_string(), shapes__areas(n).to_string());
+        p("perimeters", n.to_string(), shapes__perimeters(n).to_string());
+        p("made", n.to_string(), shapes__made(n).to_string());
+        p("list", n.to_string(), shapes__list(n).to_string());
+        p("statics", n.to_string(), shapes__statics(n).to_string());
+        p("lambdas", n.to_string(), shapes__lambdas(n).to_string());
+        p("casts", n.to_string(), shapes__casts(n).to_string());
+        p("arrays", n.to_string(), shapes__arrays(n).to_string());
+        p("same", n.to_string(), shapes__same(n).to_string());
+    }
 }

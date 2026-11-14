@@ -47,8 +47,15 @@ final class ClassData {
     /** A class in an annotation, as a descriptor: `Minecraft.class` is `Lnet/minecraft/client/Minecraft;`. */
     record TypeName(String descriptor) {}
 
-    /** signature: the generic type as the class file keeps it (`...DeferredHolder<LBlock;LMyBlock;>;`), or null. */
-    record Field(int access, String name, String descriptor, String signature, List<Annotation> annotations) {
+    /**
+     * signature: the generic type as the class file keeps it (`...DeferredHolder<LBlock;LMyBlock;>;`), or null.
+     * constant: its ConstantValue (an Integer, Long, Float, Double or String), set before the class initializes; or null.
+     */
+    record Field(int access, String name, String descriptor, String signature, List<Annotation> annotations, Object constant) {
+        boolean isStatic() {
+            return (access & STATIC) != 0;
+        }
+
         Annotation annotation(String type) {
             return find(annotations, type);
         }
@@ -93,7 +100,18 @@ final class ClassData {
 
         /** An invokedynamic's name and descriptor. */
         String[] dynamic(int index);
+
+        /** An invokedynamic of LambdaMetafactory.metafactory (not altMetafactory): what it makes; null for any other. */
+        LambdaSite lambdaSite(int index);
     }
+
+    /**
+     * A lambda or method reference, as LambdaMetafactory.metafactory makes it: the interface's method (name, and its
+     * erased descriptor), the call site's descriptor (the captured values in, the interface out), the method handle
+     * it runs (its kind, 5 virtual, 6 static, 7 special, 8 a constructor, 9 interface) and the interface method's
+     * real descriptor.
+     */
+    record LambdaSite(String samName, String site, String erased, int kind, String owner, String name, String descriptor, String instantiated) {}
 
     /** What a step of a method's code is. */
     enum Kind {
@@ -247,7 +265,7 @@ final class ClassData {
                 int fieldAccess = u2();
                 String fieldName = utf(u2()), descriptor = utf(u2());
                 Attributes a = attributes();
-                fields.add(new Field(fieldAccess, fieldName, descriptor, a.signature, a.annotations));
+                fields.add(new Field(fieldAccess, fieldName, descriptor, a.signature, a.annotations, a.constant));
             }
 
             // Code is decoded after the class's own attributes: lambdas need its BootstrapMethods.
@@ -398,6 +416,7 @@ final class ClassData {
             final List<Annotation> annotations = new ArrayList<>();
             String signature;
             int codeStart, codeLength = -1, maxStack, maxLocals;
+            Object constant;
             final List<Handler> handlers = new ArrayList<>();
         }
 
@@ -413,6 +432,7 @@ final class ClassData {
                         for (int k = u2(); k > 0; k--) out.annotations.add(annotation(0));
                     }
                     case "Signature" -> out.signature = utf(u2());
+                    case "ConstantValue" -> out.constant = constant(u2());
                     case "Code" -> {
                         out.maxStack = u2();
                         out.maxLocals = u2();
@@ -593,6 +613,22 @@ final class ClassData {
             // Handle kind 8 is REF_newInvokeSpecial: a constructor reference.
             Lambda how = new Lambda(functionalInterface, utf(first[bootstrap[3]]), parameters(site), first[bootstrap[2]] == 8);
             return new Op(Kind.LAMBDA, target[0], target[1], target[2], how);
+        }
+
+        @Override
+        public LambdaSite lambdaSite(int index) {
+            expect(index, 18);
+            int nameAndType = second[index];
+            expect(nameAndType, 12);
+            if (first[index] >= bootstraps.size()) throw new Malformed("an invokedynamic names a bootstrap method the class doesn't have");
+            int[] bootstrap = bootstraps.get(first[index]);
+            expect(bootstrap[0], 15);
+            String[] factory = member(second[bootstrap[0]]);
+            if (!factory[0].equals(LAMBDA_FACTORY) || !factory[1].equals("metafactory") || bootstrap.length != 4) return null;
+            if (tag[bootstrap[1]] != 16 || tag[bootstrap[2]] != 15 || tag[bootstrap[3]] != 16) return null;
+            String[] target = member(second[bootstrap[2]]);
+            return new LambdaSite(utf(first[nameAndType]), utf(second[nameAndType]), utf(first[bootstrap[1]]), first[bootstrap[2]],
+                    target[0], target[1], target[2], utf(first[bootstrap[3]]));
         }
 
         /** How many bytes the instruction at pc takes; `start` is where its method's code begins. */

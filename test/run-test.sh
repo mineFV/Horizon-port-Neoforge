@@ -903,21 +903,25 @@ echo; echo "== translate"
 # and, where rustc is, the translation run on the same inputs as the Java: the outputs must be the same.
 TR=$B/translate
 mkdir -p "$TR/classes" "$TR/jar/META-INF"
-javac --release 21 -d "$TR/classes" test/translate/src/com/example/numbers/Numbers.java
+javac --release 21 -d "$TR/classes" test/translate/src/com/example/numbers/*.java
 javac --release 21 -cp "$TR/classes" -d "$TR/classes" test/translate/NumbersCheck.java
 printf 'modLoader = "javafml"\nloaderVersion = "[4,)"\nlicense = "MIT"\n[[mods]]\nmodId = "numbers"\nversion = "1.0"\ndisplayName = "Numbers"\n' > "$TR/jar/META-INF/neoforge.mods.toml"
 jar --create --file "$B/jars/numbers.jar" -C "$TR/jar" . -C "$TR/classes" com
 exits 0 tool translate "$B/jars/numbers.jar" --out "$TR/out"
-says "$OUT" "numbers.jar: 36 of 41 methods translated from their bytecode"
+says "$OUT" "numbers.jar: 68 of 72 methods translated from their bytecode"
+says "$TR/out/translation.md" '`com.example.numbers.Shapes.tasks(I)I`: a type test isn'"'"'t certain: whether com/example/numbers/Shapes$Task is a java.lang.Comparable can'"'"'t be told'
 says "$OUT" "Nothing was compiled or run"
 says "$TR/out/translated.rs" 'pub fn numbers__collatz(mut l0: i64) -> i64 {'
 says "$TR/out/translated.rs" 'pub fn numbers__is_digit(p0: u16) -> bool {'
 says "$TR/out/translated.rs" 'fn jcmpg_f32(a: f32, b: f32) -> i32 {'
 lacks "$TR/out/translated.rs" 'fn jsignum_f32'
-says "$TR/out/translation.md" '`com.example.numbers.Numbers.name(I)Ljava/lang/String;`: it returns an object'
+says "$TR/out/translation.md" '`com.example.numbers.Numbers.name(I)Ljava/lang/String;`: it joins texts'
+says "$TR/out/translated.rs" 'pub fn numbers__instance(mut l0: Ref) -> i32 {'
+says "$TR/out/translated.rs" 'static JINIT_'
+says "$TR/out/translated.rs" '/// `com.example.numbers.Shapes$Area.twiceArea()I`, called virtually: the method each class selects.'
+says "$TR/out/translated.rs" 'that runs `com.example.numbers.Shapes$Square.<init>(I)V`'
 says "$TR/out/translation.md" '`com.example.numbers.Numbers.safe(I)I`: it catches exceptions'
 says "$TR/out/translation.md" '`com.example.numbers.Numbers.callsSafe(I)I`: it calls com.example.numbers.Numbers.safe(I)I, which isn'"'"'t translated (it catches exceptions'
-says "$TR/out/translation.md" '`com.example.numbers.Numbers.instance()I`: an instance method'
 exits 2 tool translate "$B/jars/fabric.jar"
 says "$ERR" '`translate` takes a NeoForge mod'
 if command -v rustc > /dev/null; then

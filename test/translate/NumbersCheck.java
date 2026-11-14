@@ -1,4 +1,5 @@
 import com.example.numbers.Numbers;
+import com.example.numbers.Shapes;
 
 /** Runs `Numbers` on the inputs `numbers_check.rs` gives its translation, and prints the results the same way. */
 public final class NumbersCheck {
@@ -66,6 +67,18 @@ public final class NumbersCheck {
             p("d2l", d(a), Numbers.d2l(a));
             p("roundD", d(a), Numbers.roundD(a));
             p("sig", d(a), Double.doubleToLongBits(Numbers.sig(a)));
+        }
+        // Objects: built and answered with numbers inside Shapes.
+        for (int n = 0; n <= 12; n++) {
+            p("areas", n, Shapes.areas(n));
+            p("perimeters", n, Shapes.perimeters(n));
+            p("made", n, Shapes.made(n));
+            p("list", n, Shapes.list(n));
+            p("statics", n, Shapes.statics(n));
+            p("lambdas", n, Shapes.lambdas(n));
+            p("casts", n, Shapes.casts(n));
+            p("arrays", n, Shapes.arrays(n));
+            p("same", n, Shapes.same(n));
         }
     }
 
