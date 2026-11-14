@@ -1,15 +1,28 @@
 # CLAUDE.md
 
-Notes for AI coding agents working in this repository. [README.md](README.md) is the full description, for
-people and agents alike; this is the short version of what to know before changing anything.
+Notes for AI coding agents working in this repository: what to know before changing anything. The README
+is only `# WORK IN PROGRESS` for now, at the maintainer's request: what a command does is in `--help`, and
+the figures of trials on real mods are kept in `essais/`, out of git.
 
 ## What this is
 
 `horizon-port-neoforge` turns a **NeoForge** mod jar into a [Horizon](https://github.com/horizon-rust/horizon)
-native-mod bundle, in the format Horizon-Translator's Fabric converter (`horizon-port`) writes. It is separate
-code that **calls** other programs and never contains theirs:
+native-mod bundle, in the format Horizon-Translator's Fabric converter (`horizon-port`) writes.
 
-- `horizon-port.jar` (Horizon-Translator): licence check, decompiling, Mixin matching, Java to Rust, `hooks`, `check`;
+**The goal is the whole mod** (decided by the maintainer, 2026-11-14): its content with its real properties,
+its machines (block entities, menus, screens) and its logic, not only its wiring. The plan, in order:
+
+0. the rules below, and a report that owns up to what it didn't read;
+1. `dump`: the mod's real facts (blocks, items, block entities, menus, fluids), read in a NeoForge server;
+2. the content mod from those facts: properties, states, shapes, stack sizes, the blocks the carry left out;
+3. the machines wired on Horizon's block-entity, container and screen hook points;
+4. **our own translator**, from bytecode to Rust, written from scratch here. It replaces horizon-port's
+   translation of the mod's code (2% of Mekanism's methods). horizon-port keeps the licence check, the Mixin
+   matching and the Fabric path.
+
+It is separate code that **calls** other programs and never contains theirs:
+
+- `horizon-port.jar` (Horizon-Translator): licence check, decompiling, Mixin matching, Java to Rust (until ours), `hooks`, `check`;
 - Horizon's `native-hooks.json`: which hook point stands for which NeoForge event;
 - Horizon's `horizon-port-pack` and `cargo-horizon-mod`: the content mod (`.hmod`), and checking a `.hmod` or `.hnmod`.
 
@@ -46,7 +59,10 @@ The tool's commands: `metadata`, `license`, `analyze`, `port`, `check`, `pack`. 
 2. **A converted mod is never compiled or run on your own.** `port`, `check` and `pack` compile nothing.
    `check --compile` (cargo type-checks the bundle) only when the maintainer asks for that run. Never start
    `horizon-launcher native-build` or pass `--trust-native-code`: Horizon's docs make that the player's decision.
-3. **Ask before downloading anything**: mods, NeoForge's jars, tools.
+   One exception, decided by the maintainer (2026-11-14): `dump` loads the original NeoForge mod in a NeoForge
+   server, in a folder under `essais/`, to read its registries. Run it only when the maintainer asks for that
+   mod; accepting Minecraft's EULA for that server is the maintainer's to do, never yours.
+3. **Ask before downloading anything**: mods, NeoForge's installer or jars, the game, tools. Each time.
 4. **No guessed correspondence.** Something is switched on only when it is certain (the catalogue names one
    hook point for the event, the target is in the source, ...). Anything else is written commented out with a
    `TODO` and the reason. When unsure whether a case is certain, it isn't.
@@ -85,7 +101,7 @@ The tool's commands: `metadata`, `license`, `analyze`, `port`, `check`, `pack`. 
   Horizon's source. Nothing in it comes from a real mod. When a real jar shows a bug, reproduce its shape in
   the fixture, then fix it.
 - The tests compile nothing but their own Java: `check --compile` runs against a stand-in for horizon-port.
-- Every change comes with its test, and the README says what a command does and what it doesn't.
+- Every change comes with its test, and `--help` says what a command does and what it doesn't.
 
 ## Found the hard way
 
