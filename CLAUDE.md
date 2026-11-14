@@ -64,7 +64,9 @@ The tool's commands: `metadata`, `license`, `analyze`, `port`, `check`, `pack`, 
    One exception, decided by the maintainer (2026-11-14): `dump` has Horizon's oracle load the original NeoForge
    mod in a NeoForge server (the one the maintainer installed, linked into Horizon's `.local/neoforge-oracle/`
    so the oracle downloads nothing) to read its registries. Run it only when the maintainer asks for that mod;
-   accepting Minecraft's EULA for that server is the maintainer's to do, never yours: `dump` stops without it.
+   `dump` itself never accepts Minecraft's EULA: it stops when the server's eula.txt doesn't say eula=true.
+   The maintainer has read the EULA and accepts it (2026-11-14): for a NeoForge server of theirs that `dump`
+   uses, an agent may write eula=true in its eula.txt, and says so.
 3. **Ask before downloading anything**: mods, NeoForge's installer or jars, the game, tools. Each time.
 4. **No guessed correspondence.** Something is switched on only when it is certain (the catalogue names one
    hook point for the event, the target is in the source, ...). Anything else is written commented out with a
