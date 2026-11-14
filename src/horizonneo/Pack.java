@@ -137,8 +137,8 @@ final class Pack {
                 : "  It builds on that commit only: " + onlyHere + ".");
         out.println("  It isn't a finished port: " + count(facts.todos(), "TODO") + " in the code that is on, " + count(facts.off(), "injection")
                 + " commented out. Built into the game it changes nothing yet; what a build tells is whether Horizon takes it and compiles it.");
-        out.println("To try it: put the file in the instance's horizon-native-mods/ folder and press Build on the launcher's Mods page, or");
-        out.println("  horizon-launcher native-build \"" + bundle.toAbsolutePath() + "\" --instance <name> --trust-native-code");
+        out.println("To try it: put the file in the instance's horizon-native-mods/ folder and press Build on the launcher's Mods page, or build the folder itself:");
+        out.println("  horizon-launcher native-build \"" + mod.toAbsolutePath() + "\" --instance <name> --trust-native-code");
         out.println("Native code isn't sandboxed: that build is yours to start, once you have read the code. Nothing was compiled or installed here.");
         return Main.DONE;
     }

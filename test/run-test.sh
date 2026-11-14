@@ -778,7 +778,8 @@ if [ -f "${HORIZON_PORT_JAR:-}" ]; then
   says "$OUT" "Packed $PWD/$K/pc/pocketcompass.hnmod: 6 files of mixins/pocketcompass/, for Horizon 0123456789abcdef0123456789abcdef01234567."
   says "$OUT" 'It touches hook points only (API 1): the launcher also builds it on a later Horizon that has that API.'
   says "$OUT" "It isn't a finished port: 3 TODOs in the code that is on, 13 injections commented out."
-  says "$OUT" 'horizon-launcher native-build'
+  says "$OUT" "horizon-launcher native-build \"$PWD/$K/pc/mixins/pocketcompass\" --instance <name> --trust-native-code"
+  says "$K/pc/PORTING.md" 'horizon-launcher native-build "<this folder>/mixins/pocketcompass" --instance <name> --trust-native-code'
   says "$OUT" 'Nothing was compiled or installed here.'
   says "$OUT" "not checked: the file, by Horizon's own check"
   is_file "$K/pc/pocketcompass.hnmod"

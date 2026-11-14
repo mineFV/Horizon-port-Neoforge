@@ -312,8 +312,11 @@ horizon-mixins and compiles it there, with the game's real types, which no check
 build is the player's decision:
 
 ```bash
-horizon-launcher native-build out/mymod-horizon --instance <name> --trust-native-code
+horizon-launcher native-build out/mymod-horizon/mixins/<mod id> --instance <name> --trust-native-code
 ```
+
+(the folder that holds `horizon-mixin.toml`: the launcher looks in the folder it is given and one
+level below, no further)
 
 or put the `.hnmod` in the instance's `horizon-native-mods/` folder and press **Build** on the
 launcher's Mods page. The content mod (`.hmod`) stays a file of its own; Horizon can take both in

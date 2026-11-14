@@ -548,6 +548,8 @@ final class Bundle {
                 s[1] = hookRows(s[1], hooksOff);
             } else if (s[0].equals("## Build it")) {
                 build = i;
+                // The launcher takes the folder that holds horizon-mixin.toml (its `bundles`, launcher/src/native_mods.rs), not the one above mixins/.
+                s[1] = s[1].replace("native-build \"<this folder>\"", "native-build \"<this folder>/mixins/" + o.modId() + "\" --instance <name>");
             } else if (s[0].equals("## Ready to use?")) {
                 s[1] = ready(s[1], o, left, mod, dir, packed);
             } else if (s[0].equals("## Licence")) {
