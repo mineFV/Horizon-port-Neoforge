@@ -68,6 +68,9 @@ final class MethodRust {
 
         /** A text constant: the function that gives its interned String. */
         String literal(String text);
+
+        /** A record's equals, hashCode or toString made by ObjectMethods, by its site's key. */
+        String objectMethods(String key);
     }
 
     // ---- what can be translated ----
@@ -167,10 +170,11 @@ final class MethodRust {
                 if (site == null) {
                     ClassData.Bootstrap b = pool.bootstrap(i.index());
                     if (b.owner().equals("java/lang/invoke/StringConcatFactory")) return concatNeeds(i, pool, world, needs);
+                    if (b.owner().equals("java/lang/runtime/ObjectMethods")) return objectMethodsNeeds(owner, i, pool, world, needs);
                     String[] d = pool.dynamic(i.index());
                     return "it uses an invokedynamic that isn't a plain lambda nor a text joined: " + b.owner().replace('/', '.') + "." + b.name() + " (" + d[0] + ")";
                 }
-                String why = lambdaWhy(site, world);
+                String why = lambdaWhy(site, world, needs);
                 if (why != null) return why;
                 String key = JavaWorld.lambdaKey(owner, i.index());
                 world.lambdas.put(key, site);
@@ -187,7 +191,9 @@ final class MethodRust {
                         needs.add(new Need("test", null, JavaWorld.type(taken.get(k)), null, null));
                     }
                 }
-                switch (site.kind()) {
+                ClassData.Method target = world.declared(site.owner(), site.name(), site.descriptor());
+                boolean direct = target != null && (target.access() & 0x0002) != 0;
+                switch (direct && (site.kind() == 5 || site.kind() == 9) ? 7 : site.kind()) {
                     case 5, 9 -> needs.add(new Need("dispatch", null, site.owner(), site.name(), site.descriptor()));
                     case 8 -> {
                         needs.add(new Need("new", null, site.owner(), null, null));
@@ -286,8 +292,85 @@ final class MethodRust {
         return null;
     }
 
+    /**
+     * A record's equals, hashCode or toString, made by ObjectMethods.bootstrap from its components' getters: each
+     * component compared, hashed or written as the JDK does, through the model's Objects, boxes and String.
+     */
+    record ObjectMethodsSite(String record, String method, List<String> names, List<JavaWorld.FieldAt> fields, String descriptor) {}
+
+    static final String OBJECT_METHODS = "objectmethods:";
+
+    private static String objectMethodsNeeds(String owner, Insn i, ClassData.Pool pool, JavaWorld world, List<Need> needs) {
+        ClassData.Bootstrap b = pool.bootstrap(i.index());
+        String[] d = pool.dynamic(i.index());
+        List<Object> a = b.arguments();
+        if (!b.name().equals("bootstrap") || a.size() < 2 || !(a.get(0) instanceof ClassData.TypeName record) || !(a.get(1) instanceof String names)) {
+            return "it uses an invokedynamic that isn't a plain lambda nor a text joined: java.lang.runtime.ObjectMethods." + b.name();
+        }
+        List<JavaWorld.FieldAt> fields = new ArrayList<>();
+        for (int k = 2; k < a.size(); k++) {
+            if (!(a.get(k) instanceof ClassData.Handle h) || h.kind() != 1) return "a record's " + d[0] + " reads a component in a way not translated yet";
+            JavaWorld.FieldAt f = world.field(h.owner(), h.name(), h.descriptor(), false);
+            if (f.why() != null) return "it uses " + f.why();
+            fields.add(f);
+        }
+        List<String> componentNames = names.isEmpty() ? List.of() : List.of(names.split(";"));
+        if (componentNames.size() != fields.size()) return "a record's " + d[0] + " names its components in a way not translated yet";
+        String key = OBJECT_METHODS + owner + "#" + i.index();
+        world.objectMethods.put(key, new ObjectMethodsSite(record.descriptor(), d[0], componentNames, fields, d[1]));
+        switch (d[0]) {
+            case "toString" -> {
+                String why = text(world, needs);
+                if (why != null) return why;
+                needs.add(new Need("new", null, "[Ljava/lang/String;", null, null));
+                needs.add(new Need("call", CONCAT, null, null, null));
+                for (JavaWorld.FieldAt f : fields) needs.add(new Need("call", textOf(f.descriptor()), null, null, null));
+            }
+            case "hashCode" -> {
+                for (JavaWorld.FieldAt f : fields) needs.add(new Need("call", hashOf(f.descriptor()), null, null, null));
+            }
+            case "equals" -> {
+                needs.add(new Need("test", null, record.descriptor(), null, null));
+                for (JavaWorld.FieldAt f : fields) {
+                    JarRust.Id eq = equalsOf(f.descriptor());
+                    if (eq != null) needs.add(new Need("call", eq, null, null, null));
+                }
+            }
+            default -> {
+                return "it uses ObjectMethods for " + d[0] + ", which isn't translated";
+            }
+        }
+        return null;
+    }
+
+    /** The box of a primitive descriptor. */
+    static String box(String d) {
+        return switch (d) {
+            case "Z" -> "java/lang/Boolean";
+            case "B" -> "java/lang/Byte";
+            case "C" -> "java/lang/Character";
+            case "S" -> "java/lang/Short";
+            case "I" -> "java/lang/Integer";
+            case "J" -> "java/lang/Long";
+            case "F" -> "java/lang/Float";
+            case "D" -> "java/lang/Double";
+            default -> null;
+        };
+    }
+
+    /** How ObjectMethods hashes a component: its box's static hashCode, or Objects.hashCode. */
+    static JarRust.Id hashOf(String d) {
+        return primitive(d) ? new JarRust.Id(box(d), "hashCode", "(" + d + ")I") : new JarRust.Id("java/util/Objects", "hashCode", "(Ljava/lang/Object;)I");
+    }
+
+    /** How ObjectMethods compares a component: == for integers, the box's compare for floats, Objects.equals for references. */
+    static JarRust.Id equalsOf(String d) {
+        if (d.equals("F") || d.equals("D")) return new JarRust.Id(box(d), "compare", "(" + d + d + ")I");
+        return primitive(d) ? null : new JarRust.Id("java/util/Objects", "equals", "(Ljava/lang/Object;Ljava/lang/Object;)Z");
+    }
+
     /** Why a lambda site can't be translated: its values would need boxing, or another adaptation. */
-    private static String lambdaWhy(ClassData.LambdaSite site, JavaWorld world) {
+    private static String lambdaWhy(ClassData.LambdaSite site, JavaWorld world, List<Need> needs) {
         if (where(site.owner(), world) != null) return "it makes a lambda that runs " + where(site.owner(), world) + ": " + site.owner().replace('/', '.') + "." + site.name();
         List<String> captured = ClassData.parameters(site.site());
         List<String> sam = ClassData.parameters(site.erased());
@@ -299,12 +382,66 @@ final class MethodRust {
         taken.addAll(ClassData.parameters(site.descriptor()));
         if (given.size() != taken.size()) return "it makes a lambda whose values don't line up with the method it runs";
         for (int k = 0; k < given.size(); k++) {
-            String a = given.get(k), b = taken.get(k);
-            if (primitive(a) != primitive(b) || (primitive(a) && !a.equals(b))) return "it makes a lambda that boxes or widens a value (" + a + " to " + b + "): not translated yet";
+            String why = adaptNeeds(given.get(k), taken.get(k), world, needs);
+            if (why != null) return "it makes a lambda whose values " + why;
         }
         String r = ClassData.returns(site.erased()), ir = site.kind() == 8 ? "L" + site.owner() + ";" : ClassData.returns(site.descriptor());
         if (r.equals("V")) return null;
-        if (ir.equals("V") || primitive(r) != primitive(ir) || (primitive(r) && !r.equals(ir))) return "it makes a lambda whose result needs boxing or widening (" + ir + " to " + r + "): not translated yet";
+        if (ir.equals("V")) return "it makes a lambda that gives nothing where its interface wants a value";
+        String why = adaptNeeds(ir, r, world, needs);
+        return why == null ? null : "it makes a lambda whose result " + why;
+    }
+
+    /** Primitive widening (JLS 5.1.2), as LambdaMetafactory allows it. */
+    static boolean widens(String from, String to) {
+        if (from.equals(to)) return true;
+        return switch (from) {
+            case "B" -> "SIJFD".contains(to);
+            case "S", "C" -> "IJFD".contains(to);
+            case "I" -> "JFD".contains(to);
+            case "J" -> "FD".contains(to);
+            case "F" -> to.equals("D");
+            default -> false;
+        };
+    }
+
+    /** The primitive a box holds, null for another class. */
+    static String unboxed(String descriptor) {
+        for (String p : List.of("Z", "B", "C", "S", "I", "J", "F", "D")) if (descriptor.equals("L" + box(p) + ";")) return p;
+        return null;
+    }
+
+    static final Map<String, String> UNBOX = Map.of("Z", "booleanValue", "B", "byteValue", "C", "charValue", "S", "shortValue", "I", "intValue",
+            "J", "longValue", "F", "floatValue", "D", "doubleValue");
+
+    /**
+     * What turning a value of descriptor from into one of descriptor to needs, as LambdaMetafactory adapts them:
+     * widening, boxing into a supertype of the box, unboxing (from a box, or cast into the box first), casting.
+     * Why it can't, else null.
+     */
+    static String adaptNeeds(String from, String to, JavaWorld world, List<Need> needs) {
+        boolean pf = primitive(from), pt = primitive(to);
+        if (pf && pt) return widens(from, to) ? null : "would need " + from + " made " + to + ", which LambdaMetafactory doesn't do";
+        if (!pf && !pt) {
+            if (!from.equals(to) && !to.equals("Ljava/lang/Object;")) needs.add(new Need("test", null, JavaWorld.type(to), null, null));
+            return null;
+        }
+        if (pf) {
+            String b = box(from);
+            if (world.cls(b) == null) return "need boxing into " + b + ", which the library model lacks";
+            Boolean fits = world.subtype(b, JavaWorld.type(to));
+            if (!Boolean.TRUE.equals(fits)) return "would need " + from + " boxed into " + to + ", which LambdaMetafactory doesn't do";
+            needs.add(new Need("call", new JarRust.Id(b, "valueOf", "(" + from + ")L" + b + ";"), null, null, null));
+            needs.add(new Need("new", null, b, null, null));
+            return null;
+        }
+        String held = unboxed(from);
+        String through = held != null ? held : to;
+        if (held != null && !widens(held, to)) return "would need " + from + " made " + to + ", which LambdaMetafactory doesn't do";
+        String b = box(through);
+        if (world.cls(b) == null) return "need unboxing from " + b + ", which the library model lacks";
+        if (held == null) needs.add(new Need("test", null, b, null, null));
+        needs.add(new Need("dispatch", null, b, UNBOX.get(through), "()" + through));
         return null;
     }
 
@@ -772,6 +909,15 @@ final class MethodRust {
                     lines.add("jput(" + object + ", " + f.slot() + ", " + wrap(f.kind(), narrow(f.descriptor(), value, v)) + ")?;");
                 } else if (op >= INVOKEVIRTUAL && op <= INVOKEINTERFACE) {
                     call(i);
+                } else if (op == INVOKEDYNAMIC && pool.lambdaSite(i.index()) == null
+                        && pool.bootstrap(i.index()).owner().equals("java/lang/runtime/ObjectMethods")) {
+                    String key = OBJECT_METHODS + owner + "#" + i.index();
+                    List<String> params = ClassData.parameters(pool.dynamic(i.index())[1]);
+                    String[] args = new String[params.size()];
+                    for (int k = params.size() - 1; k >= 0; k--) args[k] = val(stack.removeLast());
+                    settle();
+                    String r = ClassData.returns(pool.dynamic(i.index())[1]);
+                    pushTemp(JavaWorld.kind(r), from(r, names.objectMethods(key) + "(" + String.join(", ", args) + ")?"));
                 } else if (op == INVOKEDYNAMIC && pool.lambdaSite(i.index()) == null) {
                     concat(i);
                 } else if (op == ATHROW) {

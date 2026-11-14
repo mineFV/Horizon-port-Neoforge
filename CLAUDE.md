@@ -26,8 +26,10 @@ its machines (block entities, menus, screens) and its logic, not only its wiring
    the class, lambdas and arrays are objects too. Step (c) has begun: a method returns a `Result` (what Java throws is
    an `Err` holding the exception), try/catch/finally and class initializers that throw are translated, and Java's
    library is a model of our own (`lib/`), translated with the mod: Object, String (texts and their joins),
-   Throwable and the JVM's exceptions so far. Next in (c): Record, Enum, boxing, Objects, collections; then (d)
-   the game's API; then its output goes into `port`'s bundle, and its flow is rebuilt as loops and `if`s.
+   Throwable and the JVM's exceptions, Record (its ObjectMethods), Enum, the boxes with their caches, Objects,
+   java.util.function; lambdas box, unbox and widen as LambdaMetafactory does. Next in (c): collections and
+   Optional; then (d) the game's API; then its output goes into `port`'s bundle, and its flow is rebuilt as loops
+   and `if`s.
 
 It is separate code that **calls** other programs and never contains theirs:
 
@@ -191,6 +193,8 @@ Say so rather than assume it works:
   82 with energy, 16 with tanks, no menu NeoForge could be asked for. The tests run `Machines` on a made-up
   machines file; the exporter itself only compiles and runs against a real server;
 - the machine helpers passed `check` (by reading) on Mekanism's bundle, never cargo nor the game;
+- the library model leaves out what needs Class objects (getClass, Enum.valueOf, getDeclaringClass), parsing
+  numbers (Character's Unicode tables), and collections so far: a method that uses them isn't translated;
 - our translator's output has been compiled and run on the test's made-up classes only. Mekanism's 4363 translated
   methods (of 24149; horizon-port translates 350) were type-checked by rustc once, at the maintainer's request
   (2026-11-14, `--emit=metadata`: no error, no warning), never run. Nothing calls them yet: the world of

@@ -908,7 +908,8 @@ javac --release 21 -cp "$TR/classes" -d "$TR/classes" test/translate/NumbersChec
 printf 'modLoader = "javafml"\nloaderVersion = "[4,)"\nlicense = "MIT"\n[[mods]]\nmodId = "numbers"\nversion = "1.0"\ndisplayName = "Numbers"\n' > "$TR/jar/META-INF/neoforge.mods.toml"
 jar --create --file "$B/jars/numbers.jar" -C "$TR/jar" . -C "$TR/classes" com
 exits 0 tool translate "$B/jars/numbers.jar" --out "$TR/out"
-says "$OUT" "numbers.jar: 97 of 97 methods translated from their bytecode"
+says "$OUT" "numbers.jar: 138 of 139 methods translated from their bytecode"
+says "$TR/out/translation.md" '`com.example.numbers.Boxes$Color.valueOf(Ljava/lang/String;)Lcom/example/numbers/Boxes$Color;`: it uses a class or another constant'
 says "$OUT" "Nothing was compiled or run"
 says "$TR/out/translated.rs" 'pub fn numbers__collatz(mut l0: i64) -> JR<i64> {'
 says "$TR/out/translated.rs" 'pub fn numbers__is_digit(p0: u16) -> JR<bool> {'

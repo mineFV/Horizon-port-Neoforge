@@ -147,6 +147,15 @@ fn main() {
         p("methods", n.to_string(), text(texts__methods(n)));
         p("outOfBounds", n.to_string(), text(texts__out_of_bounds(n - 2)));
     }
+    // Records, enums, boxes, Objects, java.util.function.
+    for n in 0..=12 {
+        p("records", n.to_string(), text(boxes__records(n)));
+        p("enums", n.to_string(), text(boxes__enums(n)));
+        p("boxes", n.to_string(), text(boxes__boxes(n)));
+        p("bits", n.to_string(), text(boxes__bits(n)));
+        p("objects", n.to_string(), text(boxes__objects(n)));
+        p("functions", n.to_string(), text(boxes__functions(n)));
+    }
     for d0 in doubles() {
         p("doubleText", d(d0), text(texts__double_text(d0)));
     }

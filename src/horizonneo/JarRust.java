@@ -310,7 +310,7 @@ final class JarRust {
 
     /** What a virtual call selects on an array: Object's method (an array's clone isn't modelled yet). */
     static JavaWorld.Selected arraySelects(JavaWorld world, String name, String descriptor) {
-        if (name.equals("clone")) return new JavaWorld.Selected(null, "(an array's clone isn't translated yet)");
+        if (name.equals("clone") && descriptor.equals("()Ljava/lang/Object;")) return new JavaWorld.Selected(new Id("[", "clone", descriptor), null);
         if (world.declared(JavaWorld.OBJECT, name, descriptor) == null) return new JavaWorld.Selected(null, "(Object has no " + name + ")");
         return new JavaWorld.Selected(new Id(JavaWorld.OBJECT, name, descriptor), null);
     }
@@ -342,6 +342,13 @@ final class JarRust {
 
         final Map<String, String> literals = new LinkedHashMap<>();
         final Set<String> natives = new TreeSet<>();
+
+        final Map<String, String> objectMethodNames = new LinkedHashMap<>();
+
+        @Override
+        public String objectMethods(String key) {
+            return objectMethodNames.computeIfAbsent(key, k -> "jobject_methods_" + objectMethodNames.size());
+        }
 
         @Override
         public String literal(String text) {
@@ -402,7 +409,7 @@ final class JarRust {
             // The runtime's exceptions and texts, made from the model's classes: asked for first, as they ask for type tests.
             String worldText = worldRuntime();
             // Lambdas and dispatchers may ask for more of each other, type tests and initializers: written until none is new.
-            Set<String> doneLambdas = new TreeSet<>(), doneDispatchers = new TreeSet<>();
+            Set<String> doneLambdas = new TreeSet<>(), doneDispatchers = new TreeSet<>(), doneObjectMethods = new TreeSet<>();
             StringBuilder generated = new StringBuilder();
             for (boolean more = true; more; ) {
                 more = false;
@@ -415,6 +422,12 @@ final class JarRust {
                 for (String k : new ArrayList<>(dispatchers.keySet())) {
                     if (doneDispatchers.add(k)) {
                         generated.append(dispatch(k));
+                        more = true;
+                    }
+                }
+                for (String k : new ArrayList<>(objectMethodNames.keySet())) {
+                    if (doneObjectMethods.add(k)) {
+                        generated.append(objectMethodsFn(k));
                         more = true;
                     }
                 }
@@ -678,6 +691,62 @@ final class JarRust {
             return b.toString();
         }
 
+        /** A record's equals, hashCode or toString, as ObjectMethods.bootstrap makes it. */
+        String objectMethodsFn(String key) {
+            MethodRust.ObjectMethodsSite site = world.objectMethods.get(key);
+            String name = objectMethodNames.get(key);
+            StringBuilder b = new StringBuilder("\n/// The record `" + site.record().replace('/', '.') + "`'s " + site.method() + ", as ObjectMethods makes it.\n");
+            b.append("#[allow(dead_code, non_snake_case, unused_parens, unused_variables, unused_mut)]\n");
+            List<JavaWorld.FieldAt> fields = site.fields();
+            switch (site.method()) {
+                case "toString" -> {
+                    String simple = site.record().substring(site.record().lastIndexOf('/') + 1);
+                    simple = simple.substring(simple.lastIndexOf('$') + 1).replaceFirst("^[0-9]+", "");
+                    List<String> pieces = new ArrayList<>();
+                    StringBuilder text = new StringBuilder(simple).append('[');
+                    for (int k = 0; k < fields.size(); k++) {
+                        text.append(k == 0 ? "" : ", ").append(site.names().get(k)).append('=');
+                        pieces.add(literal(text.toString()) + "()");
+                        text.setLength(0);
+                        JavaWorld.FieldAt f = fields.get(k);
+                        String value = MethodRust.getter(f.kind()) + "(jget(&this, " + f.slot() + ")?)";
+                        String d = f.descriptor().length() == 1 && (f.descriptor().equals("B") || f.descriptor().equals("S")) ? "I" : f.descriptor();
+                        pieces.add(function(MethodRust.textOf(f.descriptor())) + "(" + Writing.toEdge(d, value) + ")?");
+                    }
+                    text.append(']');
+                    pieces.add(literal(text.toString()) + "()");
+                    b.append("fn ").append(name).append("(this: Ref) -> JR<Ref> {\n");
+                    b.append("    let parts = jnewarray(").append(world.id("[Ljava/lang/String;")).append(", b'A', ").append(pieces.size()).append(")?;\n");
+                    for (int k = 0; k < pieces.size(); k++) b.append("    japut(&parts, ").append(k).append(", Value::A(").append(pieces.get(k)).append("))?;\n");
+                    b.append("    ").append(function(MethodRust.CONCAT)).append("(parts)\n}\n");
+                }
+                case "hashCode" -> {
+                    b.append("fn ").append(name).append("(this: Ref) -> JR<i32> {\n    let mut h: i32 = 0;\n");
+                    for (JavaWorld.FieldAt f : fields) {
+                        String value = MethodRust.getter(f.kind()) + "(jget(&this, " + f.slot() + ")?)";
+                        b.append("    h = h.wrapping_mul(31).wrapping_add(").append(function(MethodRust.hashOf(f.descriptor()))).append('(')
+                                .append(Writing.toEdge(f.descriptor(), value)).append(")?);\n");
+                    }
+                    b.append("    Ok(h)\n}\n");
+                }
+                default -> {
+                    b.append("fn ").append(name).append("(this: Ref, o: Ref) -> JR<bool> {\n");
+                    b.append("    if jinstanceof(&o, ").append(typeTest(site.record())).append(") == 0 {\n        return Ok(false);\n    }\n");
+                    for (JavaWorld.FieldAt f : fields) {
+                        String g = MethodRust.getter(f.kind());
+                        String mine = g + "(jget(&this, " + f.slot() + ")?)", theirs = g + "(jget(&o, " + f.slot() + ")?)";
+                        JarRust.Id eq = MethodRust.equalsOf(f.descriptor());
+                        String differs = eq == null ? mine + " != " + theirs
+                                : f.kind() == 'A' ? "!" + function(eq) + "(" + mine + ", " + theirs + ")?"
+                                : function(eq) + "(" + mine + ", " + theirs + ")? != 0";
+                        b.append("    if ").append(differs).append(" {\n        return Ok(false);\n    }\n");
+                    }
+                    b.append("    Ok(true)\n}\n");
+                }
+            }
+            return b.toString();
+        }
+
         /** A lambda's class: made with its captured values, run through its interface's method. */
         String lambda(String key) {
             ClassData.LambdaSite site = world.lambdas.get(key);
@@ -717,15 +786,13 @@ final class JarRust {
             if (site.kind() == 5 || site.kind() == 7 || site.kind() == 9) taken.add("L" + site.owner() + ";");
             taken.addAll(ClassData.parameters(site.descriptor()));
             List<String> args = new ArrayList<>();
-            for (int k = 0; k < given.size(); k++) {
-                String g = given.get(k);
-                // A reference handed on as a narrower type is cast, as LambdaMetafactory's adapter does.
-                boolean cast = !MethodRust.primitive(types.get(k)) && !types.get(k).equals(taken.get(k)) && !taken.get(k).equals("Ljava/lang/Object;");
-                args.add(cast ? "jcheckcast(" + g + ", " + typeTest(JavaWorld.type(taken.get(k))) + ")?" : g);
-            }
+            for (int k = 0; k < given.size(); k++) args.add(adapt(given.get(k), types.get(k), taken.get(k)));
             String call;
             Id impl = new Id(site.owner(), site.name(), site.descriptor());
-            switch (site.kind()) {
+            // A private method (an interface's own lambda body among them) isn't selected: it is called as it is.
+            ClassData.Method target = world.declared(site.owner(), site.name(), site.descriptor());
+            boolean direct = target != null && (target.access() & 0x0002) != 0;
+            switch (direct && (site.kind() == 5 || site.kind() == 9) ? 7 : site.kind()) {
                 case 5, 9 -> call = dispatcher(site.owner(), site.name(), site.descriptor()) + "(" + String.join(", ", args) + ")?";
                 case 8 -> {
                     b.append("    ").append(init(site.owner())).append("()?;\n");
@@ -737,18 +804,42 @@ final class JarRust {
                 }
                 default -> call = function(impl) + "(" + String.join(", ", args) + ")?";
             }
+            String ir = site.kind() == 8 ? "L" + site.owner() + ";" : ClassData.returns(site.descriptor());
             if (r.equals("V")) b.append("    ").append(call).append(";\n    Ok(())\n");
-            else b.append("    Ok(").append(call).append(")\n");
+            else b.append("    Ok(").append(adapt(call, ir, r)).append(")\n");
             b.append("}\n");
             return b.toString();
         }
 
+        /**
+         * A value of descriptor from, as Rust at a function's edge, made one of descriptor to as LambdaMetafactory's
+         * adapter does: widened, boxed, unboxed (cast into the box first when it isn't one), or cast. The check
+         * (`MethodRust.adaptNeeds`) made sure each is possible and translated.
+         */
+        String adapt(String e, String from, String to) {
+            boolean pf = MethodRust.primitive(from), pt = MethodRust.primitive(to);
+            if (pf && pt) return from.equals(to) ? e : "(" + e + " as " + MethodRust.rust(to) + ")";
+            if (!pf && !pt) {
+                return from.equals(to) || to.equals("Ljava/lang/Object;") ? e : "jcheckcast(" + e + ", " + typeTest(JavaWorld.type(to)) + ")?";
+            }
+            if (pf) {
+                String b = MethodRust.box(from);
+                return function(new Id(b, "valueOf", "(" + from + ")L" + b + ";")) + "(" + e + ")?";
+            }
+            String held = MethodRust.unboxed(from);
+            String through = held != null ? held : to;
+            String b = MethodRust.box(through);
+            String object = held != null ? e : "jcheckcast(" + e + ", " + typeTest(b) + ")?";
+            String value = dispatcher(b, MethodRust.UNBOX.get(through), "()" + through) + "(" + object + ")?";
+            return through.equals(to) ? value : "(" + value + " as " + MethodRust.rust(to) + ")";
+        }
+
         /** A value of a descriptor's type at a function's edge, as the int a slot keeps. */
-        private static String fromEdge(String d, String e) {
+        static String fromEdge(String d, String e) {
             return "ZBCS".indexOf(d.charAt(0)) >= 0 ? "(" + e + " as i32)" : e;
         }
 
-        private static String toEdge(String d, String e) {
+        static String toEdge(String d, String e) {
             return switch (d) {
                 case "Z" -> "(" + e + " != 0)";
                 case "B" -> "(" + e + " as i8)";

@@ -1,3 +1,4 @@
+import com.example.numbers.Boxes;
 import com.example.numbers.Numbers;
 import com.example.numbers.Shapes;
 import com.example.numbers.Texts;
@@ -96,6 +97,15 @@ public final class NumbersCheck {
             p("literals", n, () -> Texts.literals(n));
             p("methods", n, () -> Texts.methods(n));
             p("outOfBounds", n, () -> Texts.outOfBounds(n - 2));
+        }
+        // Records, enums, boxes, Objects, java.util.function.
+        for (int n : range(0, 12)) {
+            p("records", n, () -> Boxes.records(n));
+            p("enums", n, () -> Boxes.enums(n));
+            p("boxes", n, () -> Boxes.boxes(n));
+            p("bits", n, () -> Boxes.bits(n));
+            p("objects", n, () -> Boxes.objects(n));
+            p("functions", n, () -> Boxes.functions(n));
         }
         for (double d : DOUBLES) p("doubleText", d(d), () -> Texts.doubleText(d));
         for (float f : FLOATS) p("floatText", f(f), () -> Texts.floatText(f));

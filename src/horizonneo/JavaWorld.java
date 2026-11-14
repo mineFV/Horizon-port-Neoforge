@@ -336,6 +336,9 @@ final class JavaWorld {
 
     static final String LAMBDA = "lambda:";
 
+    /** The ObjectMethods sites (a record's equals, hashCode, toString), by key. */
+    final Map<String, MethodRust.ObjectMethodsSite> objectMethods = new LinkedHashMap<>();
+
     /** The lambda sites the translation keeps, by key (`lambda:owner#index`). */
     final Map<String, ClassData.LambdaSite> lambdas = new LinkedHashMap<>();
 

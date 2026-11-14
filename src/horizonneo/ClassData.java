@@ -111,6 +111,9 @@ final class ClassData {
     /** An invokedynamic's bootstrap: the method's class and name, and its static arguments (null for those `constant` doesn't read). */
     record Bootstrap(String owner, String name, List<Object> arguments) {}
 
+    /** A method handle among a bootstrap's arguments: its kind (1 getField ... 9 invokeInterface) and what it names. */
+    record Handle(int kind, String owner, String name, String descriptor) {}
+
     /**
      * A lambda or method reference, as LambdaMetafactory.metafactory makes it: the interface's method (name, and its
      * erased descriptor), the call site's descriptor (the captured values in, the interface out), the method handle
@@ -631,7 +634,12 @@ final class ClassData {
             List<Object> arguments = new ArrayList<>();
             for (int k = 1; k < bootstrap.length; k++) {
                 int t = tag[bootstrap[k]];
-                arguments.add(t == 3 || t == 4 || t == 5 || t == 6 || t == 7 || t == 8 ? constant(bootstrap[k]) : null);
+                if (t == 15) {
+                    String[] target = member(second[bootstrap[k]]);
+                    arguments.add(new Handle(first[bootstrap[k]], target[0], target[1], target[2]));
+                } else {
+                    arguments.add(t == 3 || t == 4 || t == 5 || t == 6 || t == 7 || t == 8 ? constant(bootstrap[k]) : null);
+                }
             }
             return new Bootstrap(method[0], method[1], arguments);
         }

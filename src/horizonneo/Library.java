@@ -37,45 +37,95 @@ final class Library {
     record Native(String name, String rust) {}
 
     /** The model's native methods, by owner.name+descriptor. */
-    static final Map<String, Native> NATIVES = Map.of(
-            "java/lang/Object.hashCode()I", new Native("jnative_object_hash_code", """
+    static final Map<String, Native> NATIVES = Map.ofEntries(
+            Map.entry("java/lang/Object.hashCode()I", new Native("jnative_object_hash_code", """
                     /// Object.hashCode: the object's identity, a non-negative int as the JVM gives (its value is its own).
                     #[allow(dead_code)]
                     fn jnative_object_hash_code(this: Ref) -> JR<i32> {
                         let o = jobj(&this)?;
                         Ok(((Arc::as_ptr(o) as usize >> 3) as i32) & 0x7fffffff)
                     }
-                    """),
-            "java/lang/Object.jClassName()Ljava/lang/String;", new Native("jnative_object_class_name", """
+                    """)),
+            Map.entry("java/lang/Object.jClassName()Ljava/lang/String;", new Native("jnative_object_class_name", """
                     /// getClass().getName(): the binary name of the object's class.
                     #[allow(dead_code)]
                     fn jnative_object_class_name(this: Ref) -> JR<Ref> {
                         let c = jobj(&this)?.class;
                         Ok(jstring(jclass_name(c)))
                     }
-                    """),
-            "java/lang/String.intern()Ljava/lang/String;", new Native("jnative_string_intern", """
+                    """)),
+            Map.entry("java/lang/String.intern()Ljava/lang/String;", new Native("jnative_string_intern", """
                     /// String.intern: one string of each text, the literals' among them.
                     #[allow(dead_code)]
                     fn jnative_string_intern(this: Ref) -> JR<Ref> {
                         let units = jstring_units(&this)?;
                         Ok(jintern(&units))
                     }
-                    """),
-            "java/lang/String.floatText(F)Ljava/lang/String;", new Native("jnative_float_text", """
+                    """)),
+            Map.entry("java/lang/String.floatText(F)Ljava/lang/String;", new Native("jnative_float_text", """
                     /// Float.toString.
                     #[allow(dead_code)]
                     fn jnative_float_text(f: f32) -> JR<Ref> {
                         Ok(jstring(&jfloat_text(f)))
                     }
-                    """),
-            "java/lang/String.doubleText(D)Ljava/lang/String;", new Native("jnative_double_text", """
+                    """)),
+            Map.entry("java/lang/String.doubleText(D)Ljava/lang/String;", new Native("jnative_double_text", """
                     /// Double.toString.
                     #[allow(dead_code)]
                     fn jnative_double_text(d: f64) -> JR<Ref> {
                         Ok(jstring(&jdouble_text(d)))
                     }
-                    """));
+                    """)),
+            Map.entry("java/lang/Float.floatToIntBits(F)I", new Native("jnative_float_bits", """
+                    /// Float.floatToIntBits: every NaN as the canonical one.
+                    #[allow(dead_code)]
+                    fn jnative_float_bits(f: f32) -> JR<i32> {
+                        Ok(if f.is_nan() { 0x7fc00000 } else { f.to_bits() as i32 })
+                    }
+                    """)),
+            Map.entry("java/lang/Float.floatToRawIntBits(F)I", new Native("jnative_float_raw_bits", """
+                    #[allow(dead_code)]
+                    fn jnative_float_raw_bits(f: f32) -> JR<i32> {
+                        Ok(f.to_bits() as i32)
+                    }
+                    """)),
+            Map.entry("java/lang/Float.intBitsToFloat(I)F", new Native("jnative_float_from_bits", """
+                    #[allow(dead_code)]
+                    fn jnative_float_from_bits(b: i32) -> JR<f32> {
+                        Ok(f32::from_bits(b as u32))
+                    }
+                    """)),
+            Map.entry("java/lang/Double.doubleToLongBits(D)J", new Native("jnative_double_bits", """
+                    /// Double.doubleToLongBits: every NaN as the canonical one.
+                    #[allow(dead_code)]
+                    fn jnative_double_bits(d: f64) -> JR<i64> {
+                        Ok(if d.is_nan() { 0x7ff8000000000000 } else { d.to_bits() as i64 })
+                    }
+                    """)),
+            Map.entry("java/lang/Double.doubleToRawLongBits(D)J", new Native("jnative_double_raw_bits", """
+                    #[allow(dead_code)]
+                    fn jnative_double_raw_bits(d: f64) -> JR<i64> {
+                        Ok(d.to_bits() as i64)
+                    }
+                    """)),
+            Map.entry("java/lang/Double.longBitsToDouble(J)D", new Native("jnative_double_from_bits", """
+                    #[allow(dead_code)]
+                    fn jnative_double_from_bits(b: i64) -> JR<f64> {
+                        Ok(f64::from_bits(b as u64))
+                    }
+                    """)),
+            Map.entry("[.clone()Ljava/lang/Object;", new Native("jnative_array_clone", """
+                    /// An array's clone: a new array of its class with its elements (a shallow copy).
+                    #[allow(dead_code)]
+                    fn jnative_array_clone(this: Ref) -> JR<Ref> {
+                        let o = jobj(&this)?;
+                        let slots = jlock(&o.slots).clone();
+                        Ok(Some(Arc::new(Obj { class: o.class, slots: Mutex::new(slots) })))
+                    }
+                    """)));
+
+    /** The key of an array's clone, which arrays alone select (`JarRust.arraySelects`). */
+    static final String ARRAY_CLONE = "[.clone()Ljava/lang/Object;";
 
     static Native nativeOf(JarRust.Id id) {
         return NATIVES.get(id.owner() + "." + id.name() + id.descriptor());
