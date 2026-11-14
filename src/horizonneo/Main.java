@@ -413,7 +413,11 @@ public final class Main {
                   horizon-port-pack's pipeline (import, inventory, carry), which takes each
                   block's template and properties, and each item's, from those facts: it is
                   packed, and PORTING.md lists the blocks with no template and what a
-                  template doesn't reproduce. Nothing of the mod is compiled or run. The Horizon commit is
+                  template doesn't reproduce. With the machines file `dump` writes beside the
+                  facts, the mod's block entities are put on Horizon's block-entity hook points
+                  with what NeoForge gave of them (type, ticking, item slots and their faces,
+                  energy, fluid tanks); what they do is a TODO, and report/machines.md lists
+                  what isn't carried over. Nothing of the mod is compiled or run. The Horizon commit is
                   --horizon-revision, else the source's .horizon-revision, else git's HEAD there.
                   A Fabric jar goes to horizon-port as it is.
 
@@ -436,7 +440,12 @@ public final class Main {
                   (tools/neoforge_oracle.py in Horizon's source, run unchanged): every block
                   of the mod's namespaces with each state's hardness, light, tool need, map
                   colour, sounds, shapes and drops; its items with their components; its
-                  recipes and tags; and vanilla's blocks, for templates. --server is a
+                  recipes and tags; and vanilla's blocks, for templates. Beside the oracle,
+                  this tool's machines exporter (compiled against the server's jars) places
+                  each block that has a block entity and writes FILE's .machines.json: its
+                  type, whether it ticks, its saved keys, its item, energy and fluid
+                  handlers through each face, and its menu; without a compiler or the
+                  server's jars, the dump goes on without it. --server is a
                   NeoForge server made by NeoForge's installer (--install-server) for the
                   mod's game version: the oracle is given it (a link in Horizon's
                   .local/neoforge-oracle/), so it downloads nothing. Its eula.txt must say

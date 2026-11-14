@@ -1,6 +1,9 @@
 package horizonneo;
 
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
 import java.io.PrintStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -10,7 +13,13 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
+import java.util.jar.Attributes;
+import java.util.jar.JarEntry;
+import java.util.jar.JarOutputStream;
+import java.util.jar.Manifest;
 import java.util.stream.Stream;
+import javax.tools.JavaCompiler;
+import javax.tools.ToolProvider;
 
 /**
  * `dump`: the mod's real facts, read in NeoForge by Horizon's own oracle (`tools/neoforge_oracle.py` in
@@ -22,6 +31,11 @@ import java.util.stream.Stream;
  * This never lets it: the server the maintainer installed is linked there first, for its version, so
  * nothing is downloaded. The oracle writes eula=true in its own run folder; this checks first that the
  * maintainer's server says it, and stops otherwise: Minecraft's EULA is theirs to accept, never this tool's.
+ *
+ * What the oracle's facts don't hold of the mod's machines (block entity types, ticking, item, energy and
+ * fluid capabilities, menus) comes from this tool's companion exporter (exporter/ in this repository, carried
+ * in its jar as source): it is compiled against the server's own jars and handed to the oracle with `--deps`,
+ * so the oracle loads it beside the mod, unchanged. It writes `<facts without .json>.machines.json`.
  *
  * This runs the original mod's Java, in NeoForge: the one thing CLAUDE.md's rule 2 allows, at the
  * maintainer's request.
@@ -68,14 +82,27 @@ final class Dump {
         Path facts = (o.out() == null ? Path.of("out", ids.get(0) + "-facts.json") : o.out()).toAbsolutePath().normalize();
         Files.createDirectories(facts.getParent());
         Files.deleteIfExists(facts);
+        Path machines = machinesFile(facts);
+        Files.deleteIfExists(machines);
         Path log = facts.resolveSibling(facts.getFileName().toString().replaceAll("\\.json$", "") + ".log");
         Path work = Files.createTempDirectory("horizon-dump-");
         try {
             Path jars = work.resolve("jars");
             Files.createDirectories(jars);
             Files.copy(jar.path(), jars.resolve(jar.path().getFileName()));
+            Path deps = Files.createDirectories(work.resolve("deps"));
+            String compiled = compileExporter(server, work.resolve("exporter"), deps.resolve("horizon-port-machines.jar"));
+            if (compiled != null) {
+                // The oracle's facts don't need it: the dump goes on, and says what it won't have.
+                out.println("  problem: the machines exporter doesn't compile against this server's jars, so the mod's block entities won't be read:");
+                compiled.lines().limit(20).forEach(l -> out.println("    " + l));
+            } else {
+                out.println("  ok: the machines exporter compiles against this server's jars");
+            }
             List<String> command = new ArrayList<>(List.of(o.python() == null ? "python3" : o.python(), oracle.toString(), "export",
-                    "--jars", jars.toString(), "--namespaces", String.join(",", ids), "--out", facts.toString()));
+                    "--jars", jars.toString()));
+            if (compiled == null) command.addAll(List.of("--deps", deps.toString()));
+            command.addAll(List.of("--namespaces", String.join(",", ids), "--out", facts.toString()));
             ProcessBuilder builder = new ProcessBuilder(command).directory(horizon.toFile()).redirectErrorStream(true).redirectOutput(log.toFile());
             builder.environment().put("HORIZON_NEOFORGE", version);
             out.println("  note: the oracle is running (its output goes to " + log + ")");
@@ -105,7 +132,8 @@ final class Dump {
                 return Main.FAILED;
             }
             summary(facts, ids, out);
-            out.println("Facts written to " + facts + "; `port --facts` reads them");
+            if (compiled == null) machines(machines, out);
+            out.println("Facts written to " + facts + (Files.isRegularFile(machines) ? " and " + machines : "") + "; `port --facts` reads them");
             out.println("The mod was loaded and run in NeoForge, in the oracle's run folder; nothing was compiled or run in Horizon.");
             return Main.DONE;
         } finally {
@@ -184,6 +212,88 @@ final class Dump {
             long mine = Json.object(f.get(key)).keySet().stream().filter(k -> ids.contains(k.substring(0, Math.max(0, k.indexOf(':'))))).count();
             out.println("  ok: " + mine + " " + key + " of the mod's");
         }
+    }
+
+    /** The machines file beside a facts file, as the exporter names it. */
+    static Path machinesFile(Path facts) {
+        return facts.resolveSibling(facts.getFileName().toString().replaceAll("\\.json$", "") + ".machines.json");
+    }
+
+    private static void machines(Path machines, PrintStream out) throws IOException {
+        if (!Files.isRegularFile(machines)) {
+            out.println("  problem: the machines exporter wrote nothing (" + machines + "): the mod's block entities aren't read. The oracle's output says why");
+            return;
+        }
+        Map<String, Object> m;
+        try {
+            m = Json.object(Json.parse(Files.readString(machines, StandardCharsets.UTF_8)));
+        } catch (Json.Invalid e) {
+            throw new IOException("the machines exporter wrote " + machines + ", which isn't JSON: " + e.getMessage());
+        }
+        if (Json.text(m, "failed") != null) {
+            out.println("  problem: the machines exporter failed: " + Json.text(m, "failed"));
+            return;
+        }
+        Map<String, Object> blocks = Json.object(m.get("blocks"));
+        long unread = blocks.values().stream().filter(b -> !Json.object(Json.object(b).get("unread")).isEmpty()).count();
+        long menus = blocks.values().stream().filter(b -> Json.object(b).containsKey("menu")).count();
+        out.println("  ok: " + Json.object(m.get("block_entity_types")).size() + " block entity types of the mod's; " + blocks.size() + " blocks with a block entity, "
+                + menus + " of them with a menu" + (unread == 0 ? "" : " (" + unread + " with values not read: their `unread` says why)"));
+    }
+
+    // ---- the machines exporter ----
+
+    /** Where the exporter's files are in this tool's jar, and where they go in the exporter's own. */
+    static final Map<String, String> EXPORTER_FILES = Map.of(
+            "exporter/horizonneo/machines/MachinesExporter.java", "horizonneo/machines/MachinesExporter.java",
+            "exporter/META-INF/neoforge.mods.toml", "META-INF/neoforge.mods.toml");
+
+    /** The jars the exporter compiles against: NeoForge's patched classes first, then the game's, then the rest. */
+    static List<Path> classpath(Path server) throws IOException {
+        Path libraries = server.resolve("libraries");
+        List<Path> all;
+        try (Stream<Path> s = Files.walk(libraries)) {
+            all = s.filter(p -> p.toString().endsWith(".jar")).sorted().toList();
+        }
+        List<Path> out = new ArrayList<>();
+        all.stream().filter(p -> p.getFileName().toString().matches("neoforge-.*-server\\.jar")).forEach(out::add);
+        all.stream().filter(p -> p.getFileName().toString().matches("server-.*-srg\\.jar")).forEach(out::add);
+        // The game's other jars there are the installer's inputs (obfuscated, or the vanilla bundler): not what runs.
+        Path game = libraries.resolve("net/minecraft/server");
+        all.stream().filter(p -> !out.contains(p) && !p.startsWith(game)).forEach(out::add);
+        return out;
+    }
+
+    /** Compiles the exporter into a jar; null when it compiled, else what the compiler said. */
+    static String compileExporter(Path server, Path dir, Path jarFile) throws IOException {
+        Path src = dir.resolve("src"), classes = dir.resolve("classes");
+        Files.createDirectories(classes);
+        for (Map.Entry<String, String> f : EXPORTER_FILES.entrySet()) {
+            Path to = (f.getValue().endsWith(".java") ? src : classes).resolve(f.getValue());
+            Files.createDirectories(to.getParent());
+            try (InputStream in = Dump.class.getResourceAsStream("/" + f.getKey())) {
+                if (in == null) return "this tool's jar doesn't carry " + f.getKey() + " (build it with build.sh)";
+                Files.copy(in, to);
+            }
+        }
+        JavaCompiler javac = ToolProvider.getSystemJavaCompiler();
+        if (javac == null) return "this Java has no compiler (a JDK is needed, not a JRE)";
+        String cp = String.join(java.io.File.pathSeparator, classpath(server).stream().map(Path::toString).toList());
+        ByteArrayOutputStream said = new ByteArrayOutputStream();
+        int exit = javac.run(null, said, said, "--release", "21", "-proc:none", "-nowarn", "-cp", cp, "-d", classes.toString(),
+                src.resolve("horizonneo/machines/MachinesExporter.java").toString());
+        if (exit != 0) return said.toString(StandardCharsets.UTF_8);
+        Manifest manifest = new Manifest();
+        manifest.getMainAttributes().put(Attributes.Name.MANIFEST_VERSION, "1.0");
+        try (OutputStream file = Files.newOutputStream(jarFile); JarOutputStream jar = new JarOutputStream(file, manifest);
+             Stream<Path> s = Files.walk(classes)) {
+            for (Path p : s.filter(Files::isRegularFile).sorted().toList()) {
+                jar.putNextEntry(new JarEntry(classes.relativize(p).toString().replace('\\', '/')));
+                Files.copy(p, jar);
+                jar.closeEntry();
+            }
+        }
+        return null;
     }
 
     private static List<String> tail(Path file, int lines) throws IOException {

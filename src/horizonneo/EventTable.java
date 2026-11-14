@@ -96,6 +96,8 @@ final class EventTable {
     private final Map<String, List<Hook>> exact = new TreeMap<>();
     private final Map<String, List<Hook>> noted = new TreeMap<>();
     private final Map<String, List<Hook>> pending = new TreeMap<>();
+    /** Every hook point of the catalogue by its name, with or without a NeoForge counterpart. */
+    private final Map<String, Hook> named = new TreeMap<>();
     private final int hooks;
 
     private EventTable(int hooks) {
@@ -172,23 +174,39 @@ final class EventTable {
 
     private void add(Map<String, Object> entry, Map<String, Map<String, Object>> read, String fragment) {
         String name = Json.text(entry, "name"), label = Json.text(entry, "neoforge");
-        if (name == null || label == null) return;
+        if (name == null) return;
+        if (label == null) {
+            // No NeoForge event stands for it (a block entity's, a screen's): found by its name only.
+            if (fragment == null) named.putIfAbsent(name, hook(name, entry, read.getOrDefault(name, Map.of()), name, false, List.of(), null));
+            return;
+        }
         boolean none = label.toLowerCase(java.util.Locale.ROOT).startsWith("none");
         List<String> names = none ? mentioned(label) : counterparts(label);
-        Map<String, Object> seen = read.getOrDefault(name, Map.of());
+        Hook hook = hook(name, entry, read.getOrDefault(name, Map.of()), label, none, names, fragment);
+        if (fragment == null) named.putIfAbsent(name, hook);
+        Map<String, List<Hook>> into = fragment != null ? pending : none ? noted : exact;
+        // A fragment's `none (...)` label prepares nothing for the events it mentions.
+        if (fragment != null && none) return;
+        for (String n : names) into.computeIfAbsent(n, k -> new ArrayList<>()).add(hook);
+    }
+
+    private static Hook hook(String name, Map<String, Object> entry, Map<String, Object> seen, String label, boolean none, List<String> names, String fragment) {
         List<Binding> bindings = new ArrayList<>();
         for (Object b : Json.array(seen.get("bindings"))) {
             Map<String, Object> binding = Json.object(b);
             String n = Json.text(binding, "name"), type = Json.text(binding, "ty"), value = Json.text(binding, "value");
             if (n != null && type != null && value != null) bindings.add(new Binding(n, type, value));
         }
-        Hook hook = new Hook(name, Json.text(entry, "target"), label, none ? null : note(label), names.size(), none ? null : givenPackage(label),
+        return new Hook(name, Json.text(entry, "target"), label, none ? null : note(label), names.size(), none ? null : givenPackage(label),
                 Json.text(entry, "side"), Json.text(Json.object(entry.get("mod_api")), "contract"),
                 seen.get("api") instanceof Number api ? Integer.valueOf(api.intValue()) : null, Json.text(seen, "doc"), Json.text(seen, "signature"), bindings, fragment);
-        Map<String, List<Hook>> into = fragment != null ? pending : none ? noted : exact;
-        // A fragment's `none (...)` label prepares nothing for the events it mentions.
-        if (fragment != null && none) return;
-        for (String n : names) into.computeIfAbsent(n, k -> new ArrayList<>()).add(hook);
+    }
+
+    // ---- looking a hook point up by its name ----
+
+    /** The catalogue's hook point of that name (`block_entity`), null when it has none. */
+    Hook named(String name) {
+        return named.get(name);
     }
 
     // ---- looking an event up ----

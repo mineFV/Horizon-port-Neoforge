@@ -887,6 +887,8 @@ pub struct Game<'a> {
 EOF
 cat > "$H/crates/horizon-client/src/game/native_hooks.rs" <<'EOF'
 use super::Game;
+use horizon_client::containers::{ModBlockEntity, ModContainer, ModEnergyBuffer};
+use horizon_world::nbt::Compound;
 
 pub struct NativeMod {
     pub id: String,
@@ -936,6 +938,31 @@ impl Game<'_> {
     pub(super) fn native_key_press(&mut self, key: &str) {
         let _ = key;
     }
+
+    /// Block `block` gets a block entity: set `entity` to its id and saved compound. API 15.
+    pub(super) fn native_block_entity(&mut self, block: &str, entity: &mut Option<(String, Compound)>) {
+        let _ = (block, entity);
+    }
+
+    /// Whether block `block`'s block entity ticks. API 15.
+    pub(super) fn native_block_entity_ticks(&self, block: &str, ticks: &mut bool) {
+        let _ = (block, ticks);
+    }
+
+    /// A server tick of the block entity at `pos`. API 17.
+    pub(super) fn native_block_entity_tick(&mut self, pos: [i32; 3], entity: &mut ModBlockEntity) {
+        let _ = (pos, entity);
+    }
+
+    /// Block `block`'s block entity has item slots. API 16.
+    pub(super) fn native_block_entity_container(&self, block: &str, container: &mut Option<ModContainer>) {
+        let _ = (block, container);
+    }
+
+    /// Block `block`'s block entity has an energy buffer. API 142.
+    pub(super) fn native_block_entity_energy(&self, block: &str, energy: &mut Option<ModEnergyBuffer>) {
+        let _ = (block, energy);
+    }
 }
 EOF
 # Horizon's hook catalogue, in its shape: what the event table is read from. The labels are made up to
@@ -961,7 +988,14 @@ cat > "$H/native-hooks.json" <<'EOF'
     { "name": "key_press", "version": 1, "target": "horizon_client::game::native_hooks::Game<'_>::native_key_press",
       "neoforge": "none (InputEvent.Key hears every key; this hears the mod's own keys only)", "side": "client", "mod_api": { "contract": "listen" } },
     { "name": "register_key_mappings", "version": 1, "target": "horizon_client::game::native_hooks::Game<'_>::native_register_key_mappings",
-      "neoforge": "RegisterKeyMappingsEvent", "side": "client", "mod_api": { "contract": "collect" } }
+      "neoforge": "RegisterKeyMappingsEvent", "side": "client", "mod_api": { "contract": "collect" } },
+    { "name": "block_entity", "version": 1, "target": "horizon_client::game::native_hooks::Game<'_>::native_block_entity", "mod_api": { "contract": "replace", "out": "entity" } },
+    { "name": "block_entity_ticks", "version": 1, "target": "horizon_client::game::native_hooks::Game<'_>::native_block_entity_ticks", "mod_api": { "contract": "listen" } },
+    { "name": "block_entity_tick", "version": 1, "target": "horizon_client::game::native_hooks::Game<'_>::native_block_entity_tick", "mod_api": { "contract": "listen" } },
+    { "name": "block_entity_container", "version": 1, "target": "horizon_client::game::native_hooks::Game<'_>::native_block_entity_container",
+      "neoforge": "Capabilities.Item.BLOCK", "cancellable": false, "mod_api": { "contract": "replace", "out": "container" } },
+    { "name": "block_entity_energy", "version": 1, "target": "horizon_client::game::native_hooks::Game<'_>::native_block_entity_energy",
+      "neoforge": "Capabilities.Energy.BLOCK", "side": "server", "mod_api": { "contract": "replace", "out": "energy" } }
   ]
 }
 EOF
@@ -1098,6 +1132,36 @@ cat > fixture/facts/pocketcompass.json <<'EOF'
   },
   "recipes": {},
   "tags": { "block": {}, "item": {} }
+}
+EOF
+
+# What the machines exporter writes beside them (`<facts>.machines.json`), made up for the same machine: a ticking
+# block entity with three slots (one taken through the top, one given through the bottom, one no item went into),
+# an energy buffer filled through the south face, a tank, and no menu.
+cat > fixture/facts/pocketcompass.machines.json <<'EOF'
+{
+  "schema": 1,
+  "namespaces": ["pocketcompass"],
+  "block_entity_types": { "pocketcompass:machine": { "blocks": ["pocketcompass:machine_block"] } },
+  "menu_types": ["pocketcompass:machine"],
+  "blocks": {
+    "pocketcompass:machine_block": {
+      "block_entity": "pocketcompass:machine", "class": "com.example.pocketcompass.MachineBlockEntity", "ticks_on_server": true,
+      "saved": ["energy", "progress"],
+      "items": { "slots": 3, "limits": [64, 64, 64], "faces": {
+        "down": { "slots": 1, "same": false, "reaches": [2], "inputs": [], "outputs": [2] },
+        "up": { "slots": 1, "same": false, "reaches": [0], "inputs": [0], "outputs": [] },
+        "north": { "slots": 1, "same": false, "reaches": [], "inputs": [], "outputs": [], "unmapped": 1 },
+        "south": { "slots": 0 }, "west": { "slots": 0 }, "east": { "slots": 0 } } },
+      "energy": { "unsided": { "capacity": 10000, "stored": 0, "can_receive": true, "can_extract": false, "insert_at_most": 0, "extract_at_most": 0 },
+        "faces": { "down": {}, "up": {}, "north": {}, "west": {}, "east": {},
+          "south": { "capacity": 10000, "stored": 0, "can_receive": true, "can_extract": false, "insert_at_most": 500, "extract_at_most": 0 } },
+        "filled": 10000 },
+      "fluids": { "tanks": [4000], "faces": { "down": { "tanks": 0, "same": false }, "up": { "tanks": 1, "same": false }, "north": { "tanks": 0, "same": false },
+        "south": { "tanks": 0, "same": false }, "west": { "tanks": 0, "same": false }, "east": { "tanks": 0, "same": false } } },
+      "unread": {}
+    }
+  }
 }
 EOF
 

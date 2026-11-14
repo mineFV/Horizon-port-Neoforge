@@ -16,7 +16,8 @@ its machines (block entities, menus, screens) and its logic, not only its wiring
 1. `dump`: the mod's real facts, read in NeoForge by Horizon's own oracle (done);
 2. the content mod from those facts: `port --facts` runs horizon-port-pack's pipeline on them, then declares
    the blocks it leaves out (no vanilla template with their states) with state properties of their own (done);
-3. the machines wired on Horizon's block-entity, container and screen hook points;
+3. the machines wired on Horizon's block-entity hook points, from what NeoForge gives of them (`dump`'s machines
+   file): type, ticking, item slots and their faces, energy, fluid tanks (done); menus and screens are left (below);
 4. **our own translator**, from bytecode to Rust, written from scratch here. It replaces horizon-port's
    translation of the mod's code (2% of Mekanism's methods). horizon-port keeps the licence check, the Mixin
    matching and the Fabric path.
@@ -27,6 +28,7 @@ It is separate code that **calls** other programs and never contains theirs:
 - Horizon's `native-hooks.json`: which hook point stands for which NeoForge event;
 - Horizon's `horizon-port-pack` and `cargo-horizon-mod`: the content mod (`.hmod`), and checking a `.hmod` or `.hnmod`;
 - Horizon's `tools/neoforge_oracle.py` (Python 3.11+): a NeoForge server with the mod and Horizon's exporter, for `dump`.
+  Our own exporter (`exporter/`, carried in the jar as source) goes beside it through the oracle's `--deps`.
 
 Java 21, no dependencies, one jar.
 
@@ -93,7 +95,9 @@ The tool's commands: `metadata`, `license`, `analyze`, `port`, `check`, `pack`, 
 | `Declarations` | Blocks the carry left out, declared from the facts on a plain template with state properties of their own |
 | `Content`, `HorizonTools` | The jar's data and assets as a content mod, through Horizon's own tools |
 | `Check`, `RustText` | `check`: a bundle against a Horizon source, by reading; `--compile` hands it to horizon-port's check |
-| `Dump` | `dump`: links the maintainer's NeoForge server into Horizon's oracle folder and runs Horizon's oracle |
+| `Dump` | `dump`: links the maintainer's NeoForge server into Horizon's oracle folder, compiles our machines exporter against its jars, runs Horizon's oracle with it |
+| `Machines` | The block entities in the machines file, on Horizon's block-entity hook points; `report/machines.md` |
+| `exporter/` (not in `src/`) | The NeoForge mod `dump` compiles at run time: places each block with a block entity and writes `<facts>.machines.json` |
 | `Pack` | `pack`: the bundle as a `.hnmod`, written as Horizon's `docs/api/mod-files.md` says |
 | `Report` | `report.md` and `report.json` |
 | `Toml`, `Json`, `Translator` | Small readers, and the one place that starts `horizon-port.jar` |
@@ -101,6 +105,8 @@ The tool's commands: `metadata`, `license`, `analyze`, `port`, `check`, `pack`, 
 ## How the code and the tests are written
 
 - Final package-private classes, records for data, no reflection, no third-party library. A comment says why.
+  `exporter/` is a NeoForge mod, not the tool: it uses the game's Gson, and reads two private fields of the game
+  (`AbstractContainerMenu.dataSlots`, `Level.freshBlockEntities`), each with why.
 - What the tool prints is plain and owns up to what it didn't read: `ok:`, `problem:`, `note:`, `not checked:`.
 - Unit tests are plain programs (`test/java/horizonneo/*Test.java`, counted by `Checks`). Command-line tests are
   in `test/run-test.sh`, with `exits`, `says`, `lacks`, `is_file`, `no_file`.
@@ -117,6 +123,15 @@ The tool's commands: `metadata`, `license`, `analyze`, `port`, `check`, `pack`, 
   inventory classed as content: a mod it doesn't know (`unknown`) is carried only when named.
 - **horizon-port-pack's carry declares a block only when a vanilla template has exactly its state properties**:
   Mekanism's machines (`active`, `facing`, `fluid_logged`) are all left out, though Horizon takes declared ones.
+- **Horizon's oracle stops the server in its `ServerStartedEvent` listener**: the machines exporter listens at
+  `HIGHEST` to run first. And NeoForge calls a block entity's `onLoad` only at the level's next tick, which never
+  comes: the exporter calls it, then takes it off `freshBlockEntities`. Mekanism sets up its sides there.
+- **A face's item handler may be a proxy with its own slot numbers** (Mekanism's): where a face slot is in the
+  container is measured by putting an item through it. Slots no item goes into (outputs only a machine fills)
+  stay unmapped, and said.
+- **Horizon opens a mod container's menu only on a block whose template opens one** (`storage.rs`: chest,
+  barrel, furnace...). The declared machines are on plain templates, so no menu is wired yet. Mekanism's block
+  entities aren't `MenuProvider`s either: the mod opens its menus in its own code.
 
 - **Run horizon-port with `-Xss512m`** on a real Horizon source: its comment stripper overflows Java's default
   stack on Horizon's long lines. `Port.STACK` does it everywhere.
@@ -147,5 +162,9 @@ Say so rather than assume it works:
   run `dump` against a stand-in for the oracle, never a server;
 - a block declared with state properties of its own, a state light table or shape tables has passed
   `cargo horizon-mod check`, never Horizon's loader: Mekanism's 136 such blocks haven't been loaded in the game;
+- the machines exporter has run on Mekanism only (2026-11-14): 154 block entity types, 103 with item slots,
+  82 with energy, 16 with tanks, no menu NeoForge could be asked for. The tests run `Machines` on a made-up
+  machines file; the exporter itself only compiles and runs against a real server;
+- the machine helpers passed `check` (by reading) on Mekanism's bundle, never cargo nor the game;
 - the facts read blocks without a level: what a block decides from its neighbours or its block entity (a cable's
   connections, in Mekanism) isn't in them.

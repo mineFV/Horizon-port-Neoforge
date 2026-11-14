@@ -9,6 +9,7 @@ import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Stream;
 
@@ -92,7 +93,7 @@ final class Port {
             EventTable table = table(o.horizonSrc(), translator, work);
             Path carrying = Files.createDirectory(work.resolve("content"));
             Bundle.Outcome outcome = Bundle.finish(bundle, decompiled, o.horizonSrc(), info, analysis, table, o.approximate(),
-                    into -> Content.carry(jar, analysis, tools, carrying, into, o.approximate(), o.facts()));
+                    into -> Content.carry(jar, analysis, tools, carrying, into, o.approximate(), o.facts()), machines(o.facts()));
             Report.write(bundle.resolve("report"), jar, frontend, analysis, outcome);
             deliver(bundle, target);
 
@@ -111,6 +112,11 @@ final class Port {
             out.println("  Event listeners: " + (listeners == 0 ? "none" : table == null ? listeners + ", none on a hook point (this Horizon source has no native-hooks.json)"
                     : listeners + ", " + outcome.listenersOn() + " on a hook point, " + listenersOff + " written commented out"
                             + (listeners - outcome.listenersOn() - listenersOff > 0 ? ", " + (listeners - outcome.listenersOn() - listenersOff) + " of events of the mod's own" : "")));
+            Machines.Made made = outcome.machines();
+            out.println("  Machines: " + (o.facts() == null ? "not read (no --facts)"
+                    : made == null ? (table == null ? "not wired (this Horizon source has no hook catalogue)" : "not read (no " + Dump.machinesFile(o.facts()).getFileName() + " beside the facts: dump writes it)")
+                    : made.blocks() + " blocks with a block entity; " + made.on().size() + " block-entity hook points on" + (made.off().isEmpty() ? "" : ", " + made.off().size() + " written commented out")
+                            + "; their ticks, menus and saves aren't ported (report/machines.md)"));
             Content.Result content = outcome.content();
             out.println("  Content: " + switch (content.state()) {
                 case "packed" -> content.file() + " (" + content.files() + (content.files() == 1 ? " file" : " files") + "), " + content.why();
@@ -130,6 +136,13 @@ final class Port {
         }
         out.println("The decompiled source and the copy of the jar have been deleted. Nothing was compiled or run.");
         return Main.DONE;
+    }
+
+    /** The machines file beside the facts, read; null without facts or without one. */
+    static Map<String, Object> machines(Path facts) throws IOException {
+        if (facts == null) return null;
+        Path file = Dump.machinesFile(facts);
+        return Files.isRegularFile(file) ? Machines.read(file) : null;
     }
 
     // ---- Horizon's hook points ----

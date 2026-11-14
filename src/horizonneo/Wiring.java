@@ -272,7 +272,7 @@ final class Wiring {
     // ---- the hooks API a bundle needs ----
 
     /** Raises compatibility.json's `hooks` to the API the hook points switched on came in, when it names one. */
-    private static void needs(Path compatibility, int api) throws IOException {
+    static void needs(Path compatibility, int api) throws IOException {
         if (!Files.isRegularFile(compatibility)) return;
         String text = Files.readString(compatibility, StandardCharsets.UTF_8);
         Matcher hooks = Pattern.compile("(\"hooks\"\\s*:\\s*)(\\d+)").matcher(text);
@@ -321,7 +321,7 @@ final class Wiring {
         return b.length() == 0 ? "listener" : b.toString();
     }
 
-    private static String unique(String id, Set<String> ids) {
+    static String unique(String id, Set<String> ids) {
         String candidate = id;
         for (int n = 2; !ids.add(candidate); n++) candidate = id + "-" + n;
         return candidate;

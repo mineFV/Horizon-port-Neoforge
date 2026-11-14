@@ -1,0 +1,11 @@
+# horizon-port-neoforge's companion to Horizon's NeoForge oracle: the mod's machines, for `dump`.
+# Carried as source in horizon-port-neoforge's jar, compiled by `dump` against the server's own jars; never shipped.
+modLoader = "javafml"
+loaderVersion = "[4,)"
+license = "MIT"
+
+[[mods]]
+modId = "horizon_port_machines"
+version = "1"
+displayName = "horizon-port-neoforge machines (dev only)"
+description = "Writes what NeoForge gives of a mod's block entities: types, ticking, item, energy and fluid capabilities, menus."

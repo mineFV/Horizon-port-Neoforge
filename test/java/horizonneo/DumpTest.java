@@ -12,6 +12,10 @@ final class DumpTest {
         try {
             String name = System.getProperty("os.name", "").toLowerCase(java.util.Locale.ROOT).startsWith("windows") ? "win_args.txt" : "unix_args.txt";
 
+            // ---- the machines file, named as the exporter names it ----
+            c.same("beside the facts, .json replaced", dir.resolve("m-facts.machines.json"), Dump.machinesFile(dir.resolve("m-facts.json")));
+            c.same("a name without .json is kept whole", dir.resolve("facts.machines.json"), Dump.machinesFile(dir.resolve("facts")));
+
             // ---- the installer's arguments ----
             Path server = dir.resolve("server");
             c.same("a folder with no NeoForge has no arguments", null, Dump.argsFile(server));

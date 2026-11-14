@@ -56,7 +56,7 @@ final class Bundle {
      * sentences.
      */
     record Outcome(String modId, List<String> on, List<String> off, Map<String, Handler> handlers, List<Wiring.Wired> listeners,
-                   Content.Result content, Translation translation, List<String> changes, int javaLines) {
+                   Content.Result content, Translation translation, List<String> changes, int javaLines, Machines.Made machines) {
         Outcome {
             on = List.copyOf(on);
             off = List.copyOf(off);
@@ -96,10 +96,11 @@ final class Bundle {
      * only to make sure none of it stays in the bundle. horizonSrc: the Horizon source the mod was
      * converted against. table: which hook point stands for which NeoForge event in that source,
      * null when it has no hook catalogue. approximate: also switch on the listeners whose hook
-     * point comes with a note. carrier: carries the content over, null to leave it.
+     * point comes with a note. carrier: carries the content over, null to leave it. machines: what
+     * NeoForge gave of the mod's block entities (`dump`'s machines file), null when there is none.
      */
     static Outcome finish(Path dir, Path decompiled, Path horizonSrc, ModInfo info, Analysis analysis, EventTable table, boolean approximate,
-                          Carrier carrier) throws IOException {
+                          Carrier carrier, Map<String, Object> machines) throws IOException {
         Path mod = modFolder(dir);
         String id = mod.getFileName().toString();
         List<String> changes = new ArrayList<>();
@@ -123,6 +124,7 @@ final class Bundle {
         hooksOff.addAll(targets(dir, mod, horizonSrc, changes, turnedOff));
         reword(dir, mod, info);
         List<Wiring.Wired> listeners = table == null ? List.of() : Wiring.apply(mod, id, analysis, table, approximate);
+        Machines.Made made = table == null || machines == null ? null : Machines.apply(mod, id, machines, table);
 
         Map<String, Handler> theirs = mixinStatuses(dir.resolve("report").resolve("report.json"));
         Translation translation = translation(dir.resolve("report").resolve("translation.md"));
@@ -139,7 +141,11 @@ final class Bundle {
 
         // Last, so that nothing above goes through the mod's own files.
         Content.Result content = carrier == null ? null : carrier.carry(dir);
-        Outcome outcome = new Outcome(id, on, off, handlers, listeners, content, translation, changes, javaLines);
+        Outcome outcome = new Outcome(id, on, off, handlers, listeners, content, translation, changes, javaLines, made);
+        if (made != null) {
+            Files.createDirectories(dir.resolve("report"));
+            Files.writeString(dir.resolve("report").resolve("machines.md"), Machines.report(machines, made), StandardCharsets.UTF_8);
+        }
         Path porting = dir.resolve("PORTING.md");
         if (!Files.isRegularFile(porting)) throw new Unexpected("no PORTING.md");
         Files.writeString(porting, porting(read(porting), info, analysis, outcome, mod, dir, packed, hooksOff), StandardCharsets.UTF_8);
@@ -645,6 +651,10 @@ final class Bundle {
         if (o.content() != null) {
             b.append('\n');
             for (String line : Content.words(o.content())) b.append(line).append('\n');
+        }
+        if (o.machines() != null) {
+            b.append('\n');
+            for (String line : Machines.words(o.machines())) b.append(line).append('\n');
         }
         if (o.listeners().stream().anyMatch(w -> !w.state().equals("none"))) {
             b.append("\nThe mod's event listeners, put on Horizon's hook points from its hook catalogue (`native-hooks.json`). One is on only when the ")

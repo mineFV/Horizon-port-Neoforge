@@ -127,7 +127,7 @@ jar --create --file "$B/jars/tidy.jar" -C "$B/tidy" . -C test/fixture/tidy/resou
 
 echo; echo "== unit tests"
 javac --release 21 -Xlint:all -Werror -cp build/classes -d "$B/classes" test/java/horizonneo/*.java
-for t in TomlTest JsonTest MetadataTest LicenceCheckTest ClassDataTest AnalyzerTest ReportTest StandInTest BundleTest EventTableTest WiringTest ContentTest RustTextTest PackTest DumpTest DeclarationsTest; do
+for t in TomlTest JsonTest MetadataTest LicenceCheckTest ClassDataTest AnalyzerTest ReportTest StandInTest BundleTest EventTableTest WiringTest ContentTest RustTextTest PackTest DumpTest DeclarationsTest MachinesTest; do
   # Their arguments, for the tests that read them: the first mod's classes, its jar, the stand-ins' jar, the second mod's jar.
   java -cp "build/classes:$B/classes" "horizonneo.$t" "$B/mod" "$J" "$B/jars/neoforge-stubs.jar" "$B/jars/oddities.jar" || failures=$((failures + 1))
 done
@@ -635,6 +635,29 @@ if [ -f "${HORIZON_PORT_JAR:-}" ]; then
     says "$P/facts/PORTING.md" '- `pocketcompass:machine_block`: declared by this tool on minecraft:stone, with state properties of its own (active, facing)'
     says "$P/facts/PORTING.md" 'class com.example.pocketcompass.MachineBlock (behaviour beyond net.minecraft.world.level.block.Block): its code isn'"'"'t ported'
     lacks "$P/facts/PORTING.md" "aren't declared. horizon-port-pack declares only"
+    # The machines file beside the facts: the block entity on the hook points the fixture's Horizon has, what was measured, the rest said.
+    says "$OUT" "Machines: 1 blocks with a block entity; 5 block-entity hook points on, 1 written commented out"
+    M="$P/facts/mixins/pocketcompass"
+    says "$M/block-entity.rs" '"pocketcompass:machine_block" => "pocketcompass:machine",'
+    says "$M/block-entity.rs" 'horizon_world::nbt::Compound::new()'
+    says "$M/block-entity-ticks.rs" '*ticks = true;'
+    says "$M/block-entity-tick.rs" "TODO: port each block entity's tick"
+    says "$M/block-entity-tick.rs" "pocketcompass:machine: com.example.pocketcompass.MachineBlockEntity; it saves energy, progress"
+    says "$M/block-entity-container.rs" 'faces: [vec![2], vec![0], Vec::new(), Vec::new(), Vec::new(), Vec::new()],'
+    says "$M/block-entity-container.rs" 'inputs: vec![0],'
+    says "$M/block-entity-container.rs" 'outputs: vec![2],'
+    says "$M/block-entity-energy.rs" 'max_insert: 500,'
+    says "$M/block-entity-energy.rs" 'insert_faces: [false, false, false, true, false, false],'
+    says "$M/horizon-mixin.toml" 'target = "horizon_client::game::native_hooks::Game<'"'"'_>::native_block_entity_container"'
+    says "$M/horizon-mixin.toml" "# Off: the mod's machines on \`block_entity_fluids\`"
+    says "$M/horizon-mixin.toml" "This Horizon source's catalogue has no \`block_entity_fluids\`"
+    says "$P/facts/compatibility.json" '"hooks": 142'
+    says "$P/facts/PORTING.md" '| `block_entity_container` | 1 | on, in `block-entity-container` |'
+    says "$P/facts/report/machines.md" '| `pocketcompass:machine_block` | `pocketcompass:machine` | yes | energy, progress |'
+    says "$P/facts/report/machines.md" "1 face slot took none of the items tried"
+    says "$P/facts/report/machines.md" "neither the block nor its block entity hands NeoForge a MenuProvider"
+    exits 0 tool check "$P/facts" --horizon-src "$H"
+    says "$OUT" "every target is in this Horizon's source"
 
     # With --allow-approximate it is packed as it is, and each guess is still listed.
     exits 0 tool port "$B/jars/content.jar" --horizon-src "$H" --out "$P/guessed-packed" --horizon-tools "$T" --allow-approximate
@@ -677,7 +700,7 @@ if [ -f "${HORIZON_PORT_JAR:-}" ]; then
   says "$OUT" 'ok: 2 modules: each file is there, with nothing horizon-mixins refuses in a module'
   says "$OUT" 'ok: 3 injections on: each has its helper, one function with a parameter for each binding'
   says "$OUT" "ok: every target is in this Horizon's source: 3 hook points, each binding naming something it takes"
-  says "$OUT" 'ok: hooks API 1 covers its hook points (they need 1; this Horizon has 1)'
+  says "$OUT" 'ok: hooks API 1 covers its hook points (they need 1; this Horizon has 142)'
   says "$OUT" 'ok: it was made for this Horizon commit (0123456789abcdef0123456789abcdef01234567)'
   says "$OUT" 'ok: the brackets pair up in the 5 Rust files that are on'
   says "$OUT" 'ok: no decompiled Java, class file or jar is in it'
@@ -724,9 +747,9 @@ if [ -f "${HORIZON_PORT_JAR:-}" ]; then
   says "$OUT" 'problem: the injection `destroy-block` binds `&mut *cancelled`, and its hook point takes no `cancelled` in this Horizon (it takes self, pos, canceled)'
 
   broken api
-  sed -i 's/"hooks": 1,/"hooks": 7,/' "$C/api/compatibility.json"
+  sed -i 's/"hooks": 1,/"hooks": 700,/' "$C/api/compatibility.json"
   exits 1 tool check "$C/api" --horizon-src "$H"
-  says "$OUT" 'problem: compatibility.json asks for hooks API 7, and this Horizon has API 1'
+  says "$OUT" 'problem: compatibility.json asks for hooks API 700, and this Horizon has API 142'
 
   broken module
   printf '\nmod other;\n' >> "$C/module/$CM/runtime.rs"
@@ -904,6 +927,7 @@ says "$OUT" "has no tools/neoforge_oracle.py"
 if command -v python3 > /dev/null; then
   exits 0 tool dump "$J" --server "$D/server" --horizon-src "$H" --out "$D/facts.json"
   says "$OUT" "ok: the oracle uses this server for NeoForge 21.1.1"
+  says "$OUT" "problem: the machines exporter doesn't compile against this server's jars, so the mod's block entities won't be read"
   says "$OUT" "ok: 1 blocks of the mod's"
   says "$OUT" "port --facts"
   says "$D/facts.json" '"pocketcompass:plain_block"'
