@@ -908,7 +908,7 @@ javac --release 21 -cp "$TR/classes" -d "$TR/classes" test/translate/NumbersChec
 printf 'modLoader = "javafml"\nloaderVersion = "[4,)"\nlicense = "MIT"\n[[mods]]\nmodId = "numbers"\nversion = "1.0"\ndisplayName = "Numbers"\n' > "$TR/jar/META-INF/neoforge.mods.toml"
 jar --create --file "$B/jars/numbers.jar" -C "$TR/jar" . -C "$TR/classes" com
 exits 0 tool translate "$B/jars/numbers.jar" --out "$TR/out"
-says "$OUT" "numbers.jar: 68 of 72 methods translated from their bytecode"
+says "$OUT" "numbers.jar: 69 of 73 methods translated from their bytecode"
 says "$TR/out/translation.md" '`com.example.numbers.Shapes.tasks(I)I`: a type test isn'"'"'t certain: whether com/example/numbers/Shapes$Task is a java.lang.Comparable can'"'"'t be told'
 says "$OUT" "Nothing was compiled or run"
 says "$TR/out/translated.rs" 'pub fn numbers__collatz(mut l0: i64) -> i64 {'

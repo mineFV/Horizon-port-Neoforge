@@ -113,5 +113,6 @@ fn main() {
         p("casts", n.to_string(), shapes__casts(n).to_string());
         p("arrays", n.to_string(), shapes__arrays(n).to_string());
         p("same", n.to_string(), shapes__same(n).to_string());
+        p("callNever", n.to_string(), shapes__call_never(None, n).to_string());
     }
 }

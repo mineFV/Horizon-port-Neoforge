@@ -210,6 +210,15 @@ public final class Shapes {
         return o instanceof Comparable ? 1 : 0;
     }
 
+    /** An interface nothing implements: its dispatcher has no class to match. */
+    public interface Never {
+        int never(int x);
+    }
+
+    public static int callNever(Never n, int x) {
+        return n == null ? -x : n.never(x);
+    }
+
     public static int same(int n) {
         Square a = new Square(n), b = new Square(n);
         Square c = a;

@@ -181,8 +181,9 @@ Say so rather than assume it works:
   82 with energy, 16 with tanks, no menu NeoForge could be asked for. The tests run `Machines` on a made-up
   machines file; the exporter itself only compiles and runs against a real server;
 - the machine helpers passed `check` (by reading) on Mekanism's bundle, never cargo nor the game;
-- our translator's output has been compiled and run on the test's made-up classes only: Mekanism's 4363 translated
-  methods (of 24149; horizon-port translates 350) haven't been compiled. Nothing calls them yet: the world of
+- our translator's output has been compiled and run on the test's made-up classes only. Mekanism's 4363 translated
+  methods (of 24149; horizon-port translates 350) were type-checked by rustc once, at the maintainer's request
+  (2026-11-14, `--emit=metadata`: no error, no warning), never run. Nothing calls them yet: the world of
   objects is closed, and a translated method called from the game with an object of the game's would break that;
 - the facts read blocks without a level: what a block decides from its neighbours or its block entity (a cable's
   connections, in Mekanism) isn't in them.

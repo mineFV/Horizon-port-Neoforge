@@ -374,7 +374,7 @@ final class JarRust {
         }
 
         String test(String name, String type) {
-            return "\n/// Whether an object of class c is a `" + type.replace('/', '.') + "`.\n#[allow(dead_code)]\nfn " + name + "(c: u32) -> bool {\n    "
+            return "\n/// Whether an object of class c is a `" + type.replace('/', '.') + "`.\n#[allow(dead_code, unused_variables)]\nfn " + name + "(c: u32) -> bool {\n    "
                     + matches(idsOf(type)) + "\n}\n";
         }
 
@@ -449,7 +449,7 @@ final class JarRust {
                 arms.computeIfAbsent(target, x -> new ArrayList<>()).add(world.id(l));
             }
             StringBuilder b = new StringBuilder("\n/// `" + owner.replace('/', '.') + "." + method + descriptor + "`, called virtually: the method each class selects.\n");
-            b.append("#[allow(dead_code, non_snake_case)]\nfn ").append(name).append('(').append(sig).append(')').append(r.equals("V") ? "" : " -> " + MethodRust.rust(r)).append(" {\n");
+            b.append("#[allow(dead_code, non_snake_case, unused_variables)]\nfn ").append(name).append('(').append(sig).append(')').append(r.equals("V") ? "" : " -> " + MethodRust.rust(r)).append(" {\n");
             b.append("    match jclass(&this) {\n");
             arms.forEach((target, ids) -> b.append("        ").append(String.join(" | ", ids.stream().sorted().map(String::valueOf).toList())).append(" => ")
                     .append(target).append('(').append(args).append("),\n"));
@@ -467,7 +467,7 @@ final class JarRust {
             for (String c : captured) layout.append(JavaWorld.kind(c));
             StringBuilder b = new StringBuilder("\n/// A lambda of `" + JavaWorld.type(ClassData.returns(site.site())).replace('/', '.') + "` that runs `"
                     + site.owner().replace('/', '.') + "." + site.name() + site.descriptor() + "`.\n");
-            b.append("#[allow(dead_code, non_snake_case)]\nfn jlambda_").append(id).append("_new(");
+            b.append("#[allow(dead_code, non_snake_case, unused_parens)]\nfn jlambda_").append(id).append("_new(");
             for (int k = 0; k < captured.size(); k++) b.append(k == 0 ? "" : ", ").append("c").append(k).append(": ").append(MethodRust.rust(captured.get(k)));
             b.append(") -> Ref {\n    let o = jnew(").append(id).append(", b\"").append(layout).append("\");\n");
             for (int k = 0; k < captured.size(); k++) {
@@ -477,7 +477,7 @@ final class JarRust {
             b.append("    o\n}\n");
 
             String r = ClassData.returns(site.erased());
-            b.append("#[allow(dead_code, non_snake_case, unused_variables)]\nfn jlambda_").append(id).append("_call(this: Ref");
+            b.append("#[allow(dead_code, non_snake_case, unused_variables, unused_parens)]\nfn jlambda_").append(id).append("_call(this: Ref");
             for (int k = 0; k < sam.size(); k++) b.append(", a").append(k).append(": ").append(MethodRust.rust(sam.get(k)));
             b.append(')').append(r.equals("V") ? "" : " -> " + MethodRust.rust(r)).append(" {\n");
             List<String> given = new ArrayList<>(), types = new ArrayList<>();

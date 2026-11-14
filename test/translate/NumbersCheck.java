@@ -79,6 +79,7 @@ public final class NumbersCheck {
             p("casts", n, Shapes.casts(n));
             p("arrays", n, Shapes.arrays(n));
             p("same", n, Shapes.same(n));
+            p("callNever", n, Shapes.callNever(null, n));
         }
     }
 
