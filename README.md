@@ -280,6 +280,46 @@ Horizon isn't built). It is never done unasked. As horizon-port says of it, it f
 uses the game's own types even when they are right; its `compile` checks those against Horizon
 itself.
 
+## Tried on real mods
+
+Three open-source NeoForge mods from Modrinth (2026-11-13), against Horizon `a21f8a39`. Each went
+through `license`, `analyze`, `port` and `check`; none was compiled, and none was run.
+
+| | AppleSkin 3.0.10 (26.3) | Mouse Tweaks 2.31 (26.3) | Mekanism 10.7.19 (1.21.1) |
+|---|---|---|---|
+| Licence | The Unlicense | BSD-3-Clause | MIT |
+| Classes | 40 | 22 | 2975 |
+| `port` took | 4 s | 4 s | 16 s |
+| **Methods translated to Rust** (horizon-port's count) | **6 of 92 (6.5%)** | **3 of 89 (3.4%)** | **350 of 17152 (2.0%)** |
+| Static fields translated | 64 of 90 | 17 of 22 | 705 of 3515 |
+| Listeners NeoForge calls | 9 | 5 | 114 |
+| ... on a hook point | 2 | 0 | 29 |
+| ... commented out, with why | 7 | 5 | 81 (and 4 of the mod's own events) |
+| Mixin handlers | none | 8 (`@Accessor`, `@Invoker`), none on | none |
+| Injections on / commented out | 3 / 7 | 3 / 13 | 29 / 81 |
+| Content | `appleskin.hmod`, 24 files | none in the jar | not packed: 125 blocks and 202 items to check first |
+| `check` (by reading) | ok | ok | ok |
+
+What the figures say:
+
+- **Little of a mod's Java translates.** horizon-port translates a method whole or not at all, and
+  only when it uses neither the game nor a library. A NeoForge mod's methods mostly take an event,
+  a game class or NeoForge's config, so the rate is a few percent, and what does translate is
+  constants and plain helpers. `report/translation.md` in each bundle gives the reason method by method.
+- **What is on is wiring.** Each listener that is on has its injection, its hook point's parameters
+  and a `TODO`; its handler is still to write by hand. A bundle plays like vanilla until then.
+- **Mekanism isn't a port.** It is a content mod with machines, and its blocks, items, fluids,
+  recipes and screens are code. Its own register classes wrap `DeferredRegister`, so most of what
+  it registers isn't read, and the report says so. The trial shows that a large jar goes through,
+  quickly, and that nothing is switched on by guess; no more.
+
+What these jars corrected in the tool: a method marked `@SubscribeEvent` that is also handed to
+`addListener` counted twice; `register(FIELD)` and `register(Thing.get())` weren't read, so their
+listeners showed as not registered; a listener's side wasn't held against its hook point's.
+
+Not done: `check --compile` on these bundles, and so whether the Rust horizon-port translated from
+them compiles (41,833 lines of it for Mekanism). The jars and the bundles aren't in this repository.
+
 ## Tests
 
 ```bash
