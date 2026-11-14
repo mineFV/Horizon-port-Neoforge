@@ -139,7 +139,9 @@ final class Analyzer {
         a.subscribed();
         a.listeners.sort(Comparator.comparing(Listener::handlerClass));
         return new Analysis(new Census(a.classes.size(), a.assets, a.data), entryPoints, a.listeners, a.registries(), a.configs(),
-                a.configScreens(), mixins, a.accessTransformers(), a.gameClasses(), a.apiAreas(), facts.hasJars(), a.warnings);
+                a.configScreens(), mixins, a.accessTransformers(), a.gameClasses(), a.apiAreas(), facts.hasJars(),
+                // The same thing seen twice (two constructors of one class) is said once.
+                a.warnings.stream().distinct().toList());
     }
 
     // ---- the jar ----
