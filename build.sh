@@ -13,5 +13,8 @@ mkdir -p "$out/classes"
 find src -name '*.java' | sort > "$out/sources.txt"
 # Warnings are errors: the tool has no dependencies to blame them on.
 javac --release 21 -Xlint:all -Werror -d "$out/classes" @"$out/sources.txt"
+# The dumper isn't compiled here (it needs NeoForge's jars): `dump` compiles it against a server's own.
+mkdir -p "$out/classes/dumper"
+cp -r dumper/src/. dumper/resources/. "$out/classes/dumper/"
 jar --create --file "$out/horizon-port-neoforge.jar" --main-class horizonneo.Main -C "$out/classes" .
 echo "Built $out/horizon-port-neoforge.jar"

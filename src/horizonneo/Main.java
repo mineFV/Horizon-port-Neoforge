@@ -72,6 +72,9 @@ public final class Main {
             case "check" -> {
                 return check(Line.read(args, Set.of("--horizon-src", "--translator", "--horizon-tools"), Set.of("--compile")), out, err);
             }
+            case "dump" -> {
+                return dump(Line.read(args, Set.of("--server", "--out", "--java"), Set.of()), out, err);
+            }
             case "pack" -> {
                 return pack(Line.read(args, Set.of("--horizon-src", "--translator", "--horizon-tools", "--out"), Set.of()), out, err);
             }
@@ -87,6 +90,17 @@ public final class Main {
         if (horizonSrc == null) throw new Usage("`check` needs --horizon-src <Horizon's source folder>");
         return Check.run(bundle, new Check.Options(Path.of(horizonSrc), line.options().get("--translator"), line.options().get("--horizon-tools"),
                 line.has("--compile")), out, err);
+    }
+
+    // ---- dump ----
+
+    private static int dump(Line line, PrintStream out, PrintStream err) throws Usage, IOException, ModsToml.Invalid {
+        Path path = line.only("mod jar");
+        String server = line.options().get("--server"), file = line.options().get("--out");
+        if (server == null) throw new Usage("`dump` needs --server <a NeoForge server folder, made by NeoForge's installer>");
+        ModJar jar = ModJar.open(path);
+        if (!jar.neoforge()) throw new Usage("`dump` takes a NeoForge mod: " + path.getFileName() + " has no " + ModsToml.PATH);
+        return Dump.run(jar, NeoForgeFrontend.read(jar), new Dump.Options(Path.of(server), file == null ? null : Path.of(file), line.options().get("--java")), out, err);
     }
 
     // ---- pack ----
@@ -406,6 +420,21 @@ public final class Main {
                   stand-ins for Horizon's helpers (it writes <bundle>/target/; nothing of the
                   mod is run). The last line is `RESULT: ok`, `RESULT: ok, not compiled` or
                   `RESULT: failed (...)`; exit code 0 or 1.
+
+              dump <mod.jar> --server FOLDER [--out FILE] [--java PROGRAM]
+                  The mod's real facts, read in NeoForge itself: what the game registered for
+                  the mod's namespaces once a server has started (blocks: hardness, sound,
+                  states, light, shape and collision of each state, block entity types;
+                  items: stack size and default components; block entity types, menus, fluids,
+                  creative tabs). FOLDER is a NeoForge server made by NeoForge's installer
+                  (--install-server), for the game version of the mod; its eula.txt must say
+                  eula=true, which is yours to write: this tool never does. A small mod of
+                  this tool's (dumper/, compiled against that server's jars) is put beside the
+                  mod in a server folder of its own, which is deleted afterwards; FOLDER isn't
+                  changed. This runs the original mod's Java in NeoForge, on this machine,
+                  listening on 127.0.0.1 only. Writes FILE (default: out/<mod id>-facts.json)
+                  and the server's output beside it. A value that couldn't be read is named
+                  under `unread`, with why. Nothing is compiled or run in Horizon.
 
               pack <bundle-folder> --horizon-src FOLDER [--out FILE] [--horizon-tools DIR]
                   Packs a bundle as <mod id>.hnmod, the file Horizon's launcher installs and

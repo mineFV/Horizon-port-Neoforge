@@ -48,7 +48,7 @@ bash test/run-test.sh         # builds, writes the fixture, runs everything; end
 java -jar build/horizon-port-neoforge.jar --help
 ```
 
-The tool's commands: `metadata`, `license`, `analyze`, `port`, `check`, `pack`. The tests need
+The tool's commands: `metadata`, `license`, `analyze`, `port`, `check`, `pack`, `dump`. The tests need
 `horizon-port.jar`; the ones that pack a `.hmod` or check a `.hnmod` are skipped, with a note, without Horizon's tools.
 
 ## Rules that are not up for interpretation
@@ -87,9 +87,13 @@ The tool's commands: `metadata`, `license`, `analyze`, `port`, `check`, `pack`. 
 | `EventTable`, `Wiring` | Horizon's catalogue as an event table; listeners put on hook points, or commented out with why |
 | `Content`, `HorizonTools` | The jar's data and assets as a content mod, through Horizon's own tools |
 | `Check`, `RustText` | `check`: a bundle against a Horizon source, by reading; `--compile` hands it to horizon-port's check |
+| `Dump` | `dump`: compiles `dumper/` against a NeoForge server's jars, runs that server in a folder of its own, reads `facts.json` |
 | `Pack` | `pack`: the bundle as a `.hnmod`, written as Horizon's `docs/api/mod-files.md` says |
 | `Report` | `report.md` and `report.json` |
 | `Toml`, `Json`, `Translator` | Small readers, and the one place that starts `horizon-port.jar` |
+
+`dumper/` is a NeoForge mod of this repository's, carried in the jar as source: `build.sh` doesn't compile it
+(it needs NeoForge's jars), `dump` does, against the server it is given.
 
 ## How the code and the tests are written
 
@@ -128,4 +132,6 @@ Say so rather than assume it works:
 - the listener helpers this tool writes have never been compiled against Horizon itself;
 - no bundle or `.hnmod` it made has been built by the launcher or loaded in the game;
 - a content `.hmod` beside a `.hnmod` of the same id hasn't been tried, and the combined `.hmod` isn't made;
-- `analyze --neoforge-jar` has only seen stand-ins, never NeoForge's own jars.
+- `analyze --neoforge-jar` has only seen stand-ins, never NeoForge's own jars;
+- the dumper compiles against NeoForge 21.1.266's jars (by hand), but hasn't run in a server yet; the tests stop
+  `dump` before anything starts.

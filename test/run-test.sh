@@ -127,7 +127,7 @@ jar --create --file "$B/jars/tidy.jar" -C "$B/tidy" . -C test/fixture/tidy/resou
 
 echo; echo "== unit tests"
 javac --release 21 -Xlint:all -Werror -cp build/classes -d "$B/classes" test/java/horizonneo/*.java
-for t in TomlTest JsonTest MetadataTest LicenceCheckTest ClassDataTest AnalyzerTest ReportTest StandInTest BundleTest EventTableTest WiringTest ContentTest RustTextTest PackTest; do
+for t in TomlTest JsonTest MetadataTest LicenceCheckTest ClassDataTest AnalyzerTest ReportTest StandInTest BundleTest EventTableTest WiringTest ContentTest RustTextTest PackTest DumpTest; do
   # Their arguments, for the tests that read them: the first mod's classes, its jar, the stand-ins' jar, the second mod's jar.
   java -cp "build/classes:$B/classes" "horizonneo.$t" "$B/mod" "$J" "$B/jars/neoforge-stubs.jar" "$B/jars/oddities.jar" || failures=$((failures + 1))
 done
@@ -848,6 +848,35 @@ if [ -f "${HORIZON_PORT_JAR:-}" ]; then
     echo "  (skipped: Horizon's own check of a .hnmod, as above)"
   fi
 fi
+
+echo; echo "== dump"
+# Without NeoForge: what it checks before starting anything. The dumper itself only runs against a real server.
+D=$B/dump
+exits 2 tool dump "$J"
+says "$ERR" '`dump` needs --server'
+exits 1 tool dump "$J" --server "$D/nothing" --out "$D/facts.json"
+says "$OUT" "isn't a NeoForge server: there is no libraries/net/neoforged/neoforge/<version>/"
+no_file "$D/facts.json"
+mkdir -p "$D/server/libraries/net/neoforged/neoforge/21.1.1"
+echo '-p libraries/a.jar' > "$D/server/libraries/net/neoforged/neoforge/21.1.1/unix_args.txt"
+exits 1 tool dump "$J" --server "$D/server" --out "$D/facts.json"
+says "$OUT" "doesn't say eula=true. Minecraft's EULA is yours to read and accept"
+says "$OUT" "this tool never does"
+no_file "$D/server/eula.txt"
+no_file "$D/facts.json"
+echo 'eula=false' > "$D/server/eula.txt"
+exits 1 tool dump "$J" --server "$D/server"
+says "$OUT" "doesn't say eula=true"
+says "$D/server/eula.txt" 'eula=false'
+# With the EULA accepted, the stand-in server has no NeoForge jars: the dumper doesn't compile, nothing starts.
+echo 'eula=true' > "$D/server/eula.txt"
+exits 1 tool dump "$J" --server "$D/server" --out "$D/facts.json"
+says "$OUT" "ok: NeoForge 21.1.1, and its EULA is accepted"
+says "$OUT" "problem: the dumper doesn't compile against this server's jars"
+lacks "$OUT" "the server is starting"
+no_file "$D/facts.json"
+exits 2 tool dump "$B/jars/fabric.jar" --server "$D/server"
+says "$ERR" '`dump` takes a NeoForge mod'
 
 echo; echo "== the command line"
 exits 0 tool --help
