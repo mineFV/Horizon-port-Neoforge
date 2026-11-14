@@ -908,20 +908,22 @@ javac --release 21 -cp "$TR/classes" -d "$TR/classes" test/translate/NumbersChec
 printf 'modLoader = "javafml"\nloaderVersion = "[4,)"\nlicense = "MIT"\n[[mods]]\nmodId = "numbers"\nversion = "1.0"\ndisplayName = "Numbers"\n' > "$TR/jar/META-INF/neoforge.mods.toml"
 jar --create --file "$B/jars/numbers.jar" -C "$TR/jar" . -C "$TR/classes" com
 exits 0 tool translate "$B/jars/numbers.jar" --out "$TR/out"
-says "$OUT" "numbers.jar: 69 of 73 methods translated from their bytecode"
-says "$TR/out/translation.md" '`com.example.numbers.Shapes.tasks(I)I`: a type test isn'"'"'t certain: whether com/example/numbers/Shapes$Task is a java.lang.Comparable can'"'"'t be told'
+says "$OUT" "numbers.jar: 97 of 97 methods translated from their bytecode"
 says "$OUT" "Nothing was compiled or run"
-says "$TR/out/translated.rs" 'pub fn numbers__collatz(mut l0: i64) -> i64 {'
-says "$TR/out/translated.rs" 'pub fn numbers__is_digit(p0: u16) -> bool {'
+says "$TR/out/translated.rs" 'pub fn numbers__collatz(mut l0: i64) -> JR<i64> {'
+says "$TR/out/translated.rs" 'pub fn numbers__is_digit(p0: u16) -> JR<bool> {'
 says "$TR/out/translated.rs" 'fn jcmpg_f32(a: f32, b: f32) -> i32 {'
 lacks "$TR/out/translated.rs" 'fn jsignum_f32'
-says "$TR/out/translation.md" '`com.example.numbers.Numbers.name(I)Ljava/lang/String;`: it joins texts'
-says "$TR/out/translated.rs" 'pub fn numbers__instance(mut l0: Ref) -> i32 {'
+says "$TR/out/translated.rs" 'pub fn numbers__instance(mut l0: Ref) -> JR<i32> {'
 says "$TR/out/translated.rs" 'static JINIT_'
 says "$TR/out/translated.rs" '/// `com.example.numbers.Shapes$Area.twiceArea()I`, called virtually: the method each class selects.'
 says "$TR/out/translated.rs" 'that runs `com.example.numbers.Shapes$Square.<init>(I)V`'
-says "$TR/out/translation.md" '`com.example.numbers.Numbers.safe(I)I`: it catches exceptions'
-says "$TR/out/translation.md" '`com.example.numbers.Numbers.callsSafe(I)I`: it calls com.example.numbers.Numbers.safe(I)I, which isn'"'"'t translated (it catches exceptions'
+# Exceptions, texts, and the library model translated with the mod where it reaches it.
+says "$TR/out/translated.rs" 'pub fn texts__divide(mut l0: i32, mut l1: i32) -> JR<Ref> {'
+says "$TR/out/translated.rs" 'Err(e) => {'
+says "$TR/out/translated.rs" '/// `java.lang.String.concat(Ljava/lang/String;)Ljava/lang/String;`, translated from its bytecode.'
+says "$TR/out/translated.rs" 'fn jnative_double_text(d: f64) -> JR<Ref> {'
+lacks "$TR/out/translated.rs" '/// `java.lang.String.repeat'"'"'(Ljava'
 exits 2 tool translate "$B/jars/fabric.jar"
 says "$ERR" '`translate` takes a NeoForge mod'
 if command -v rustc > /dev/null; then

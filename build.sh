@@ -13,6 +13,12 @@ mkdir -p "$out/classes"
 find src -name '*.java' | sort > "$out/sources.txt"
 # Warnings are errors: the tool has no dependencies to blame them on.
 javac --release 21 -Xlint:all -Werror -d "$out/classes" @"$out/sources.txt"
+# The translator's model of Java's library (lib/): our own java.lang and java.util, compiled in their place.
+rm -rf "$out/model"
+mkdir -p "$out/model" "$out/classes/model"
+javac --patch-module java.base=lib -d "$out/model" $(find lib -name '*.java' | sort)
+(cd "$out/model" && find . -name '*.class' | sed 's|^\./||' | sort) > "$out/model/index.txt"
+cp -r "$out/model/." "$out/classes/model/"
 # The machines exporter isn't compiled here (it needs NeoForge's jars): `dump` compiles it against a server's own.
 mkdir -p "$out/classes/exporter"
 cp -r exporter/src/. exporter/resources/. "$out/classes/exporter/"

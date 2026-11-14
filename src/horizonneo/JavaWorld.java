@@ -26,13 +26,23 @@ final class JavaWorld {
     /** The arrays of primitives, with fixed ids 1 to 8 (their stores truncate by their kind). */
     static final List<String> PRIMITIVE_ARRAYS = List.of("[Z", "[B", "[C", "[S", "[I", "[J", "[F", "[D");
 
+    /** The jar's classes and the library model's (`Library`): what the translator knows of. */
     final Map<String, ClassData> classes;
+    /** The jar's own classes. */
+    final Set<String> jar;
     /** Ids by type: a class's internal name, an array's descriptor, a lambda's key. */
     private final Map<String, Integer> ids = new TreeMap<>();
     private int next = PRIMITIVE_ARRAYS.size() + 1;
 
-    JavaWorld(Map<String, ClassData> classes) {
-        this.classes = classes;
+    JavaWorld(Map<String, ClassData> jar) {
+        this(jar, Map.of());
+    }
+
+    JavaWorld(Map<String, ClassData> jar, Map<String, ClassData> model) {
+        Map<String, ClassData> all = new TreeMap<>(model);
+        all.putAll(jar);
+        this.classes = all;
+        this.jar = new java.util.TreeSet<>(jar.keySet());
         for (int i = 0; i < PRIMITIVE_ARRAYS.size(); i++) ids.put(PRIMITIVE_ARRAYS.get(i), i + 1);
         for (String name : classes.keySet()) if (concrete(name)) ids.put(name, next++);
     }
@@ -118,7 +128,6 @@ final class JavaWorld {
                 for (ClassData.Field f : data.fields) {
                     if (!f.isStatic()) continue;
                     if (f.name().equals(name) && f.descriptor().equals(descriptor)) {
-                        if (f.constant() instanceof String) return new FieldAt(c, slot, kind(descriptor), descriptor, f.constant(), "a text in a static field: " + c.replace('/', '.') + "." + name);
                         return new FieldAt(c, slot, kind(descriptor), descriptor, f.constant(), null);
                     }
                     slot++;
@@ -165,6 +174,43 @@ final class JavaWorld {
         return c != null && !c.equals(OBJECT);
     }
 
+    // ---- the JDK's own types, for their supertypes ----
+
+    private final Map<String, ClassData> jdk = new TreeMap<>();
+
+    /**
+     * A class of Java's library the model doesn't have, read from the JDK this tool runs on (`jrt:/`), for its
+     * supertypes only: they are the same in every JDK since the type came in. null when it isn't one of the JDK's.
+     */
+    ClassData jdkClass(String name) {
+        if (!name.startsWith("java/") && !name.startsWith("javax/")) return null;
+        if (jdk.containsKey(name)) return jdk.get(name);
+        ClassData found = null;
+        try {
+            java.nio.file.FileSystem jrt = java.nio.file.FileSystems.getFileSystem(java.net.URI.create("jrt:/"));
+            int slash = name.lastIndexOf('/');
+            java.nio.file.Path modules = jrt.getPath("/packages", name.substring(0, slash).replace('/', '.'));
+            if (java.nio.file.Files.isDirectory(modules)) {
+                try (var list = java.nio.file.Files.list(modules)) {
+                    for (java.nio.file.Path module : list.toList()) {
+                        java.nio.file.Path file = jrt.getPath("/modules", module.getFileName().toString(), name + ".class");
+                        if (java.nio.file.Files.isRegularFile(file)) found = ClassData.parse(java.nio.file.Files.readAllBytes(file));
+                    }
+                }
+            }
+        } catch (java.io.IOException | RuntimeException e) {
+            found = null;
+        }
+        jdk.put(name, found);
+        return found;
+    }
+
+    /** A type's superclass and interfaces, from the jar, the model or the JDK; null when none of them has it. */
+    private ClassData known(String name) {
+        ClassData c = classes.get(name);
+        return c != null ? c : jdkClass(name);
+    }
+
     // ---- subtypes ----
 
     /** Whether type a (a class, an array descriptor or a lambda key) is a subtype of t; null when it can't be told. */
@@ -180,6 +226,18 @@ final class JavaWorld {
         if (t.startsWith("[")) return false;
         String start = a.startsWith(LAMBDA) ? lambdaInterface(a) : a;
         if (start.equals(t)) return true;
+        ClassData target = classes.get(t);
+        if (target != null && (target.access & ClassData.INTERFACE) == 0) {
+            // A class: only the superclasses lead to it (a lambda's class has Object's alone).
+            if (a.startsWith(LAMBDA)) return false;
+            for (String c = classes.containsKey(a) ? classes.get(a).superName : null; c != null; ) {
+                if (c.equals(t)) return true;
+                ClassData data = known(c);
+                if (data == null) return c.equals(OBJECT) || jar.contains(t) ? false : null;
+                c = data.superName;
+            }
+            return classes.containsKey(a) ? false : null;
+        }
         boolean unknown = false;
         Deque<String> todo = new ArrayDeque<>(List.of(start));
         Set<String> seen = new HashSet<>();
@@ -187,12 +245,12 @@ final class JavaWorld {
             String c = todo.poll();
             if (!seen.add(c)) continue;
             if (c.equals(t)) return true;
-            ClassData data = classes.get(c);
+            ClassData data = known(c);
             if (data == null) {
                 // A type outside the jar can't be a subtype of one of the jar's: the game and Java's library don't
                 // know the mod, and a mod this one is built on can't be built on it in turn. Only a type outside
                 // the jar may hide behind one.
-                if (!c.equals(OBJECT) && !classes.containsKey(t)) unknown = true;
+                if (!c.equals(OBJECT) && !jar.contains(t)) unknown = true;
                 continue;
             }
             todo.addAll(data.interfaces);
@@ -225,8 +283,8 @@ final class JavaWorld {
      */
     Selected select(String r, String name, String descriptor) {
         for (String c = r; c != null; ) {
-            if (c.equals(OBJECT)) break;
             ClassData data = classes.get(c);
+            if (data == null && c.equals(OBJECT)) break;
             if (data == null) return new Selected(null, "on " + r.replace('/', '.') + " it may be " + c.replace('/', '.') + "'s, outside the jar");
             ClassData.Method m = declared(c, name, descriptor);
             if (m != null && !m.isStatic() && (m.access() & 0x0002) == 0) {

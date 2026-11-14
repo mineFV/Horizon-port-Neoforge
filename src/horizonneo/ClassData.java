@@ -103,7 +103,13 @@ final class ClassData {
 
         /** An invokedynamic of LambdaMetafactory.metafactory (not altMetafactory): what it makes; null for any other. */
         LambdaSite lambdaSite(int index);
+
+        /** An invokedynamic's bootstrap method (owner, name) and its static arguments as `constant` reads them. */
+        Bootstrap bootstrap(int index);
     }
+
+    /** An invokedynamic's bootstrap: the method's class and name, and its static arguments (null for those `constant` doesn't read). */
+    record Bootstrap(String owner, String name, List<Object> arguments) {}
 
     /**
      * A lambda or method reference, as LambdaMetafactory.metafactory makes it: the interface's method (name, and its
@@ -613,6 +619,21 @@ final class ClassData {
             // Handle kind 8 is REF_newInvokeSpecial: a constructor reference.
             Lambda how = new Lambda(functionalInterface, utf(first[bootstrap[3]]), parameters(site), first[bootstrap[2]] == 8);
             return new Op(Kind.LAMBDA, target[0], target[1], target[2], how);
+        }
+
+        @Override
+        public Bootstrap bootstrap(int index) {
+            expect(index, 18);
+            if (first[index] >= bootstraps.size()) throw new Malformed("an invokedynamic names a bootstrap method the class doesn't have");
+            int[] bootstrap = bootstraps.get(first[index]);
+            expect(bootstrap[0], 15);
+            String[] method = member(second[bootstrap[0]]);
+            List<Object> arguments = new ArrayList<>();
+            for (int k = 1; k < bootstrap.length; k++) {
+                int t = tag[bootstrap[k]];
+                arguments.add(t == 3 || t == 4 || t == 5 || t == 6 || t == 7 || t == 8 ? constant(bootstrap[k]) : null);
+            }
+            return new Bootstrap(method[0], method[1], arguments);
         }
 
         @Override

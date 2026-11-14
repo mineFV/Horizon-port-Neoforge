@@ -65,6 +65,9 @@ final class MethodRust {
         int id(String type);
 
         String lambdaNew(String key);
+
+        /** A text constant: the function that gives its interned String. */
+        String literal(String text);
     }
 
     // ---- what can be translated ----
@@ -72,7 +75,11 @@ final class MethodRust {
     static Check check(String owner, ClassData.Method m, ClassData.Pool pool, JavaWorld world) {
         List<Need> needs = new ArrayList<>();
         if (m.body() == null) return new Check("it has no body", needs);
-        if (!m.body().handlers().isEmpty()) return new Check("it catches exceptions: try/catch isn't translated yet", needs);
+        for (ClassData.Handler h : m.body().handlers()) {
+            if (h.type() == null) continue;
+            if (where(h.type(), world) != null) return new Check("it catches an exception of " + where(h.type(), world) + ": " + h.type().replace('/', '.'), needs);
+            needs.add(new Need("test", null, h.type(), null, null));
+        }
         if ((m.access() & 0x0020) != 0) return new Check("it is synchronized: monitors aren't translated yet", needs);
         List<Insn> code;
         try {
@@ -94,7 +101,8 @@ final class MethodRust {
             case LDC, LDC_W, LDC2_W -> {
                 Object c = pool.constant(i.index());
                 if (c instanceof Number) return null;
-                return c instanceof String ? "it uses a text: texts aren't translated yet" : "it uses a class or another constant: classes as values aren't translated yet";
+                if (c instanceof String) return text(world, needs);
+                return "it uses a class or another constant: classes as values aren't translated yet";
             }
             case GETSTATIC, PUTSTATIC -> {
                 String[] t = pool.member(i.index());
@@ -124,7 +132,10 @@ final class MethodRust {
                 }
                 if (declaring == null) {
                     ClassData.Method m = world.declared(t[0], t[1], t[2]);
-                    if (m == null) return "it calls " + display(call) + ", which isn't found in the jar";
+                    if (m == null) {
+                        return world.jar.contains(t[0]) ? "it calls " + display(call) + ", which isn't found in the jar"
+                                : "it calls a method the library model doesn't have yet: " + display(call);
+                    }
                     declaring = t[0];
                 }
                 needs.add(new Need("call", new JarRust.Id(declaring, t[1], t[2]), null, null, null));
@@ -154,9 +165,10 @@ final class MethodRust {
             case INVOKEDYNAMIC -> {
                 ClassData.LambdaSite site = pool.lambdaSite(i.index());
                 if (site == null) {
+                    ClassData.Bootstrap b = pool.bootstrap(i.index());
+                    if (b.owner().equals("java/lang/invoke/StringConcatFactory")) return concatNeeds(i, pool, world, needs);
                     String[] d = pool.dynamic(i.index());
-                    return d[0].equals("makeConcatWithConstants") ? "it joins texts: texts aren't translated yet"
-                            : "it uses an invokedynamic that isn't a plain lambda (" + d[0] + "): not translated yet";
+                    return "it uses an invokedynamic that isn't a plain lambda nor a text joined: " + b.owner().replace('/', '.') + "." + b.name() + " (" + d[0] + ")";
                 }
                 String why = lambdaWhy(site, world);
                 if (why != null) return why;
@@ -191,7 +203,7 @@ final class MethodRust {
             }
             case NEW -> {
                 String c = pool.className(i.index());
-                if (outside(c) != null) return "it makes an object of " + outside(c) + ": " + c.replace('/', '.');
+                if (where(c, world) != null && outside(c) != null) return "it makes an object of " + outside(c) + ": " + c.replace('/', '.');
                 if (world.cls(c) == null) return "it makes an object of another library or mod: " + c.replace('/', '.');
                 if (!world.concrete(c)) return "it makes an object whose superclass is outside the jar: " + c.replace('/', '.');
                 needs.add(new Need("new", null, c, null, null));
@@ -219,7 +231,7 @@ final class MethodRust {
                 return "it makes an array of several dimensions at once: not translated yet";
             }
             case ATHROW -> {
-                return "it throws an exception: exceptions aren't translated yet";
+                return world.cls("java/lang/Throwable") == null ? "it throws an exception: the library model has no Throwable" : null;
             }
             case MONITORENTER, MONITOREXIT -> {
                 return "it has a synchronized block: monitors aren't translated yet";
@@ -233,9 +245,50 @@ final class MethodRust {
         }
     }
 
+    /** What a text needs: the model's String, made by the runtime, and the char arrays it holds. */
+    private static String text(JavaWorld world, List<Need> needs) {
+        if (world.cls("java/lang/String") == null) return "it uses a text: the library model has no String";
+        needs.add(new Need("new", null, "java/lang/String", null, null));
+        needs.add(new Need("new", null, "[C", null, null));
+        return null;
+    }
+
+    static final String STRING = "java/lang/String";
+
+    /** The model's String.valueOf (or jtext, for a String) that turns a value of this descriptor into text. */
+    static JarRust.Id textOf(String d) {
+        String param = switch (d) {
+            case "Z" -> "Z";
+            case "C" -> "C";
+            case "J" -> "J";
+            case "F" -> "F";
+            case "D" -> "D";
+            case "I", "B", "S" -> "I";
+            case "Ljava/lang/String;" -> null;
+            default -> "Ljava/lang/Object;";
+        };
+        return param == null ? new JarRust.Id(STRING, "jtext", "(Ljava/lang/String;)Ljava/lang/String;")
+                : new JarRust.Id(STRING, "valueOf", "(" + param + ")Ljava/lang/String;");
+    }
+
+    static final JarRust.Id CONCAT = new JarRust.Id(STRING, "jconcat", "([Ljava/lang/String;)Ljava/lang/String;");
+
+    /** A text joined by StringConcatFactory: each value turned into text by the model, then joined. */
+    private static String concatNeeds(Insn i, ClassData.Pool pool, JavaWorld world, List<Need> needs) {
+        String why = text(world, needs);
+        if (why != null) return why;
+        ClassData.Bootstrap b = pool.bootstrap(i.index());
+        if (!b.name().equals("makeConcatWithConstants") && !b.name().equals("makeConcat")) return "it joins texts in a way not translated yet: " + b.name();
+        for (Object a : b.arguments()) if (a == null || a instanceof ClassData.TypeName) return "it joins texts with a constant not translated yet";
+        needs.add(new Need("new", null, "[Ljava/lang/String;", null, null));
+        needs.add(new Need("call", CONCAT, null, null, null));
+        for (String d : ClassData.parameters(pool.dynamic(i.index())[1])) needs.add(new Need("call", textOf(d), null, null, null));
+        return null;
+    }
+
     /** Why a lambda site can't be translated: its values would need boxing, or another adaptation. */
     private static String lambdaWhy(ClassData.LambdaSite site, JavaWorld world) {
-        if (outside(site.owner()) != null) return "it makes a lambda that runs " + outside(site.owner()) + ": " + site.owner().replace('/', '.') + "." + site.name();
+        if (where(site.owner(), world) != null) return "it makes a lambda that runs " + where(site.owner(), world) + ": " + site.owner().replace('/', '.') + "." + site.name();
         List<String> captured = ClassData.parameters(site.site());
         List<String> sam = ClassData.parameters(site.erased());
         List<String> given = new ArrayList<>(captured);
@@ -271,8 +324,8 @@ final class MethodRust {
 
     /** Where a class outside the jar is from: the game, Java's library, or another library or mod; null for the jar's own. */
     static String where(String c, JavaWorld world) {
-        if (outside(c) != null) return outside(c);
-        return c.startsWith("[") || world.cls(c) != null ? null : "another library or mod";
+        if (c.startsWith("[") || world.cls(c) != null) return null;
+        return outside(c) != null ? outside(c) : "another library or mod";
     }
 
     static boolean primitive(String d) {
@@ -319,10 +372,10 @@ final class MethodRust {
             case "signum(D)D" -> "jsignum_f64($0)";
             case "round(F)I" -> "jround_f32($0)";
             case "round(D)J" -> "jround_f64($0)";
-            case "floorDiv(II)I" -> "jfloor_div_i32($0, $1)";
-            case "floorDiv(JJ)J" -> "jfloor_div_i64($0, $1)";
-            case "floorMod(II)I" -> "jfloor_mod_i32($0, $1)";
-            case "floorMod(JJ)J" -> "jfloor_mod_i64($0, $1)";
+            case "floorDiv(II)I" -> "jfloor_div_i32($0, $1)?";
+            case "floorDiv(JJ)J" -> "jfloor_div_i64($0, $1)?";
+            case "floorMod(II)I" -> "jfloor_mod_i32($0, $1)?";
+            case "floorMod(JJ)J" -> "jfloor_mod_i64($0, $1)?";
             default -> null;
         };
     }
@@ -343,10 +396,10 @@ final class MethodRust {
             // Java's round: the closest integer, ties towards positive infinity; x - floor(x) is exact.
             Map.entry("jround_f32", "fn jround_f32(a: f32) -> i32 {\n    let f = a.floor();\n    (if a - f >= 0.5 { f + 1.0 } else { f }) as i32\n}"),
             Map.entry("jround_f64", "fn jround_f64(a: f64) -> i64 {\n    let f = a.floor();\n    (if a - f >= 0.5 { f + 1.0 } else { f }) as i64\n}"),
-            Map.entry("jfloor_div_i32", "fn jfloor_div_i32(a: i32, b: i32) -> i32 {\n    let q = a.wrapping_div(b);\n    if (a % b != 0) && ((a ^ b) < 0) { q - 1 } else { q }\n}"),
-            Map.entry("jfloor_div_i64", "fn jfloor_div_i64(a: i64, b: i64) -> i64 {\n    let q = a.wrapping_div(b);\n    if (a.wrapping_rem(b) != 0) && ((a ^ b) < 0) { q - 1 } else { q }\n}"),
-            Map.entry("jfloor_mod_i32", "fn jfloor_mod_i32(a: i32, b: i32) -> i32 {\n    let m = a.wrapping_rem(b);\n    if m != 0 && ((m ^ b) < 0) { m + b } else { m }\n}"),
-            Map.entry("jfloor_mod_i64", "fn jfloor_mod_i64(a: i64, b: i64) -> i64 {\n    let m = a.wrapping_rem(b);\n    if m != 0 && ((m ^ b) < 0) { m + b } else { m }\n}")));
+            Map.entry("jfloor_div_i32", "fn jfloor_div_i32(a: i32, b: i32) -> JR<i32> {\n    let q = jdiv_i32(a, b)?;\n    Ok(if (a.wrapping_rem(b) != 0) && ((a ^ b) < 0) { q - 1 } else { q })\n}"),
+            Map.entry("jfloor_div_i64", "fn jfloor_div_i64(a: i64, b: i64) -> JR<i64> {\n    let q = jdiv_i64(a, b)?;\n    Ok(if (a.wrapping_rem(b) != 0) && ((a ^ b) < 0) { q - 1 } else { q })\n}"),
+            Map.entry("jfloor_mod_i32", "fn jfloor_mod_i32(a: i32, b: i32) -> JR<i32> {\n    let m = jrem_i32(a, b)?;\n    Ok(if m != 0 && ((m ^ b) < 0) { m + b } else { m })\n}"),
+            Map.entry("jfloor_mod_i64", "fn jfloor_mod_i64(a: i64, b: i64) -> JR<i64> {\n    let m = jrem_i64(a, b)?;\n    Ok(if m != 0 && ((m ^ b) < 0) { m + b } else { m })\n}")));
 
     // ---- writing it ----
 
@@ -420,9 +473,25 @@ final class MethodRust {
                 for (int t : i.targets()) leaders.add(at.get(t));
                 if (ends(i.op()) && k + 1 < code.size()) leaders.add(k + 1);
             }
+            // A block is wholly inside or outside each try range: the ranges' edges and the handlers start blocks.
+            List<ClassData.Handler> handlers = m.body().handlers();
+            for (ClassData.Handler h : handlers) {
+                for (int pc : new int[] {h.start(), h.end(), h.handler()}) {
+                    if (at.containsKey(pc)) leaders.add(at.get(pc));
+                }
+            }
             List<Integer> starts = new ArrayList<>(leaders);
             Map<Integer, Integer> blockOf = new HashMap<>();
             for (int b = 0; b < starts.size(); b++) blockOf.put(starts.get(b), b);
+            // The handlers covering each block, in the table's order (the first that matches catches).
+            Map<Integer, List<ClassData.Handler>> covering = new HashMap<>();
+            for (int b = 0; b < starts.size(); b++) {
+                int pc = code.get(starts.get(b)).pc();
+                List<ClassData.Handler> list = new ArrayList<>();
+                for (ClassData.Handler h : handlers) if (h.start() <= pc && pc < h.end()) list.add(h);
+                if (!list.isEmpty()) covering.put(b, list);
+            }
+            String result = ClassData.returns(m.descriptor()).equals("V") ? "()" : rust(ClassData.returns(m.descriptor()));
 
             // Each block written in turn, from the stack it starts with: the first that reaches a block decides it.
             Map<Integer, List<Character>> entry = new HashMap<>();
@@ -434,14 +503,48 @@ final class MethodRust {
                 int b = work.poll();
                 if (bodies.containsKey(b)) continue;
                 int from = starts.get(b), to = b + 1 < starts.size() ? starts.get(b + 1) : code.size();
-                Block block = new Block(entry.get(b), blockOf);
-                bodies.put(b, block.run(from, to));
-                flows |= !block.next.isEmpty();
+                Block block = new Block(entry.get(b), blockOf, covering.containsKey(b));
+                List<String> lines = block.run(from, to);
+                flows |= !block.next.isEmpty() || covering.containsKey(b);
                 for (int next : block.next) {
                     List<Character> had = entry.putIfAbsent(next, block.exit);
                     if (had != null && !had.equals(block.exit)) throw new Bytecode.Invalid("the stack differs where two paths meet, at block " + next);
                     work.add(next);
                 }
+                if (covering.containsKey(b)) {
+                    // The block runs in a closure: what it throws goes to the first handler whose type matches, with
+                    // the exception alone on the stack, or out of the method.
+                    List<String> guarded = new ArrayList<>();
+                    guarded.add("let r: JR<JFlow<" + result + ">> = (|| -> JR<JFlow<" + result + ">> {");
+                    for (String line : lines) guarded.add("    " + line);
+                    guarded.add("    Ok(JFlow::Next)");
+                    guarded.add("})();");
+                    guarded.add("match r {");
+                    guarded.add("    Ok(JFlow::Next) => {}");
+                    guarded.add("    Ok(JFlow::Return(v)) => return Ok(v),");
+                    guarded.add("    Err(e) => {");
+                    boolean all = false;
+                    String sep = "        ";
+                    for (ClassData.Handler h : covering.get(b)) {
+                        int target = blockOf.get(at.get(h.handler()));
+                        List<Character> had = entry.putIfAbsent(target, List.of('A'));
+                        if (had != null && !had.equals(List.of('A'))) throw new Bytecode.Invalid("a handler is also reached with another stack, at block " + target);
+                        work.add(target);
+                        String take = "{ " + stackVar(0, 'A') + " = e; block = " + target + "; }";
+                        if (h.type() == null) {
+                            guarded.add(sep + (sep.endsWith("else ") ? "" : "") + take);
+                            all = true;
+                            break;
+                        }
+                        guarded.add(sep + "if jinstanceof(&e, " + names.typeTest(h.type()) + ") == 1 " + take);
+                        sep = "        else ";
+                    }
+                    if (!all) guarded.add("        else { return Err(e); }");
+                    guarded.add("    }");
+                    guarded.add("}");
+                    lines = guarded;
+                }
+                bodies.put(b, lines);
             }
 
             StringBuilder out = new StringBuilder();
@@ -464,7 +567,7 @@ final class MethodRust {
                 }
             }
             String r = ClassData.returns(m.descriptor());
-            out.append(')').append(r.equals("V") ? "" : " -> " + rust(r)).append(" {\n");
+            out.append(") -> JR<").append(r.equals("V") ? "()" : rust(r)).append("> {\n");
             converted.forEach(c -> out.append(c).append('\n'));
             for (Map<Character, String> types : locals.values()) {
                 for (Map.Entry<Character, String> e : types.entrySet()) {
@@ -501,10 +604,13 @@ final class MethodRust {
             final List<String> lines = new ArrayList<>();
             final Map<Integer, Integer> blockOf;
             final List<Integer> next = new ArrayList<>();
+            /** In a try range: its lines run in a closure, so a return says so (JFlow). */
+            final boolean guarded;
             List<Character> exit = List.of();
 
-            Block(List<Character> entry, Map<Integer, Integer> blockOf) {
+            Block(List<Character> entry, Map<Integer, Integer> blockOf, boolean guarded) {
                 this.blockOf = blockOf;
+                this.guarded = guarded;
                 for (int d = 0; d < entry.size(); d++) stack.addLast(new V(entry.get(d), stackVar(d, entry.get(d)), true));
             }
 
@@ -537,6 +643,7 @@ final class MethodRust {
                         case Long n -> push('J', literal(n));
                         case Float n -> push('F', literal(n));
                         case Double n -> push('D', literal(n));
+                        case String text -> pushTemp('A', names.literal(text) + "()");
                         default -> throw new IllegalStateException("ldc of " + c);
                     }
                 } else if (op >= ILOAD && op <= ALOAD) {
@@ -555,17 +662,17 @@ final class MethodRust {
                 } else if (op >= IALOAD && op <= SALOAD) {
                     V index = stack.removeLast(), array = stack.removeLast();
                     char t = "IJFDAIII".charAt(op - IALOAD);
-                    pushTemp(t, getter(t) + "(jaget(" + ref(array) + ", " + index.e() + "))");
+                    pushTemp(t, getter(t) + "(jaget(" + ref(array) + ", " + index.e() + ")?)");
                 } else if (op >= IASTORE && op <= SASTORE) {
                     V value = stack.removeLast(), index = stack.removeLast(), array = stack.removeLast();
                     String a = val(array), x = index.e(), v = val(value);
                     settle();
                     lines.add(switch (op) {
-                        case 84 -> "jbastore(&" + a + ", " + x + ", " + v + ");";
-                        case 85 -> "japut(&" + a + ", " + x + ", Value::I((" + paren(value) + " as u16) as i32));";
-                        case 86 -> "japut(&" + a + ", " + x + ", Value::I((" + paren(value) + " as i16) as i32));";
-                        case 83 -> "jaastore(&" + a + ", " + x + ", " + v + ");";
-                        default -> "japut(&" + a + ", " + x + ", " + wrap("IJFD".charAt(op - IASTORE), v) + ");";
+                        case 84 -> "jbastore(&" + a + ", " + x + ", " + v + ")?;";
+                        case 85 -> "japut(&" + a + ", " + x + ", Value::I((" + paren(value) + " as u16) as i32))?;";
+                        case 86 -> "japut(&" + a + ", " + x + ", Value::I((" + paren(value) + " as i16) as i32))?;";
+                        case 83 -> "jaastore(&" + a + ", " + x + ", " + v + ")?;";
+                        default -> "japut(&" + a + ", " + x + ", " + wrap("IJFD".charAt(op - IASTORE), v) + ")?;";
                     });
                 } else if (op >= POP && op <= SWAP) {
                     shuffle(op);
@@ -630,15 +737,15 @@ final class MethodRust {
                     return true;
                 } else if (op >= IRETURN && op <= ARETURN) {
                     V v = stack.removeLast();
-                    lines.add("return " + to(ClassData.returns(m.descriptor()), val(v)) + ";");
+                    lines.add(ret(to(ClassData.returns(m.descriptor()), val(v))));
                     return true;
                 } else if (op == RETURN) {
-                    lines.add("return;");
+                    lines.add(ret("()"));
                     return true;
                 } else if (op == GETSTATIC || op == PUTSTATIC) {
                     String[] t = pool.member(i.index());
                     JavaWorld.FieldAt f = world.field(t[0], t[1], t[2], true);
-                    String init = needsInit(owner, f.declaring(), world) ? names.init(f.declaring()) + "(); " : "";
+                    String init = needsInit(owner, f.declaring(), world) ? names.init(f.declaring()) + "()?; " : "";
                     if (op == GETSTATIC) {
                         if (!init.isEmpty()) {
                             settle();
@@ -655,16 +762,22 @@ final class MethodRust {
                     String[] t = pool.member(i.index());
                     JavaWorld.FieldAt f = world.field(t[0], t[1], t[2], false);
                     V o = stack.removeLast();
-                    pushTemp(f.kind(), getter(f.kind()) + "(jget(" + ref(o) + ", " + f.slot() + "))");
+                    pushTemp(f.kind(), getter(f.kind()) + "(jget(" + ref(o) + ", " + f.slot() + ")?)");
                 } else if (op == PUTFIELD) {
                     String[] t = pool.member(i.index());
                     JavaWorld.FieldAt f = world.field(t[0], t[1], t[2], false);
                     V v = stack.removeLast(), o = stack.removeLast();
                     String value = val(v), object = ref(o);
                     settle();
-                    lines.add("jput(" + object + ", " + f.slot() + ", " + wrap(f.kind(), narrow(f.descriptor(), value, v)) + ");");
+                    lines.add("jput(" + object + ", " + f.slot() + ", " + wrap(f.kind(), narrow(f.descriptor(), value, v)) + ")?;");
                 } else if (op >= INVOKEVIRTUAL && op <= INVOKEINTERFACE) {
                     call(i);
+                } else if (op == INVOKEDYNAMIC && pool.lambdaSite(i.index()) == null) {
+                    concat(i);
+                } else if (op == ATHROW) {
+                    V v = stack.removeLast();
+                    lines.add("return Err(jthrow(" + val(v) + "));");
+                    return true;
                 } else if (op == INVOKEDYNAMIC) {
                     ClassData.LambdaSite site = pool.lambdaSite(i.index());
                     String key = JavaWorld.lambdaKey(owner, i.index());
@@ -679,7 +792,7 @@ final class MethodRust {
                     String c = pool.className(i.index());
                     if (!c.equals(owner)) {
                         settle();
-                        lines.add(names.init(c) + "();");
+                        lines.add(names.init(c) + "()?;");
                     }
                     pushTemp('A', "jnew(" + names.id(c) + ", b\"" + world.layout(c) + "\")");
                 } else if (op == NEWARRAY || op == ANEWARRAY) {
@@ -687,15 +800,15 @@ final class MethodRust {
                     String type = op == NEWARRAY ? JavaWorld.PRIMITIVE_ARRAYS.get(arrayKind(i.value())) : "[" + arrayComponent(pool.className(i.index()));
                     char k = JavaWorld.kind(type.substring(1));
                     settle();
-                    pushTemp('A', "jnewarray(" + names.id(type) + ", b'" + k + "', " + n.e() + ")");
+                    pushTemp('A', "jnewarray(" + names.id(type) + ", b'" + k + "', " + n.e() + ")?");
                 } else if (op == ARRAYLENGTH) {
                     V a = stack.removeLast();
-                    pushTemp('I', "jalen(" + ref(a) + ")");
+                    pushTemp('I', "jalen(" + ref(a) + ")?");
                 } else if (op == CHECKCAST) {
                     V v = stack.removeLast();
                     String value = val(v);
                     settle();
-                    pushTemp('A', "jcheckcast(" + value + ", " + names.typeTest(pool.className(i.index())) + ")");
+                    pushTemp('A', "jcheckcast(" + value + ", " + names.typeTest(pool.className(i.index())) + ")?");
                 } else if (op == INSTANCEOF) {
                     V v = stack.removeLast();
                     pushTemp('I', "jinstanceof(" + ref(v) + ", " + names.typeTest(pool.className(i.index())) + ")");
@@ -703,6 +816,46 @@ final class MethodRust {
                     throw new IllegalStateException("not translated: " + Bytecode.name(op));
                 }
                 return false;
+            }
+
+            /**
+             * A text joined (StringConcatFactory): the recipe's pieces and each value as the model's String.valueOf
+             * makes it, in order, into an array that the model's jconcat joins.
+             */
+            void concat(Insn i) {
+                ClassData.Bootstrap b = pool.bootstrap(i.index());
+                List<String> params = ClassData.parameters(pool.dynamic(i.index())[1]);
+                String[] args = new String[params.size()];
+                for (int k = params.size() - 1; k >= 0; k--) args[k] = val(stack.removeLast());
+                settle();
+                String recipe = b.name().equals("makeConcat") ? "\u0001".repeat(params.size()) : (String) b.arguments().get(0);
+                List<String> pieces = new ArrayList<>();
+                StringBuilder text = new StringBuilder();
+                int arg = 0, constant = 1;
+                for (int k = 0; k < recipe.length(); k++) {
+                    char c = recipe.charAt(k);
+                    if (c == '\u0001' || c == '\u0002') {
+                        if (text.length() > 0) pieces.add(names.literal(text.toString()) + "()");
+                        text.setLength(0);
+                        if (c == '\u0002') {
+                            pieces.add(names.literal(String.valueOf(b.arguments().get(constant++))) + "()");
+                        } else {
+                            String d = params.get(arg);
+                            pieces.add(names.function(textOf(d)) + "(" + to(d.equals("B") || d.equals("S") ? "I" : d, args[arg]) + ")?");
+                            arg++;
+                        }
+                    } else {
+                        text.append(c);
+                    }
+                }
+                if (text.length() > 0) pieces.add(names.literal(text.toString()) + "()");
+                String array = temp("Ref", "jnewarray(" + names.id("[Ljava/lang/String;") + ", b'A', " + pieces.size() + ")?");
+                for (int k = 0; k < pieces.size(); k++) lines.add("japut(&" + array + ", " + k + ", Value::A(" + pieces.get(k) + "))?;");
+                pushTemp('A', names.function(CONCAT) + "(" + array + ")?");
+            }
+
+            String ret(String value) {
+                return guarded ? "return Ok(JFlow::Return(" + value + "));" : "return Ok(" + value + ");";
             }
 
             void call(Insn i) {
@@ -735,7 +888,7 @@ final class MethodRust {
                         }
                         if (needsInit(owner, declaring, world)) {
                             settle();
-                            lines.add(names.init(declaring) + "();");
+                            lines.add(names.init(declaring) + "()?;");
                         }
                         name = names.function(new JarRust.Id(declaring, t[1], t[2]));
                     } else if (op == INVOKESPECIAL) {
@@ -747,7 +900,7 @@ final class MethodRust {
                     List<String> converted = new ArrayList<>();
                     if (receiver != null) converted.add(receiver);
                     for (int k = 0; k < args.length; k++) converted.add(to(params.get(k), args[k]));
-                    expr = name + "(" + String.join(", ", converted) + ")";
+                    expr = name + "(" + String.join(", ", converted) + ")?";
                 }
                 // A call happens where it is: its result goes into a variable at once.
                 settle();
@@ -785,9 +938,9 @@ final class MethodRust {
                 V b = stack.removeLast(), a = stack.removeLast();
                 char t = "IJFD".charAt(width);
                 boolean integer = t == 'I' || t == 'J';
-                String e = integer
-                        ? paren(a) + "." + new String[] {"wrapping_add", "wrapping_sub", "wrapping_mul", "wrapping_div", "wrapping_rem"}[kind] + "(" + b.e() + ")"
-                        : paren(a) + " " + "+-*/%".charAt(kind) + " " + paren(b);
+                String e = !integer ? paren(a) + " " + "+-*/%".charAt(kind) + " " + paren(b)
+                        : kind >= 3 ? (kind == 3 ? "jdiv_" : "jrem_") + (t == 'I' ? "i32" : "i64") + "(" + a.e() + ", " + b.e() + ")?"
+                        : paren(a) + "." + new String[] {"wrapping_add", "wrapping_sub", "wrapping_mul"}[kind] + "(" + b.e() + ")";
                 if (integer && kind >= 3) {
                     // Division by zero throws where it is in Java: it is done here, not later.
                     settle();
@@ -1069,6 +1222,18 @@ final class MethodRust {
 
     private static String cast(V v, String to) {
         return paren(v) + " as " + to;
+    }
+
+    /** A Rust string literal of this text. */
+    static String rustText(String text) {
+        StringBuilder b = new StringBuilder("\"");
+        for (int i = 0; i < text.length(); i++) {
+            char c = text.charAt(i);
+            if (c == '"' || c == '\\') b.append('\\').append(c);
+            else if (c < 0x20 || c > 0x7e) b.append(String.format("\\u{%x}", (int) c));
+            else b.append(c);
+        }
+        return b.append('"').toString();
     }
 
     static String literal(int n) {

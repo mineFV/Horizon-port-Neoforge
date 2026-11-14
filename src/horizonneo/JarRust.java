@@ -79,17 +79,23 @@ final class JarRust {
         return translate(classes);
     }
 
-    static Result translate(Map<String, ClassData> classes) {
-        JavaWorld world = new JavaWorld(classes);
+    static Result translate(Map<String, ClassData> classes) throws IOException {
+        return translate(classes, Library.classes());
+    }
+
+    /** jar: the mod's classes; model: the library model's (`Library`), translated with them where the mod reaches them. */
+    static Result translate(Map<String, ClassData> jar, Map<String, ClassData> model) {
+        JavaWorld world = new JavaWorld(jar, model);
         int methods = 0;
         Map<Id, String> why = new TreeMap<>();
         Map<Id, List<Need>> needs = new TreeMap<>();
         Map<Id, ClassData> owners = new HashMap<>();
         Map<Id, ClassData.Method> bodies = new HashMap<>();
-        for (ClassData c : classes.values()) {
+        for (ClassData c : world.classes.values()) {
+            boolean own = world.jar.contains(c.name);
             for (ClassData.Method m : c.methods) {
                 if (m.body() == null) continue;
-                methods++;
+                if (own) methods++;
                 Id id = new Id(c.name, m.name(), m.descriptor());
                 MethodRust.Check check;
                 try {
@@ -112,18 +118,23 @@ final class JarRust {
         // Written until every method written has what it needs written too: one whose flow can't be followed drops out.
         while (true) {
             settle(world, needs, why);
-            Map<Id, String> names = names(needs.keySet());
-            Writing w = new Writing(world, needs, names);
+            Set<Id> reached = reached(world, needs);
+            Map<Id, List<Need>> written = new TreeMap<>();
+            for (Id id : reached) if (needs.containsKey(id)) written.put(id, needs.get(id));
+            Map<Id, String> names = names(written.keySet());
+            Writing w = new Writing(world, written, names);
             translated.clear();
             StringBuilder functions = new StringBuilder();
             Set<String> helpers = new TreeSet<>();
             boolean again = false;
-            for (Id id : List.copyOf(needs.keySet())) {
+            int fromModel = 0;
+            for (Id id : List.copyOf(written.keySet())) {
                 try {
                     MethodRust.Done done = MethodRust.write(id.owner(), bodies.get(id), owners.get(id).pool, names.get(id), world, w);
                     functions.append('\n').append(done.rust());
                     helpers.addAll(done.helpers());
-                    translated.put(id, names.get(id));
+                    if (world.jar.contains(id.owner())) translated.put(id, names.get(id));
+                    else fromModel++;
                 } catch (RuntimeException e) {
                     why.put(id, "its flow couldn't be followed: " + e.getMessage());
                     needs.remove(id);
@@ -131,10 +142,55 @@ final class JarRust {
                 }
             }
             if (again) continue;
-            rust = w.module(translated.size(), methods, helpers, functions.toString());
+            rust = w.module(translated.size(), methods, fromModel, helpers, functions.toString());
             break;
         }
+        // The model's own methods aren't the mod's: only the mod's are reported.
+        why.keySet().removeIf(id -> !world.jar.contains(id.owner()));
         return new Result(methods, translated, why, rust);
+    }
+
+    /**
+     * The methods to write: the jar's that are translated, and what they reach of the model's (a call, a class
+     * initializer, a method a virtual call may select).
+     */
+    static Set<Id> reached(JavaWorld world, Map<Id, List<Need>> needs) {
+        Instances inst = instances(world, needs);
+        Set<Id> out = new TreeSet<>();
+        java.util.Deque<Id> todo = new java.util.ArrayDeque<>();
+        for (Id id : needs.keySet()) if (world.jar.contains(id.owner())) todo.add(id);
+        while (!todo.isEmpty()) {
+            Id id = todo.poll();
+            if (!needs.containsKey(id) || !out.add(id)) continue;
+            for (Need n : needs.get(id)) {
+                switch (n.kind()) {
+                    case "call", "lambda" -> todo.add(n.id());
+                    case "init" -> {
+                        for (String c : world.initOrder(n.type())) if (world.declared(c, "<clinit>", "()V") != null) todo.add(new Id(c, "<clinit>", "()V"));
+                    }
+                    case "dispatch" -> {
+                        for (String a : inst.arrays()) {
+                            if (!Boolean.TRUE.equals(world.subtype(a, n.type()))) continue;
+                            JavaWorld.Selected sel = arraySelects(world, n.name(), n.descriptor());
+                            if (sel.id() != null) todo.add(sel.id());
+                        }
+                        for (String c : inst.classes()) {
+                            if (!Boolean.TRUE.equals(world.subtype(c, n.type()))) continue;
+                            JavaWorld.Selected sel = world.select(c, n.name(), n.descriptor());
+                            if (sel.id() != null) todo.add(sel.id());
+                        }
+                        for (String l : inst.lambdas()) {
+                            if (!Boolean.TRUE.equals(world.subtype(l, n.type()))) continue;
+                            JavaWorld.Selected sel = world.select(world.lambdaInterface(l), n.name(), n.descriptor());
+                            if (sel.id() != null) todo.add(sel.id());
+                        }
+                    }
+                    default -> {
+                    }
+                }
+            }
+        }
+        return out;
     }
 
     // ---- what each method needs, until nothing changes ----
@@ -149,8 +205,14 @@ final class JarRust {
         }
     }
 
-    static Instances instances(Map<Id, List<Need>> needs) {
+    static Instances instances(JavaWorld world, Map<Id, List<Need>> needs) {
         Set<String> classes = new TreeSet<>(), arrays = new TreeSet<>(), lambdas = new TreeSet<>();
+        // What the runtime makes itself: the exceptions it throws, with their messages.
+        for (String c : Library.thrownClasses()) if (world.concrete(c)) classes.add(c);
+        if (world.concrete(MethodRust.STRING)) {
+            classes.add(MethodRust.STRING);
+            arrays.add("[C");
+        }
         for (List<Need> list : needs.values()) {
             for (Need n : list) {
                 if (n.kind().equals("new")) (n.type().startsWith("[") ? arrays : classes).add(n.type());
@@ -163,7 +225,7 @@ final class JarRust {
     private static void settle(JavaWorld world, Map<Id, List<Need>> needs, Map<Id, String> why) {
         for (boolean changed = true; changed; ) {
             changed = false;
-            Instances inst = instances(needs);
+            Instances inst = instances(world, needs);
             for (Id id : List.copyOf(needs.keySet())) {
                 for (Need n : needs.get(id)) {
                     String reason = unmet(n, world, needs, why, inst);
@@ -196,7 +258,11 @@ final class JarRust {
             }
             case "dispatch" -> {
                 for (String a : inst.arrays()) {
-                    if (Boolean.TRUE.equals(world.subtype(a, n.type()))) return "a virtual call may reach an array: " + n.type().replace('/', '.') + "." + n.name();
+                    if (!Boolean.TRUE.equals(world.subtype(a, n.type()))) continue;
+                    JavaWorld.Selected s = arraySelects(world, n.name(), n.descriptor());
+                    if (s.why() != null) return "a virtual call may reach an array: " + n.type().replace('/', '.') + "." + n.name() + " " + s.why();
+                    String r = untranslated("it calls " + n.type().replace('/', '.') + "." + n.name() + ", which on an array runs ", s.id(), needs, why);
+                    if (r != null) return r;
                 }
                 for (String c : inst.classes()) {
                     Boolean sub = world.subtype(c, n.type());
@@ -242,8 +308,15 @@ final class JarRust {
         }
     }
 
+    /** What a virtual call selects on an array: Object's method (an array's clone isn't modelled yet). */
+    static JavaWorld.Selected arraySelects(JavaWorld world, String name, String descriptor) {
+        if (name.equals("clone")) return new JavaWorld.Selected(null, "(an array's clone isn't translated yet)");
+        if (world.declared(JavaWorld.OBJECT, name, descriptor) == null) return new JavaWorld.Selected(null, "(Object has no " + name + ")");
+        return new JavaWorld.Selected(new Id(JavaWorld.OBJECT, name, descriptor), null);
+    }
+
     private static String untranslated(String said, Id id, Map<Id, List<Need>> needs, Map<Id, String> why) {
-        if (needs.containsKey(id)) return null;
+        if (needs.containsKey(id) || Library.nativeOf(id) != null) return null;
         return said + id.display() + ", which isn't translated (" + (why.containsKey(id) ? why.get(id) : "it has no body in the jar") + ")";
     }
 
@@ -264,11 +337,24 @@ final class JarRust {
             this.world = world;
             this.needs = needs;
             this.functions = functions;
-            this.inst = instances(needs);
+            this.inst = instances(world, needs);
+        }
+
+        final Map<String, String> literals = new LinkedHashMap<>();
+        final Set<String> natives = new TreeSet<>();
+
+        @Override
+        public String literal(String text) {
+            return literals.computeIfAbsent(text, k -> "jliteral_" + literals.size());
         }
 
         @Override
         public String function(Id id) {
+            Library.Native n = Library.nativeOf(id);
+            if (n != null) {
+                natives.add(n.name());
+                return n.name();
+            }
             String name = functions.get(id);
             if (name == null) throw new IllegalStateException(id.display() + " isn't translated");
             return name;
@@ -311,8 +397,10 @@ final class JarRust {
             return "jlambda_" + world.id(key) + "_new";
         }
 
-        String module(int translated, int methods, Set<String> helpers, String functionText) {
+        String module(int translated, int methods, int fromModel, Set<String> helpers, String functionText) {
             StringBuilder parts = new StringBuilder();
+            // The runtime's exceptions and texts, made from the model's classes: asked for first, as they ask for type tests.
+            String worldText = worldRuntime();
             // Lambdas and dispatchers may ask for more of each other, type tests and initializers: written until none is new.
             Set<String> doneLambdas = new TreeSet<>(), doneDispatchers = new TreeSet<>();
             StringBuilder generated = new StringBuilder();
@@ -344,16 +432,24 @@ final class JarRust {
             for (String c : statics) staticText.append(staticStore(c));
             StringBuilder testText = new StringBuilder();
             tests.forEach((type, name) -> testText.append(test(name, type)));
+            StringBuilder literalText = new StringBuilder();
+            literals.forEach((text, name) -> literalText.append(literal(name, text)));
+            StringBuilder nativeText = new StringBuilder();
+            for (Library.Native n : Library.NATIVES.values()) if (natives.contains(n.name())) nativeText.append('\n').append(n.rust());
+            if (natives.contains("jnative_float_text") || natives.contains("jnative_double_text")) nativeText.append(Library.NUMBER_TEXT);
 
             parts.append("// The mod's methods translated from their bytecode by horizon-port-neoforge's own translator, with Java's\n");
             parts.append("// semantics: wrapping int arithmetic, shifts modulo the width, saturating float casts, NaN as each comparison\n");
             parts.append("// treats it, Math's exact results. Objects follow a uniform model: a reference is an Option<Arc<Obj>>, fields\n");
-            parts.append("// are slots, a virtual call matches on the object's class. Where Java throws, this panics with the exception's name.\n");
-            parts.append("// ").append(translated).append(" of ").append(methods).append(" methods; translation.md says why the others aren't.\n");
+            parts.append("// are slots, a virtual call matches on the object's class. A method returns a Result: what Java throws is an Err\n");
+            parts.append("// holding the exception, an object of the library model's (horizon-port-neoforge's lib/, translated here too).\n");
+            parts.append("// ").append(translated).append(" of ").append(methods).append(" methods of the mod, and ").append(fromModel)
+                    .append(" of the library model; translation.md says why the others aren't.\n");
             parts.append(RUNTIME);
+            parts.append(worldText);
             parts.append(accepts());
             for (String h : helpers) parts.append('\n').append("#[allow(dead_code)]\n").append(MethodRust.HELPERS.get(h)).append('\n');
-            parts.append(staticText).append(initText).append(testText).append(generated).append(functionText);
+            parts.append(staticText).append(initText).append(testText).append(literalText).append(nativeText).append(generated).append(functionText);
             return parts.toString();
         }
 
@@ -378,6 +474,122 @@ final class JarRust {
                     + matches(idsOf(type)) + "\n}\n";
         }
 
+        /** A text constant: its String, interned, made the first time it is asked for. */
+        String literal(String name, String text) {
+            StringBuilder units = new StringBuilder();
+            for (int i = 0; i < text.length(); i++) units.append(i == 0 ? "" : ", ").append((int) text.charAt(i));
+            return "\n/// " + MethodRust.rustText(text).replace("\n", " ") + "\n#[allow(dead_code)]\nfn " + name + "() -> Ref {\n    static TEXT: LazyLock<Ref> = LazyLock::new(|| jintern(&["
+                    + units + "]));\n    TEXT.clone()\n}\n";
+        }
+
+        /**
+         * The part of the runtime that the model's classes shape: the ids of the exceptions the runtime throws, how
+         * their message and cause are kept, how a String keeps its units, each class's name.
+         */
+        String worldRuntime() {
+            StringBuilder b = new StringBuilder("\n// ---- the runtime's exceptions and texts, from the library model ----\n");
+            for (Map.Entry<String, String> e : Library.THROWN.entrySet()) {
+                b.append("#[allow(dead_code)]\nconst ").append(e.getKey()).append(": u32 = ").append(world.concrete(e.getValue()) ? world.id(e.getValue()) : 0).append(";\n");
+            }
+            String throwable = "java/lang/Throwable";
+            JavaWorld.FieldAt message = world.field(throwable, "detailMessage", "Ljava/lang/String;", false);
+            JavaWorld.FieldAt cause = world.field(throwable, "cause", "Ljava/lang/Throwable;", false);
+            JavaWorld.FieldAt value = world.field(MethodRust.STRING, "value", "[C", false);
+            if (message.why() != null || cause.why() != null || value.why() != null) throw new IllegalStateException("the library model lacks Throwable's or String's fields");
+            String errorTest = typeTest("java/lang/Error");
+            b.append("const JMESSAGE: usize = ").append(message.slot()).append(";\nconst JCAUSE: usize = ").append(cause.slot()).append(";\nconst JVALUE: usize = ")
+                    .append(value.slot()).append(";\n");
+            b.append("#[allow(dead_code)]\nconst JSTRING: u32 = ").append(world.id(MethodRust.STRING)).append(";\n");
+            b.append("#[allow(dead_code)]\nconst JSTRING_LAYOUT: &[u8] = b\"").append(world.layout(MethodRust.STRING)).append("\";\n");
+            b.append("\n/// Each class's binary name, as getClass().getName() gives it.\n#[allow(dead_code)]\nfn jclass_name(c: u32) -> &'static str {\n    match c {\n");
+            for (Map.Entry<String, Integer> e : new TreeMap<>(world.ids()).entrySet()) {
+                String t = e.getKey();
+                String shown = t.startsWith(JavaWorld.LAMBDA) ? t.substring(JavaWorld.LAMBDA.length(), t.indexOf('#')).replace('/', '.') + "$$Lambda" : t.replace('/', '.');
+                b.append("        ").append(e.getValue()).append(" => ").append(MethodRust.rustText(shown)).append(",\n");
+            }
+            b.append("        _ => \"?\",\n    }\n}\n");
+            b.append("""
+
+                    /// A String of these UTF-16 units: a char array (class 3) in the model's String.
+                    #[allow(dead_code)]
+                    fn jstring_of(units: &[u16]) -> Ref {
+                        let chars = Some(Arc::new(Obj { class: 3, slots: Mutex::new(units.iter().map(|u| Value::I(*u as i32)).collect()) }));
+                        let s = jnew(JSTRING, JSTRING_LAYOUT);
+                        jset(&s, JVALUE, Value::A(chars));
+                        s
+                    }
+
+                    #[allow(dead_code)]
+                    fn jstring(text: &str) -> Ref {
+                        jstring_of(&text.encode_utf16().collect::<Vec<u16>>())
+                    }
+
+                    /// A String's units.
+                    #[allow(dead_code)]
+                    fn jstring_units(s: &Ref) -> JR<Vec<u16>> {
+                        let chars = jga(jget(s, JVALUE)?);
+                        let units = jlock(&jobj(&chars)?.slots).iter().map(|v| jgi(v.clone()) as u16).collect();
+                        Ok(units)
+                    }
+
+                    /// A String as Rust text (unpaired surrogates as U+FFFD).
+                    #[allow(dead_code)]
+                    fn jstring_text(s: &Ref) -> String {
+                        match jstring_units(s) {
+                            Ok(units) => String::from_utf16_lossy(&units),
+                            Err(_) => "null".to_string(),
+                        }
+                    }
+
+                    /// One String of each text, the literals' among them (String.intern).
+                    #[allow(dead_code)]
+                    fn jintern(units: &[u16]) -> Ref {
+                        static TABLE: LazyLock<Mutex<std::collections::HashMap<Vec<u16>, Ref>>> = LazyLock::new(|| Mutex::new(std::collections::HashMap::new()));
+                        let mut table = jlock(&*TABLE);
+                        if let Some(s) = table.get(units) {
+                            return s.clone();
+                        }
+                        let s = jstring_of(units);
+                        table.insert(units.to_vec(), s.clone());
+                        s
+                    }
+
+                    /// An exception the runtime throws, as its constructor with a message would make it: its cause not yet given.
+                    #[allow(dead_code)]
+                    fn jexception(class: u32, message: Option<&str>) -> Ref {
+                        let layout = vec![b'A'; JMESSAGE.max(JCAUSE) + 1];
+                        let e = jnew(class, &layout);
+                        jset(&e, JMESSAGE, Value::A(message.map(jstring).unwrap_or(None)));
+                        jset(&e, JCAUSE, Value::A(e.clone()));
+                        e
+                    }
+
+                    /// What a class initializer threw, as the JVM hands it on: an Error as it is, anything else in an ExceptionInInitializerError.
+                    #[allow(dead_code)]
+                    fn jinit_failed(e: Ref) -> Ref {
+                        if jinstanceof(&e, %s) == 1 {
+                            return e;
+                        }
+                        let x = jexception(JID_INITIALIZER, None);
+                        jset(&x, JMESSAGE, Value::A(None));
+                        jset(&x, JCAUSE, Value::A(e));
+                        x
+                    }
+
+                    /// An exception as a line: its class, and its message when it has one.
+                    #[allow(dead_code)]
+                    pub fn jdescribe(e: &Ref) -> String {
+                        let Some(o) = e else { return "null".to_string() };
+                        let message = jlock(&o.slots).get(JMESSAGE).cloned();
+                        match message {
+                            Some(Value::A(Some(m))) => format!("{}: {}", jclass_name(o.class), jstring_text(&Some(m))),
+                            _ => jclass_name(o.class).to_string(),
+                        }
+                    }
+                    """.formatted(errorTest));
+            return b.toString();
+        }
+
         /** What aastore lets into each array of references: the instances of its component type. */
         String accepts() {
             StringBuilder b = new StringBuilder("\n/// Whether an array of class `array` takes an object of class `value` (aastore's ArrayStoreException).\n");
@@ -399,6 +611,10 @@ final class JarRust {
             for (ClassData.Field f : world.statics(c)) {
                 char k = JavaWorld.kind(f.descriptor());
                 Object constant = f.constant();
+                if (constant instanceof String text) {
+                    values.add("Value::A(" + literal(text) + "())");
+                    continue;
+                }
                 values.add(constant instanceof Number n && k != 'A' ? MethodRust.wrap(k, switch (k) {
                     case 'J' -> MethodRust.literal(n.longValue());
                     case 'F' -> MethodRust.literal(n.floatValue());
@@ -413,13 +629,14 @@ final class JarRust {
         String initializer(String c) {
             int n = index(c);
             StringBuilder b = new StringBuilder("\n/// `" + c.replace('/', '.') + "` initialized once, its superclass first (JVMS 5.5).\n");
-            b.append("static JINIT_").append(n).append(": JInit = JInit::new();\n#[allow(dead_code)]\nfn jinit_").append(n).append("() {\n    jinit(&JINIT_").append(n).append(", || {\n");
+            b.append("static JINIT_").append(n).append(": JInit = JInit::new();\n#[allow(dead_code)]\nfn jinit_").append(n).append("() -> JR<()> {\n    jinit(&JINIT_").append(n)
+                    .append(", ").append(MethodRust.rustText(c.replace('/', '.'))).append(", || {\n");
             ClassData data = world.cls(c);
             if (data.superName != null && world.cls(data.superName) != null && (data.access & ClassData.INTERFACE) == 0) {
-                b.append("        ").append(init(data.superName)).append("();\n");
+                b.append("        ").append(init(data.superName)).append("()?;\n");
             }
-            if (world.declared(c, "<clinit>", "()V") != null) b.append("        ").append(function(new Id(c, "<clinit>", "()V"))).append("();\n");
-            b.append("    });\n}\n");
+            if (world.declared(c, "<clinit>", "()V") != null) b.append("        ").append(function(new Id(c, "<clinit>", "()V"))).append("()?;\n");
+            b.append("        Ok(())\n    })\n}\n");
             return b.toString();
         }
 
@@ -437,6 +654,10 @@ final class JarRust {
                 args.append(", a").append(k);
             }
             Map<String, List<Integer>> arms = new TreeMap<>();
+            for (String a : inst.arrays()) {
+                if (!Boolean.TRUE.equals(world.subtype(a, owner))) continue;
+                arms.computeIfAbsent(function(arraySelects(world, method, descriptor).id()), x -> new ArrayList<>()).add(world.id(a));
+            }
             for (String c : inst.classes()) {
                 if (!Boolean.TRUE.equals(world.subtype(c, owner))) continue;
                 arms.computeIfAbsent(function(world.select(c, method, descriptor).id()), x -> new ArrayList<>()).add(world.id(c));
@@ -449,8 +670,8 @@ final class JarRust {
                 arms.computeIfAbsent(target, x -> new ArrayList<>()).add(world.id(l));
             }
             StringBuilder b = new StringBuilder("\n/// `" + owner.replace('/', '.') + "." + method + descriptor + "`, called virtually: the method each class selects.\n");
-            b.append("#[allow(dead_code, non_snake_case, unused_variables)]\nfn ").append(name).append('(').append(sig).append(')').append(r.equals("V") ? "" : " -> " + MethodRust.rust(r)).append(" {\n");
-            b.append("    match jclass(&this) {\n");
+            b.append("#[allow(dead_code, non_snake_case, unused_variables)]\nfn ").append(name).append('(').append(sig).append(") -> JR<").append(r.equals("V") ? "()" : MethodRust.rust(r)).append("> {\n");
+            b.append("    match jclass(&this)? {\n");
             arms.forEach((target, ids) -> b.append("        ").append(String.join(" | ", ids.stream().sorted().map(String::valueOf).toList())).append(" => ")
                     .append(target).append('(').append(args).append("),\n"));
             b.append("        _ => unreachable!(),\n    }\n}\n");
@@ -472,19 +693,19 @@ final class JarRust {
             b.append(") -> Ref {\n    let o = jnew(").append(id).append(", b\"").append(layout).append("\");\n");
             for (int k = 0; k < captured.size(); k++) {
                 char kind = JavaWorld.kind(captured.get(k));
-                b.append("    jput(&o, ").append(k).append(", ").append(MethodRust.wrap(kind, fromEdge(captured.get(k), "c" + k))).append(");\n");
+                b.append("    jset(&o, ").append(k).append(", ").append(MethodRust.wrap(kind, fromEdge(captured.get(k), "c" + k))).append(");\n");
             }
             b.append("    o\n}\n");
 
             String r = ClassData.returns(site.erased());
             b.append("#[allow(dead_code, non_snake_case, unused_variables, unused_parens)]\nfn jlambda_").append(id).append("_call(this: Ref");
             for (int k = 0; k < sam.size(); k++) b.append(", a").append(k).append(": ").append(MethodRust.rust(sam.get(k)));
-            b.append(')').append(r.equals("V") ? "" : " -> " + MethodRust.rust(r)).append(" {\n");
+            b.append(") -> JR<").append(r.equals("V") ? "()" : MethodRust.rust(r)).append("> {\n");
             List<String> given = new ArrayList<>(), types = new ArrayList<>();
             for (int k = 0; k < captured.size(); k++) {
                 char kind = JavaWorld.kind(captured.get(k));
                 b.append("    let c").append(k).append(": ").append(MethodRust.rust(captured.get(k))).append(" = ")
-                        .append(toEdge(captured.get(k), MethodRust.getter(kind) + "(jget(&this, " + k + "))")).append(";\n");
+                        .append(toEdge(captured.get(k), MethodRust.getter(kind) + "(jget(&this, " + k + ")?)")).append(";\n");
                 given.add("c" + k);
                 types.add(captured.get(k));
             }
@@ -500,24 +721,24 @@ final class JarRust {
                 String g = given.get(k);
                 // A reference handed on as a narrower type is cast, as LambdaMetafactory's adapter does.
                 boolean cast = !MethodRust.primitive(types.get(k)) && !types.get(k).equals(taken.get(k)) && !taken.get(k).equals("Ljava/lang/Object;");
-                args.add(cast ? "jcheckcast(" + g + ", " + typeTest(JavaWorld.type(taken.get(k))) + ")" : g);
+                args.add(cast ? "jcheckcast(" + g + ", " + typeTest(JavaWorld.type(taken.get(k))) + ")?" : g);
             }
             String call;
             Id impl = new Id(site.owner(), site.name(), site.descriptor());
             switch (site.kind()) {
-                case 5, 9 -> call = dispatcher(site.owner(), site.name(), site.descriptor()) + "(" + String.join(", ", args) + ")";
+                case 5, 9 -> call = dispatcher(site.owner(), site.name(), site.descriptor()) + "(" + String.join(", ", args) + ")?";
                 case 8 -> {
-                    b.append("    ").append(init(site.owner())).append("();\n");
+                    b.append("    ").append(init(site.owner())).append("()?;\n");
                     b.append("    let o = jnew(").append(world.id(site.owner())).append(", b\"").append(world.layout(site.owner())).append("\");\n");
                     List<String> withThis = new ArrayList<>(List.of("o.clone()"));
                     withThis.addAll(args);
-                    b.append("    ").append(function(impl)).append('(').append(String.join(", ", withThis)).append(");\n");
+                    b.append("    ").append(function(impl)).append('(').append(String.join(", ", withThis)).append(")?;\n");
                     call = "o";
                 }
-                default -> call = function(impl) + "(" + String.join(", ", args) + ")";
+                default -> call = function(impl) + "(" + String.join(", ", args) + ")?";
             }
-            if (r.equals("V")) b.append("    ").append(call).append(";\n");
-            else b.append("    ").append(call).append('\n');
+            if (r.equals("V")) b.append("    ").append(call).append(";\n    Ok(())\n");
+            else b.append("    Ok(").append(call).append(")\n");
             b.append("}\n");
             return b.toString();
         }
@@ -558,6 +779,16 @@ final class JarRust {
             /// A reference: None is null.
             pub type Ref = Option<Arc<Obj>>;
 
+            /// What a method gives: its value, or the exception it throws.
+            pub type JR<T> = Result<T, Ref>;
+
+            /// How a block in a try range ends: on to the next block, or out of the method with its value.
+            #[allow(dead_code)]
+            pub enum JFlow<T> {
+                Next,
+                Return(T),
+            }
+
             /// An object: its class id, and its fields (an array's elements) in slots.
             #[derive(Debug)]
             pub struct Obj {
@@ -586,27 +817,36 @@ final class JarRust {
                 Some(Arc::new(Obj { class, slots: Mutex::new(layout.iter().map(|t| jzero(*t)).collect()) }))
             }
 
+            /// A slot of an object just made (never null).
             #[allow(dead_code)]
-            fn jobj(r: &Ref) -> &Arc<Obj> {
-                match r {
-                    Some(o) => o,
-                    None => panic!("java.lang.NullPointerException"),
+            fn jset(r: &Ref, slot: usize, v: Value) {
+                if let Some(o) = r {
+                    jlock(&o.slots)[slot] = v;
                 }
             }
 
             #[allow(dead_code)]
-            fn jclass(r: &Ref) -> u32 {
-                jobj(r).class
+            fn jobj(r: &Ref) -> JR<&Arc<Obj>> {
+                match r {
+                    Some(o) => Ok(o),
+                    None => Err(jexception(JID_NULL_POINTER, None)),
+                }
             }
 
             #[allow(dead_code)]
-            fn jget(r: &Ref, slot: usize) -> Value {
-                jlock(&jobj(r).slots)[slot].clone()
+            fn jclass(r: &Ref) -> JR<u32> {
+                Ok(jobj(r)?.class)
             }
 
             #[allow(dead_code)]
-            fn jput(r: &Ref, slot: usize, v: Value) {
-                jlock(&jobj(r).slots)[slot] = v;
+            fn jget(r: &Ref, slot: usize) -> JR<Value> {
+                Ok(jlock(&jobj(r)?.slots)[slot].clone())
+            }
+
+            #[allow(dead_code)]
+            fn jput(r: &Ref, slot: usize, v: Value) -> JR<()> {
+                jlock(&jobj(r)?.slots)[slot] = v;
+                Ok(())
             }
 
             #[allow(dead_code)]
@@ -659,59 +899,88 @@ final class JarRust {
                 }
             }
 
+            /// athrow: the exception, or a NullPointerException for null.
             #[allow(dead_code)]
-            fn jnewarray(class: u32, kind: u8, n: i32) -> Ref {
+            fn jthrow(e: Ref) -> Ref {
+                if e.is_none() { jexception(JID_NULL_POINTER, None) } else { e }
+            }
+
+            #[allow(dead_code)]
+            fn jdiv_i32(a: i32, b: i32) -> JR<i32> {
+                if b == 0 { Err(jexception(JID_ARITHMETIC, Some("/ by zero"))) } else { Ok(a.wrapping_div(b)) }
+            }
+
+            #[allow(dead_code)]
+            fn jrem_i32(a: i32, b: i32) -> JR<i32> {
+                if b == 0 { Err(jexception(JID_ARITHMETIC, Some("/ by zero"))) } else { Ok(a.wrapping_rem(b)) }
+            }
+
+            #[allow(dead_code)]
+            fn jdiv_i64(a: i64, b: i64) -> JR<i64> {
+                if b == 0 { Err(jexception(JID_ARITHMETIC, Some("/ by zero"))) } else { Ok(a.wrapping_div(b)) }
+            }
+
+            #[allow(dead_code)]
+            fn jrem_i64(a: i64, b: i64) -> JR<i64> {
+                if b == 0 { Err(jexception(JID_ARITHMETIC, Some("/ by zero"))) } else { Ok(a.wrapping_rem(b)) }
+            }
+
+            #[allow(dead_code)]
+            fn jnewarray(class: u32, kind: u8, n: i32) -> JR<Ref> {
                 if n < 0 {
-                    panic!("java.lang.NegativeArraySizeException: {}", n);
+                    return Err(jexception(JID_NEGATIVE_SIZE, Some(&n.to_string())));
                 }
-                Some(Arc::new(Obj { class, slots: Mutex::new(vec![jzero(kind); n as usize]) }))
+                Ok(Some(Arc::new(Obj { class, slots: Mutex::new(vec![jzero(kind); n as usize]) })))
             }
 
             #[allow(dead_code)]
-            fn jindex(len: usize, i: i32) -> usize {
+            fn jindex(len: usize, i: i32) -> JR<usize> {
                 if i < 0 || i as usize >= len {
-                    panic!("java.lang.ArrayIndexOutOfBoundsException: Index {} out of bounds for length {}", i, len);
+                    return Err(jexception(JID_ARRAY_INDEX, Some(&format!("Index {} out of bounds for length {}", i, len))));
                 }
-                i as usize
+                Ok(i as usize)
             }
 
             #[allow(dead_code)]
-            fn jaget(r: &Ref, i: i32) -> Value {
-                let s = jlock(&jobj(r).slots);
-                s[jindex(s.len(), i)].clone()
+            fn jaget(r: &Ref, i: i32) -> JR<Value> {
+                let s = jlock(&jobj(r)?.slots);
+                let k = jindex(s.len(), i)?;
+                Ok(s[k].clone())
             }
 
             #[allow(dead_code)]
-            fn japut(r: &Ref, i: i32, v: Value) {
-                let mut s = jlock(&jobj(r).slots);
-                let k = jindex(s.len(), i);
+            fn japut(r: &Ref, i: i32, v: Value) -> JR<()> {
+                let mut s = jlock(&jobj(r)?.slots);
+                let k = jindex(s.len(), i)?;
                 s[k] = v;
+                Ok(())
             }
 
             #[allow(dead_code)]
-            fn jalen(r: &Ref) -> i32 {
-                jlock(&jobj(r).slots).len() as i32
+            fn jalen(r: &Ref) -> JR<i32> {
+                Ok(jlock(&jobj(r)?.slots).len() as i32)
             }
 
             /// bastore: a boolean array (class 1) keeps the lowest bit, a byte array the lowest byte.
             #[allow(dead_code)]
-            fn jbastore(r: &Ref, i: i32, v: i32) {
-                let boolean = jclass(r) == 1;
-                japut(r, i, Value::I(if boolean { v & 1 } else { (v as i8) as i32 }));
+            fn jbastore(r: &Ref, i: i32, v: i32) -> JR<()> {
+                let boolean = jclass(r)? == 1;
+                japut(r, i, Value::I(if boolean { v & 1 } else { (v as i8) as i32 }))
             }
 
-            /// aastore: null first, then the index, then the store's type (ArrayStoreException).
+            /// aastore: null first, then the index, then the store's type (ArrayStoreException, named by the value's class).
             #[allow(dead_code)]
-            fn jaastore(r: &Ref, i: i32, v: Ref) {
-                let o = jobj(r);
+            fn jaastore(r: &Ref, i: i32, v: Ref) -> JR<()> {
+                let o = jobj(r)?;
                 let mut s = jlock(&o.slots);
-                let k = jindex(s.len(), i);
+                let k = jindex(s.len(), i)?;
                 if let Some(x) = &v {
                     if !jaccepts(o.class, x.class) {
-                        panic!("java.lang.ArrayStoreException");
+                        return Err(jexception(JID_ARRAY_STORE, Some(jclass_name(x.class))));
                     }
                 }
                 s[k] = Value::A(v);
+                Ok(())
             }
 
             #[allow(dead_code)]
@@ -724,14 +993,15 @@ final class JarRust {
                 jlock(&**s)[slot] = v;
             }
 
+            /// checkcast; a ClassCastException has no message here (the JDK's names class loaders).
             #[allow(dead_code)]
-            fn jcheckcast(r: Ref, ok: fn(u32) -> bool) -> Ref {
+            fn jcheckcast(r: Ref, ok: fn(u32) -> bool) -> JR<Ref> {
                 if let Some(o) = &r {
                     if !ok(o.class) {
-                        panic!("java.lang.ClassCastException");
+                        return Err(jexception(JID_CLASS_CAST, None));
                     }
                 }
-                r
+                Ok(r)
             }
 
             #[allow(dead_code)]
@@ -743,6 +1013,7 @@ final class JarRust {
             }
 
             /// A class's initialization (JVMS 5.5): once; the thread that runs it may come back to it, the others wait.
+            /// A class whose initializer threw is erroneous: using it again throws NoClassDefFoundError.
             pub struct JInit {
                 state: Mutex<(u8, Option<std::thread::ThreadId>)>,
                 done: Condvar,
@@ -756,22 +1027,24 @@ final class JarRust {
             }
 
             #[allow(dead_code)]
-            fn jinit(i: &JInit, run: fn()) {
+            fn jinit(i: &JInit, name: &str, run: fn() -> JR<()>) -> JR<()> {
                 let me = std::thread::current().id();
                 let mut s = jlock(&i.state);
                 loop {
                     match *s {
-                        (2, _) => return,
-                        (1, Some(t)) if t == me => return,
+                        (2, _) => return Ok(()),
+                        (3, _) => return Err(jexception(JID_NO_CLASS, Some(&format!("Could not initialize class {}", name)))),
+                        (1, Some(t)) if t == me => return Ok(()),
                         (1, _) => s = i.done.wait(s).unwrap_or_else(|e| e.into_inner()),
                         _ => break,
                     }
                 }
                 *s = (1, Some(me));
                 drop(s);
-                run();
-                *jlock(&i.state) = (2, None);
+                let result = run();
+                *jlock(&i.state) = (if result.is_ok() { 2 } else { 3 }, None);
                 i.done.notify_all();
+                result.map_err(jinit_failed)
             }
             """;
 

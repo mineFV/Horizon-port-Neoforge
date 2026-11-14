@@ -23,8 +23,11 @@ its machines (block entities, menus, screens) and its logic, not only its wiring
    matching and the Fabric path. Steps (a) and (b) are done: `translate` writes methods of numbers with Java's exact
    semantics, and objects in a uniform model chosen by the maintainer (2026-11-14): every object is an
    `Arc<Obj>` with a class id and its fields in slots, `null` is `None`, a virtual or interface call matches on
-   the class, lambdas and arrays are objects too. Next: (c) texts, exceptions and Java's library, (d) the game's
-   API; then its output goes into `port`'s bundle, and its flow is rebuilt as loops and `if`s.
+   the class, lambdas and arrays are objects too. Step (c) has begun: a method returns a `Result` (what Java throws is
+   an `Err` holding the exception), try/catch/finally and class initializers that throw are translated, and Java's
+   library is a model of our own (`lib/`), translated with the mod: Object, String (texts and their joins),
+   Throwable and the JVM's exceptions so far. Next in (c): Record, Enum, boxing, Objects, collections; then (d)
+   the game's API; then its output goes into `port`'s bundle, and its flow is rebuilt as loops and `if`s.
 
 It is separate code that **calls** other programs and never contains theirs:
 
@@ -102,6 +105,7 @@ The tool's commands: `metadata`, `license`, `analyze`, `port`, `check`, `pack`, 
 | `Dump` | `dump`: links the maintainer's NeoForge server into Horizon's oracle folder, compiles our machines exporter against its jars, runs Horizon's oracle with it |
 | `Machines` | The block entities in the machines file, on Horizon's block-entity hook points; `report/machines.md` |
 | `exporter/` (not in `src/`) | The NeoForge mod `dump` compiles at run time: places each block with a block entity and writes `<facts>.machines.json` |
+| `lib/` (not in `src/`), `Library` | The translator's model of Java's library: our own Java, from the API specification, compiled by `build.sh` with `--patch-module java.base=lib` into the jar's `model/`; its `native` methods in Rust |
 | `Bytecode`, `MethodRust`, `JarRust`, `JavaWorld` | `translate`, our own translator: every opcode decoded; a method's bytecode as a Rust function (each basic block an arm of a `match` in a `loop`) and what it needs; the classes as the JVM resolves them (field slots, call selection, subtypes, class ids); the jar's methods, kept until what each needs is translated, as one module with the object model's runtime, dispatchers, type tests, class initializers and lambda classes, and why for the rest |
 | `Pack` | `pack`: the bundle as a `.hnmod`, written as Horizon's `docs/api/mod-files.md` says |
 | `Report` | `report.md` and `report.json` |
@@ -133,6 +137,12 @@ The tool's commands: `metadata`, `license`, `analyze`, `port`, `check`, `pack`, 
 - **Horizon's oracle stops the server in its `ServerStartedEvent` listener**: the machines exporter listens at
   `HIGHEST` to run first. And NeoForge calls a block entity's `onLoad` only at the level's next tick, which never
   comes: the exporter calls it, then takes it off `freshBlockEntities`. Mekanism sets up its sides there.
+- **Java's Double.toString and Float.toString pick the shortest digits as Rust does, but not always the same ones**:
+  a value with one shortest digit is written with the closest two (4.9E-324), and between two shortest decimals as
+  close as each other Java takes the one ending in an even digit, where Rust takes the higher. `Library` does both.
+- **A type outside the jar and the model is still known when it is the JDK's**: `JavaWorld` reads its supertypes
+  from the JDK the tool runs on (`jrt:/`). Without that, one class implementing `IntSupplier` made every question
+  about `CharSequence` uncertain.
 - **Rust's `as` from a float to an int is Java's cast** (saturating, NaN to 0), but `f64::min`/`max` and `signum`
   aren't Java's on NaN and negative zero, and `Math.sin` and its kin have no exact counterpart: the translator
   writes helpers of its own for the first ones and refuses the others.

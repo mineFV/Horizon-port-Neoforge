@@ -200,9 +200,11 @@ public final class Shapes {
     }
 
     /** A class with a supertype outside the jar, whose own supertypes can't be read: a type test on it isn't certain. */
-    static final class Task implements Runnable {
+    static final class Task implements java.util.function.IntSupplier {
         @Override
-        public void run() {}
+        public int getAsInt() {
+            return 1;
+        }
     }
 
     public static int tasks(int n) {
