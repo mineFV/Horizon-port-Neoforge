@@ -732,6 +732,18 @@ if [ -f "${HORIZON_PORT_JAR:-}" ]; then
   says "$OUT" '    src/lib.rs:3:5: error[E0425]: cannot find value `x` in this scope'
   says "$OUT" "problem: horizon-port's check failed (exit 1, above)"
   says "$OUT" 'RESULT: failed (1 problem)'
+  # What cargo prints as errors comes before the line that points up at it.
+  if [ "$(grep -n 'error\[E0425\]' "$OUT" | cut -d: -f1)" -lt "$(grep -n "doesn't compile (above)" "$OUT" | cut -d: -f1)" ]; then
+    echo "  ok: cargo's errors come before the line that follows them"
+  else
+    echo "  FAIL: cargo's errors come after the line that says they are above"
+    failures=$((failures + 1))
+  fi
+  # horizon-port's check doesn't know that Horizon: said as what it is, not as a fault in the bundle's Rust.
+  exits 1 env FAKE_PORT=other-horizon java -Djava.io.tmpdir="$PWD/$B/tmp" -jar build/horizon-port-neoforge.jar check "$P/pc" --horizon-src "$H" --compile --translator "$B/jars/fake-port.jar"
+  says "$OUT" '      Horizon changed: `fn items(&self) -> &Items {`'
+  says "$OUT" "problem: horizon-port's check stopped before compiling anything"
+  lacks "$OUT" "It fails on code that uses the game's own types"
   exits 0 env FAKE_PORT=no-cargo java -Djava.io.tmpdir="$PWD/$B/tmp" -jar build/horizon-port-neoforge.jar check "$P/pc" --horizon-src "$H" --compile --translator "$B/jars/fake-port.jar"
   says "$OUT" 'not checked: the compile: there is no cargo on this machine'
   says "$OUT" 'RESULT: ok, not compiled (2 not checked, above)'

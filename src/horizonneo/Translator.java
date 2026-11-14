@@ -77,6 +77,14 @@ final class Translator {
      * in that folder: what it writes under a relative path lands there.
      */
     Run run(List<String> jvmOptions, List<String> args, int seconds, Path folder) throws IOException {
+        return run(jvmOptions, args, seconds, folder, false);
+    }
+
+    /**
+     * The same; with `together`, what it and the programs it starts print as errors comes in `out`,
+     * in the order it was printed, and `err` is empty.
+     */
+    Run run(List<String> jvmOptions, List<String> args, int seconds, Path folder, boolean together) throws IOException {
         List<String> command = new ArrayList<>();
         command.add(ProcessHandle.current().info().command().orElse(Path.of(System.getProperty("java.home"), "bin", "java").toString()));
         // Its output is read as UTF-8 here, whatever the terminal's own encoding.
@@ -88,6 +96,7 @@ final class Translator {
         command.addAll(args);
         ProcessBuilder builder = new ProcessBuilder(command);
         if (folder != null) builder.directory(folder.toFile());
+        if (together) builder.redirectErrorStream(true);
         Process process = builder.start();
         try {
             process.getOutputStream().close();

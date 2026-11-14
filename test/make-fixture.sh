@@ -961,8 +961,16 @@ public final class FakePort {
         System.out.println("its stack: " + ManagementFactory.getRuntimeMXBean().getInputArguments().stream().filter(a -> a.startsWith("-Xss")).findFirst().orElse("default"));
         String how = String.valueOf(System.getenv("FAKE_PORT"));
         if (how.equals("fail")) {
-            System.out.println("src/lib.rs:3:5: error[E0425]: cannot find value `x` in this scope");
+            // As cargo does: its errors aren't on standard output.
+            System.out.flush();
+            System.err.println("src/lib.rs:3:5: error[E0425]: cannot find value `x` in this scope");
+            System.err.flush();
             System.out.println("The bundle's Rust doesn't compile (above).");
+            System.exit(1);
+        }
+        if (how.equals("other-horizon")) {
+            System.out.println("  Horizon changed: `fn items(&self) -> &Items {` isn't in horizon-client/src/game.rs");
+            System.out.println("The state the translated code reads isn't all in this Horizon: regenerate the bundle for it.");
             System.exit(1);
         }
         if (how.equals("no-cargo")) {

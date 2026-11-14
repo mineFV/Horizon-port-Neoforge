@@ -36,6 +36,8 @@ final class Check {
     private record Hook(int api, Set<String> takes) {}
 
     private static final String MANIFEST = "horizon-mixin.toml";
+    /** What horizon-port's check says when the source isn't the Horizon it is made for. */
+    private static final String OTHER_HORIZON = "The state the translated code reads isn't all in this Horizon";
     private static final Pattern COMMENTED_ID = Pattern.compile("(?m)^# id = \"([^\"]+)\"$");
     /** A binding's value that is one name, as it is or borrowed: `button`, `&mut *self`. Anything longer isn't judged. */
     private static final Pattern ONE_NAME = Pattern.compile("(?:&\\s*(?:mut\\s+)?)?\\*?\\s*([a-z_][a-z0-9_]*)");
@@ -424,9 +426,16 @@ final class Check {
         }
         out.println("Compiling: horizon-port's `check` (cargo check on the bundle's Rust, against stand-ins for Horizon's helpers; nothing of the mod is run).");
         out.flush();
+        // What cargo says comes between horizon-port's own lines, as it was printed.
         Translator.Run run = translator.run(List.of(Port.STACK), List.of("check", bundle.toAbsolutePath().toString(), "--horizon-src",
-                o.horizonSrc().toAbsolutePath().toString()), 3600, null);
-        for (String line : (run.out() + run.err()).split("\n")) if (!line.isBlank()) out.println("    " + line.stripTrailing());
+                o.horizonSrc().toAbsolutePath().toString()), 3600, null, true);
+        for (String line : run.out().split("\n")) if (!line.isBlank()) out.println("    " + line.stripTrailing());
+        if (run.exit() != 0 && run.out().contains(OTHER_HORIZON)) {
+            problem("horizon-port's check stopped before compiling anything: what it translates of the game's side reads Game state that isn't in this "
+                    + "Horizon as it expects (above). horizon-port is made for one Horizon commit (its scripts/get-horizon.sh names it): against another, "
+                    + "nothing says that what it translated of the game's side fits");
+            return false;
+        }
         if (run.exit() != 0) {
             problem("horizon-port's check failed (exit " + run.exit() + ", above). It fails on code that uses the game's own types even when they are right: "
                     + "`horizon-port compile` checks those, against Horizon itself");

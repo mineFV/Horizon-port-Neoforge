@@ -278,12 +278,14 @@ horizon-port's own `check`: cargo type-checks the helpers and modules against st
 Horizon's helpers (`cargo check`, in `<bundle>/target/horizon-check`; nothing of the mod is run,
 Horizon isn't built). It is never done unasked. As horizon-port says of it, it fails on code that
 uses the game's own types even when they are right; its `compile` checks those against Horizon
-itself.
+itself. horizon-port is made for one Horizon commit: on a source where the Game state it reads
+has changed, its check stops before compiling, and `check` says so as what it is.
 
 ## Tried on real mods
 
 Three open-source NeoForge mods from Modrinth (2026-11-13), against Horizon `a21f8a39`. Each went
-through `license`, `analyze`, `port` and `check`; none was compiled, and none was run.
+through `license`, `analyze`, `port` and `check`. None was run; `check --compile` was run on each
+afterwards, at the user's request (below).
 
 | | AppleSkin 3.0.10 (26.3) | Mouse Tweaks 2.31 (26.3) | Mekanism 10.7.19 (1.21.1) |
 |---|---|---|---|
@@ -299,6 +301,7 @@ through `license`, `analyze`, `port` and `check`; none was compiled, and none wa
 | Injections on / commented out | 3 / 7 | 3 / 13 | 29 / 81 |
 | Content | `appleskin.hmod`, 24 files | none in the jar | not packed: 125 blocks and 202 items to check first |
 | `check` (by reading) | ok | ok | ok |
+| `check --compile`, on Horizon `a46ce689` | ok | ok | 1 error in 41,833 lines |
 
 What the figures say:
 
@@ -317,8 +320,24 @@ What these jars corrected in the tool: a method marked `@SubscribeEvent` that is
 `addListener` counted twice; `register(FIELD)` and `register(Thing.get())` weren't read, so their
 listeners showed as not registered; a listener's side wasn't held against its hook point's.
 
-Not done: `check --compile` on these bundles, and so whether the Rust horizon-port translated from
-them compiles (41,833 lines of it for Mekanism). The jars and the bundles aren't in this repository.
+`check --compile` (2026-11-14):
+
+- **On Horizon `a21f8a39`, horizon-port's check doesn't compile anything.** It stops with "The
+  state the translated code reads isn't all in this Horizon": horizon-port is made for commit
+  `a46ce689` (its `scripts/get-horizon.sh`), and three declarations it reads have changed since. That
+  is true of any bundle, a Fabric mod's too, and it means nothing vouches for what horizon-port
+  translated of the game's side on a newer Horizon.
+- **On Horizon `a46ce689`**, with each mod converted again against it: AppleSkin and Mouse Tweaks
+  compile. Mekanism has one error in its 41,833 translated lines: horizon-port wrote a method that
+  takes a `JRandom` without `mut` and calls `next_float` on it (`E0596`). With that one word added
+  by hand in a copy, the bundle compiles. So "a bundle builds as it is" doesn't hold for Mekanism,
+  by one word of horizon-port's translation.
+- That older Horizon has hooks API 2 and names almost no NeoForge event in its catalogue: no
+  listener is on a hook point there. The listener helpers this tool writes for the newer Horizon
+  (29 for Mekanism) have therefore not been compiled.
+- horizon-mixins' own `plan` wasn't run: the tool isn't installed here.
+
+The jars and the bundles aren't in this repository.
 
 ## Tests
 
