@@ -170,6 +170,7 @@ fn main() {
         p("monitors", n.to_string(), text(gathered__monitors(n)));
         p("queues", n.to_string(), text(gathered__queues(n)));
         p("bytes", n.to_string(), text(gathered__bytes(n)));
+        p("randoms", n.to_string(), text(gathered__randoms(n)));
     }
     for d0 in doubles() {
         p("doubleText", d(d0), text(texts__double_text(d0)));

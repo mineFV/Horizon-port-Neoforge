@@ -50,6 +50,10 @@ String.getBytes encodes into UTF-8 (the default charset, as since Java 18), ISO-
 replacements ('?' for a surrogate without its other half, and for a character the charset lacks); decoding isn't
 modelled. UUID.nameUUIDFromBytes's MD5 is written from RFC 1321.
 
+A seeded Random gives the JDK's numbers (its generator is the one its specification gives), and Collections.shuffle
+the JDK's order with it. An IdentityHashMap iterates in an order of its own: the JDK's comes from identity hashes,
+which change from run to run.
+
 Not modelled: toArray's runtime types beyond copying an array's own class, Class.getComponentType, limit, skip,
 takeWhile, dropWhile, iterate, generate, DoubleStream, list iterators, reversed views, TreeMap, ArrayDeque,
 concurrent collections.

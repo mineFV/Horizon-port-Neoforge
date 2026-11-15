@@ -759,4 +759,33 @@ public final class Gathered {
                 .append(Integer.rotateLeft(0x12345678 * (n + 1), n)).append(Integer.rotateRight(-n, 3));
         return b.toString();
     }
+
+    // ---- Random, shuffle, IdentityHashMap ----
+
+    public static String randoms(int n) {
+        StringBuilder b = new StringBuilder();
+        java.util.Random r = new java.util.Random(n * 7919L - 3);
+        b.append(r.nextInt()).append(" ").append(r.nextInt(10)).append(" ").append(r.nextInt(1 << 20)).append(" ").append(r.nextInt(1_000_000_007)).append(" ").append(r.nextLong())
+                .append(" ").append(r.nextBoolean()).append(" ").append(r.nextFloat()).append(" ").append(r.nextDouble()).append(" ");
+        byte[] bytes = new byte[n % 7];
+        r.nextBytes(bytes);
+        b.append(Arrays.toString(bytes)).append(attempt(() -> new java.util.Random(1).nextInt(-n))).append(" ");
+        r.setSeed(42);
+        b.append(r.nextInt(100)).append(" ");
+        List<Integer> list = new ArrayList<>(List.of(1, 2, 3, 4, 5, 6, 7, 8));
+        Collections.shuffle(list, new java.util.Random(n));
+        java.util.LinkedList<Integer> linked = new java.util.LinkedList<>(List.of(1, 2, 3, 4, 5, 6, 7));
+        Collections.shuffle(linked, new java.util.Random(n + 100));
+        b.append(list).append(linked).append(new java.util.Random().nextInt(1) == 0).append(" ");
+        java.util.IdentityHashMap<String, Integer> ids = new java.util.IdentityHashMap<>();
+        String a1 = new String("a" + n), a2 = new String("a" + n);
+        ids.put(a1, 1);
+        ids.put(a2, 2);
+        ids.put(null, 3);
+        b.append(ids.size()).append(ids.get(a1)).append(ids.get(a2)).append(ids.get("a" + n)).append(ids.get(null)).append(ids.containsKey(a2)).append(ids.containsValue(2))
+                .append(ids.remove(a1)).append(ids.size()).append(ids.keySet().contains(a2)).append(ids.entrySet().size());
+        java.util.IdentityHashMap<String, Integer> same = new java.util.IdentityHashMap<>(ids);
+        b.append(same.equals(ids)).append(same.hashCode() == ids.hashCode()).append(new HashMap<>(Map.of("x", 1)).equals(new java.util.IdentityHashMap<>(Map.of("x", 1))));
+        return b.toString();
+    }
 }

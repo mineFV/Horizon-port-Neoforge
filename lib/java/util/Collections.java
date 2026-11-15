@@ -3,7 +3,7 @@ package java.util;
 /**
  * The model of java.util.Collections: its empty, single and unmodifiable collections (with the JDK's class names and
  * messages), and sort, reverse, swap, addAll, max, min, frequency, nCopies, reverseOrder. Sorting gives the JDK's result
- * (any stable sort does) but asks the comparator in another order. Synchronized and checked wrappers, shuffle and the
+ * (any stable sort does) but asks the comparator in another order. Synchronized and checked wrappers and the
  * rest aren't modelled.
  */
 public class Collections {
@@ -734,6 +734,34 @@ public class Collections {
     }
 
     @SuppressWarnings({"rawtypes", "unchecked"})
+    private static Random shuffleRandom;
+
+    /** With a Random of its own, made the first time (as the JDK's). */
+    public static void shuffle(List<?> list) {
+        Random rnd = shuffleRandom;
+        if (rnd == null) shuffleRandom = rnd = new Random();
+        shuffle(list, rnd);
+    }
+
+    /** From the last position down, each swapped with one at or before it that rnd picks, as the specification says. */
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    public static void shuffle(List<?> list, Random rnd) {
+        int size = list.size();
+        if (size < 5 || list instanceof RandomAccess) {
+            for (int i = size; i > 1; i--) swap(list, i - 1, rnd.nextInt(i));
+        } else {
+            Object[] arr = list.toArray();
+            for (int i = size; i > 1; i--) {
+                Object tmp = arr[i - 1];
+                int j = rnd.nextInt(i);
+                arr[i - 1] = arr[j];
+                arr[j] = tmp;
+            }
+            List raw = list;
+            for (int i = 0; i < arr.length; i++) raw.set(i, arr[i]);
+        }
+    }
+
     public static void swap(List<?> list, int i, int j) {
         final List l = list;
         l.set(i, l.set(j, l.get(i)));

@@ -268,6 +268,7 @@ Say so rather than assume it works:
   with ArrayDeque and LinkedList: 9017 and 9034, type-checked;
   with the flow rebuilt as loops and labelled blocks (3 methods left as a match on the block): the same counts,
   type-checked;
+  with charsets, Random, shuffle and IdentityHashMap: 9019 and 9036, type-checked;
 - our translator's output has been compiled and run on the test's made-up classes only. Mekanism's translation was
   type-checked by rustc (`--emit=metadata`): 4363 methods at the maintainer's request (2026-11-14), then 8154
   (and 7721 with `--server`) on 2026-11-15, while the maintainer was away and had left the decisions to the agent:
