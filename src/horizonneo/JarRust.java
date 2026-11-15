@@ -181,7 +181,7 @@ final class JarRust {
                         }
                         for (String l : inst.lambdas()) {
                             if (!Boolean.TRUE.equals(world.subtype(l, n.type()))) continue;
-                            JavaWorld.Selected sel = world.select(world.lambdaInterface(l), n.name(), n.descriptor());
+                            JavaWorld.Selected sel = world.selectOnLambda(l, n.name(), n.descriptor());
                             if (sel.id() != null) todo.add(sel.id());
                         }
                     }
@@ -279,7 +279,7 @@ final class JarRust {
                     if (!sub) continue;
                     ClassData.LambdaSite site = world.lambdas.get(key);
                     if (site.samName().equals(n.name()) && site.erased().equals(n.descriptor())) continue;
-                    JavaWorld.Selected s = world.select(world.lambdaInterface(key), n.name(), n.descriptor());
+                    JavaWorld.Selected s = world.selectOnLambda(key, n.name(), n.descriptor());
                     if (s.why() != null) return "a virtual call isn't certain: on a lambda, " + n.type().replace('/', '.') + "." + n.name() + " " + s.why();
                     String r = untranslated("it calls " + n.name() + " on a lambda, which may run ", s.id(), needs, why);
                     if (r != null) return r;
@@ -679,7 +679,7 @@ final class JarRust {
                 if (!Boolean.TRUE.equals(world.subtype(l, owner))) continue;
                 ClassData.LambdaSite site = world.lambdas.get(l);
                 String target = site.samName().equals(method) && site.erased().equals(descriptor) ? "jlambda_" + world.id(l) + "_call"
-                        : function(world.select(world.lambdaInterface(l), method, descriptor).id());
+                        : function(world.selectOnLambda(l, method, descriptor).id());
                 arms.computeIfAbsent(target, x -> new ArrayList<>()).add(world.id(l));
             }
             StringBuilder b = new StringBuilder("\n/// `" + owner.replace('/', '.') + "." + method + descriptor + "`, called virtually: the method each class selects.\n");
@@ -1197,7 +1197,7 @@ final class JarRust {
         StringBuilder b = new StringBuilder("# What horizon-port-neoforge's own translator translated\n\n");
         b.append(r.translated().size()).append(" of ").append(r.methods()).append(" methods with a body, from their bytecode");
         if (horizonPort >= 0) b.append(" (horizon-port, from decompiled Java: ").append(horizonPort).append(")");
-        b.append(". Objects, arrays, fields, inheritance and lambdas are translated; exceptions, texts, Java's library beyond Math and the game come next.\n\n");
+        b.append(". Objects, arrays, fields, inheritance, lambdas, exceptions and the library model (texts, boxes, collections...) are translated; Class objects, streams and the game come next.\n\n");
         b.append("| Why the others aren't | Methods |\n|---|---|\n");
         r.reasons().forEach((w, n) -> b.append("| ").append(w.replace("|", "\\|")).append(" | ").append(n).append(" |\n"));
         b.append("\n## Translated\n\n");

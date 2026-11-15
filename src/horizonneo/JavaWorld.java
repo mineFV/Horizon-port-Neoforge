@@ -307,9 +307,28 @@ final class JavaWorld {
             if (m != null && !m.isStatic() && (m.access() & (ClassData.ABSTRACT | 0x0002)) == 0) found.add(new JarRust.Id(i, name, descriptor));
             todo.addAll(data.interfaces);
         }
+        // The maximally-specific ones (JVMS 5.4.3.3): a default an interface overrides in a subinterface isn't one.
+        List<JarRust.Id> specific = new ArrayList<>();
+        for (JarRust.Id f : found) {
+            boolean overridden = false;
+            for (JarRust.Id g : found) if (g != f && Boolean.TRUE.equals(subtype(g.owner(), f.owner()))) overridden = true;
+            if (!overridden) specific.add(f);
+        }
+        found = specific;
         if (found.size() == 1) return new Selected(found.get(0), null);
         if (declared(OBJECT, name, descriptor) == null && objectMethod(name, descriptor)) return new Selected(null, "it is java.lang.Object's own " + name);
         return new Selected(null, found.isEmpty() ? "nothing implements " + name + descriptor + " on " + r.replace('/', '.') : "several default methods could be " + name);
+    }
+
+    /**
+     * What invokevirtual or invokeinterface selects on a lambda: its class extends Object and implements the interface,
+     * so Object's methods come first (an interface that redeclares equals, as Comparator does, doesn't hide Object's),
+     * then the interface's own and its defaults.
+     */
+    Selected selectOnLambda(String key, String name, String descriptor) {
+        ClassData.Method m = declared(OBJECT, name, descriptor);
+        if (m != null && !m.isStatic() && (m.access() & (ClassData.ABSTRACT | 0x0002)) == 0) return new Selected(new JarRust.Id(OBJECT, name, descriptor), null);
+        return select(lambdaInterface(key), name, descriptor);
     }
 
     private static boolean objectMethod(String name, String descriptor) {

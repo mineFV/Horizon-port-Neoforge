@@ -466,8 +466,11 @@ public final class Main {
                   branches, loops and switches, Math's methods with an exact counterpart;
                   objects, fields, static fields and class initializers, arrays,
                   inheritance, interfaces and default methods, lambdas and method
-                  references, casts and null, in one uniform object model. Not yet: texts,
-                  exceptions, Java's library beyond Math, the game. Writes DIR/translated.rs
+                  references, casts and null, in one uniform object model; exceptions
+                  (try/catch/finally, class initializers that throw); Java's library as a
+                  model of this tool's own, translated with the mod: texts, boxes, records,
+                  enums, java.util.function, collections, Optional. Not yet: Class objects,
+                  streams, the game. Writes DIR/translated.rs
                   and DIR/translation.md (default: out/<mod id>-translated/), which says
                   why each other method isn't translated. Nothing is compiled or run.
 

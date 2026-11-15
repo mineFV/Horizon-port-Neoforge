@@ -908,7 +908,7 @@ javac --release 21 -cp "$TR/classes" -d "$TR/classes" test/translate/NumbersChec
 printf 'modLoader = "javafml"\nloaderVersion = "[4,)"\nlicense = "MIT"\n[[mods]]\nmodId = "numbers"\nversion = "1.0"\ndisplayName = "Numbers"\n' > "$TR/jar/META-INF/neoforge.mods.toml"
 jar --create --file "$B/jars/numbers.jar" -C "$TR/jar" . -C "$TR/classes" com
 exits 0 tool translate "$B/jars/numbers.jar" --out "$TR/out"
-says "$OUT" "numbers.jar: 138 of 139 methods translated from their bytecode"
+says "$OUT" "numbers.jar: 221 of 222 methods translated from their bytecode"
 says "$TR/out/translation.md" '`com.example.numbers.Boxes$Color.valueOf(Ljava/lang/String;)Lcom/example/numbers/Boxes$Color;`: it uses a class or another constant'
 says "$OUT" "Nothing was compiled or run"
 says "$TR/out/translated.rs" 'pub fn numbers__collatz(mut l0: i64) -> JR<i64> {'
@@ -925,6 +925,11 @@ says "$TR/out/translated.rs" 'Err(e) => {'
 says "$TR/out/translated.rs" '/// `java.lang.String.concat(Ljava/lang/String;)Ljava/lang/String;`, translated from its bytecode.'
 says "$TR/out/translated.rs" 'fn jnative_double_text(d: f64) -> JR<Ref> {'
 lacks "$TR/out/translated.rs" '/// `java.lang.String.repeat'"'"'(Ljava'
+# Collections: the model's HashMap (the JDK's order), and Object's methods first on a lambda of Comparator.
+says "$TR/out/translated.rs" '/// `java.util.HashMap.putVal(ILjava/lang/Object;Ljava/lang/Object;ZZ)Ljava/lang/Object;`, translated from its bytecode.'
+says "$TR/out/translated.rs" 'fn jnative_array_like(a: Ref, length: i32) -> JR<Ref> {'
+lacks "$TR/out/translation.md" 'nothing implements equals(Ljava/lang/Object;)Z on java.util.Comparator'
+lacks "$TR/out/translation.md" 'several default methods could be getFirst'
 exits 2 tool translate "$B/jars/fabric.jar"
 says "$ERR" '`translate` takes a NeoForge mod'
 if command -v rustc > /dev/null; then
@@ -932,7 +937,9 @@ if command -v rustc > /dev/null; then
   if TRANSLATED_DIR="$PWD/$TR/out" rustc --edition 2021 -o "$TR/check" test/translate/numbers_check.rs > "$TR/rustc.txt" 2>&1; then
     echo "  ok: the translation compiles"
     lacks "$TR/rustc.txt" "warning"
-    java -cp "$TR/classes" NumbersCheck > "$TR/java.txt"
+    # HotSpot throws a JVM exception it raised often at one place without its message (OmitStackTraceInFastThrow):
+    # the reference is the JVM's semantics, which give one.
+    java -XX:-OmitStackTraceInFastThrow -cp "$TR/classes" NumbersCheck > "$TR/java.txt"
     if "$TR/check" > "$TR/rust.txt" && cmp -s "$TR/java.txt" "$TR/rust.txt"; then
       echo "  ok: Java and the translation give the same $(wc -l < "$TR/java.txt") results"
     else

@@ -122,6 +122,14 @@ final class Library {
                         let slots = jlock(&o.slots).clone();
                         Ok(Some(Arc::new(Obj { class: o.class, slots: Mutex::new(slots) })))
                     }
+                    """)),
+            Map.entry("java/util/Arrays.newArrayLike([Ljava/lang/Object;I)[Ljava/lang/Object;", new Native("jnative_array_like", """
+                    /// A new array of a's class (a String[] for a String[]), of this length, all null; the length isn't negative.
+                    #[allow(dead_code)]
+                    fn jnative_array_like(a: Ref, length: i32) -> JR<Ref> {
+                        let class = jobj(&a)?.class;
+                        Ok(Some(Arc::new(Obj { class, slots: Mutex::new(vec![Value::A(None); length as usize]) })))
+                    }
                     """)));
 
     /** The key of an array's clone, which arrays alone select (`JarRust.arraySelects`). */

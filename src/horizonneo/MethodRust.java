@@ -22,8 +22,9 @@ import static horizonneo.Bytecode.*;
  * Objects follow the uniform model (`JavaWorld`): a reference is a `Ref` (`Option<Arc<Obj>>`), a field is a slot,
  * a virtual or interface call goes through a dispatcher that matches on the object's class, a lambda is an object
  * of a class of its own, an array is an object whose slots are its elements. Where Java throws (null, an index out
- * of bounds, a failed cast, an int divided by zero), this panics with the exception's name; a method that catches
- * or throws exceptions isn't translated yet, nor one that uses texts, Java's library beyond Math, or the game.
+ * of bounds, a failed cast, an int divided by zero), the function returns an `Err` holding the exception, as it
+ * does for one the method throws; a guarded block hands it to its handler. Java's library is the model's (lib/),
+ * translated with the mod; a method that uses the game isn't translated yet.
  *
  * The control flow is kept as the bytecode has it: each basic block is an arm of a `match` in a `loop`, which
  * is exact for any flow (a method of one block is written straight). Values left on the operand stack between
@@ -196,6 +197,8 @@ final class MethodRust {
                 switch (direct && (site.kind() == 5 || site.kind() == 9) ? 7 : site.kind()) {
                     case 5, 9 -> needs.add(new Need("dispatch", null, site.owner(), site.name(), site.descriptor()));
                     case 8 -> {
+                        // A constructor reference makes objects as `new` does, and is refused where `new` is.
+                        if (!world.concrete(site.owner())) return "it makes an object whose superclass is outside the jar: " + site.owner().replace('/', '.');
                         needs.add(new Need("new", null, site.owner(), null, null));
                         needs.add(new Need("init", null, site.owner(), null, null));
                         needs.add(new Need("call", impl, null, null, null));

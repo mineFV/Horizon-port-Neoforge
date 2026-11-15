@@ -147,7 +147,7 @@ fn main() {
         p("methods", n.to_string(), text(texts__methods(n)));
         p("outOfBounds", n.to_string(), text(texts__out_of_bounds(n - 2)));
     }
-    // Records, enums, boxes, Objects, java.util.function.
+    // Records, enums, boxes, Objects, java.util.function; collections and Optional.
     for n in 0..=12 {
         p("records", n.to_string(), text(boxes__records(n)));
         p("enums", n.to_string(), text(boxes__enums(n)));
@@ -155,6 +155,12 @@ fn main() {
         p("bits", n.to_string(), text(boxes__bits(n)));
         p("objects", n.to_string(), text(boxes__objects(n)));
         p("functions", n.to_string(), text(boxes__functions(n)));
+        p("lists", n.to_string(), text(gathered__lists(n)));
+        p("maps", n.to_string(), text(gathered__maps(n)));
+        p("sets", n.to_string(), text(gathered__sets(n)));
+        p("immutables", n.to_string(), text(gathered__immutables(n)));
+        p("optionals", n.to_string(), text(gathered__optionals(n)));
+        p("arrayHelpers", n.to_string(), text(gathered__arrays(n)));
     }
     for d0 in doubles() {
         p("doubleText", d(d0), text(texts__double_text(d0)));

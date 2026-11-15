@@ -27,9 +27,10 @@ its machines (block entities, menus, screens) and its logic, not only its wiring
    an `Err` holding the exception), try/catch/finally and class initializers that throw are translated, and Java's
    library is a model of our own (`lib/`), translated with the mod: Object, String (texts and their joins),
    Throwable and the JVM's exceptions, Record (its ObjectMethods), Enum, the boxes with their caches, Objects,
-   java.util.function; lambdas box, unbox and widen as LambdaMetafactory does. Next in (c): collections and
-   Optional; then (d) the game's API; then its output goes into `port`'s bundle, and its flow is rebuilt as loops
-   and `if`s.
+   java.util.function, the collections (ArrayList, HashMap and LinkedHashMap in the JDK's order, the sets, List.of
+   and kin, Collections, Arrays, Comparator) and Optional; lambdas box, unbox and widen as LambdaMetafactory does.
+   Left in (c): Class objects (EnumMap, Enum.valueOf), streams, StringBuilder. Then (d) the game's API; then its
+   output goes into `port`'s bundle, and its flow is rebuilt as loops and `if`s.
 
 It is separate code that **calls** other programs and never contains theirs:
 
@@ -145,6 +146,12 @@ The tool's commands: `metadata`, `license`, `analyze`, `port`, `check`, `pack`, 
 - **A type outside the jar and the model is still known when it is the JDK's**: `JavaWorld` reads its supertypes
   from the JDK the tool runs on (`jrt:/`). Without that, one class implementing `IntSupplier` made every question
   about `CharSequence` uncertain.
+- **A lambda's class extends Object**: a call on it selects Object's methods first, even where its interface
+  redeclares one (Comparator's `equals`); and of two default methods, the one a subinterface overrides isn't a
+  candidate (List's `getFirst` over SequencedCollection's). A constructor reference (`Foo::new`) makes objects as
+  `new` does: one whose superclass is outside the jar can't be made, and isn't counted among the objects there are.
+- **HotSpot drops the message of a JVM exception it throws often at one place** (OmitStackTraceInFastThrow): the
+  Java reference of `test/translate/` runs with it off.
 - **Rust's `as` from a float to an int is Java's cast** (saturating, NaN to 0), but `f64::min`/`max` and `signum`
   aren't Java's on NaN and negative zero, and `Math.sin` and its kin have no exact counterpart: the translator
   writes helpers of its own for the first ones and refuses the others.
@@ -193,8 +200,12 @@ Say so rather than assume it works:
   82 with energy, 16 with tanks, no menu NeoForge could be asked for. The tests run `Machines` on a made-up
   machines file; the exporter itself only compiles and runs against a real server;
 - the machine helpers passed `check` (by reading) on Mekanism's bundle, never cargo nor the game;
-- the library model leaves out what needs Class objects (getClass, Enum.valueOf, getDeclaringClass), parsing
-  numbers (Character's Unicode tables), and collections so far: a method that uses them isn't translated;
+- the library model leaves out what needs Class objects (getClass, Enum.valueOf, getDeclaringClass, EnumMap),
+  parsing numbers (Character's Unicode tables), streams: a method that uses them isn't translated. Where its
+  collections differ from the JDK's is in `lib/README.md` (a HashMap bin the JDK makes a tree, Set.of's order);
+- Mekanism with the collections (2026-11-15): 6414 of 24149 methods. Most of what is left asks whether one of the
+  mod's classes that implements an interface of the game or NeoForge is a `List`, an `Iterator`...: the
+  translator doesn't read the game's jars, so a type of the game hides its supertypes;
 - our translator's output has been compiled and run on the test's made-up classes only. Mekanism's 4363 translated
   methods (of 24149; horizon-port translates 350) were type-checked by rustc once, at the maintainer's request
   (2026-11-14, `--emit=metadata`: no error, no warning), never run. Nothing calls them yet: the world of
