@@ -282,6 +282,30 @@ public final class Gathered {
         return s;
     }
 
+    // ---- StringBuilder ----
+
+    public static String builders(int n) {
+        StringBuilder b = new StringBuilder();
+        b.append("n=").append(n).append(' ').append(n * 3L).append(' ').append(n / 4f).append(' ').append(n / 8.0).append(' ').append(n > 3).append(' ')
+                .append((Object) null).append(' ').append((String) null).append(new char[] {'x', 'y'}).append("abcdef", 1, 3 + n % 3);
+        StringBuilder c = new StringBuilder("start").insert(0, n).insert(2, '!').insert(b.length() > 100 ? 0 : 3, "ins");
+        c.setCharAt(0, 'Z');
+        c.append(c);
+        String s = b + " | " + c + " " + c.length() + " " + c.charAt(n % c.length()) + " " + c.indexOf("ins") + " " + c.lastIndexOf("t") + " " + c.substring(2, 5);
+        c.delete(1, 4).deleteCharAt(0).replace(0, 2, "<" + n + ">").reverse();
+        s += " | " + c + " " + new StringBuilder("a\uD83D\uDE00b").reverse().toString().codePointAt(1) + " " + new StringBuilder("abc").compareTo(new StringBuilder("abd"));
+        c.setLength(3);
+        s += " " + c + " " + c.isEmpty();
+        c.setLength(5);
+        s += " " + c.toString().replace('\0', '_') + " | " + attempt(() -> new StringBuilder("abc").charAt(n + 3)) + " " + attempt(() -> new StringBuilder("abc").delete(2, 1)) + " "
+                + attempt(() -> new StringBuilder("abc").insert(n + 4, "x")) + " " + attempt(() -> new StringBuilder("abc").substring(n + 4)) + " "
+                + attempt(() -> new StringBuilder().append("abc", 2, 1)) + " " + attempt(() -> new StringBuilder(-1 - n)) + " " + attempt(() -> {
+                    new StringBuilder("ab").setLength(-n - 1);
+                    return "set";
+                }) + " " + new StringBuilder("abc").delete(1, 10 + n) + " " + new StringBuilder("abc").replace(1, 10, "x" + n);
+        return s;
+    }
+
     static <T> String collect(Collection<T> from, Collection<T> into) {
         into.addAll(from);
         into.forEach(x -> {});

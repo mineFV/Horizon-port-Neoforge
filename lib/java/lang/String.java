@@ -53,6 +53,16 @@ public final class String implements java.io.Serializable, Comparable<String>, C
         return value[index];
     }
 
+    /** The code point at index: a surrogate pair's, from its high surrogate. */
+    public int codePointAt(int index) {
+        char high = charAt(index);
+        if (Character.isHighSurrogate(high) && index + 1 < value.length) {
+            char low = value[index + 1];
+            if (Character.isLowSurrogate(low)) return ((high - 0xD800) << 10) + (low - 0xDC00) + 0x10000;
+        }
+        return high;
+    }
+
     static String outOfBounds(int index, int length) {
         return "Index ".concat(Integer.toString(index)).concat(" out of bounds for length ").concat(Integer.toString(length));
     }

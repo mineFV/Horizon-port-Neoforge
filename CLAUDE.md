@@ -28,8 +28,8 @@ its machines (block entities, menus, screens) and its logic, not only its wiring
    library is a model of our own (`lib/`), translated with the mod: Object, String (texts and their joins),
    Throwable and the JVM's exceptions, Record (its ObjectMethods), Enum, the boxes with their caches, Objects,
    java.util.function, the collections (ArrayList, HashMap and LinkedHashMap in the JDK's order, the sets, List.of
-   and kin, Collections, Arrays, Comparator) and Optional; lambdas box, unbox and widen as LambdaMetafactory does.
-   Left in (c): Class objects (EnumMap, Enum.valueOf), streams, StringBuilder. Then (d) the game's API; then its
+   and kin, Collections, Arrays, Comparator), Optional and StringBuilder; lambdas box, unbox and widen as LambdaMetafactory does.
+   Left in (c): Class objects (EnumMap, Enum.valueOf), streams. Then (d) the game's API; then its
    output goes into `port`'s bundle, and its flow is rebuilt as loops and `if`s.
 
 It is separate code that **calls** other programs and never contains theirs:
