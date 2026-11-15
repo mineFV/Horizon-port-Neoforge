@@ -549,6 +549,176 @@ final class MethodRust {
         };
     }
 
+    // ---- the flow as Rust's own loops and blocks ----
+
+    /**
+     * A method's blocks as labelled loops and blocks, as Ramsey's "Beyond Relooper" builds them from the dominator
+     * tree: a block that a back edge reaches is a loop (`'lN: loop`) its back edges continue; one that two forward
+     * edges reach follows a labelled block (`'bN: { ... }`) they break out of; any other is written where its one
+     * predecessor branches to it. A block in a try range ends by its closure's result, which says where it went.
+     * write gives null when the flow isn't reducible (a loop entered at two places), for the blocks in a match.
+     */
+    static final class Structure {
+        private final Map<Integer, List<String>> bodies;
+        private final Map<Integer, List<Integer>> succs;
+        private final Set<Integer> guarded;
+        private final Map<Integer, Integer> rpo = new HashMap<>();
+        private final Map<Integer, Integer> idom = new HashMap<>();
+        private final Map<Integer, List<Integer>> children = new HashMap<>();
+        private final Set<Integer> loops = new java.util.HashSet<>();
+        private final Set<Integer> merges = new java.util.HashSet<>();
+
+        private static final java.util.regex.Pattern GOTO = java.util.regex.Pattern.compile("block = (\\d+);");
+        private static final java.util.regex.Pattern IF = java.util.regex.Pattern.compile("block = if (\\S+) \\{ (\\d+) \\} else \\{ (\\d+) \\};");
+
+        Structure(Map<Integer, List<String>> bodies, Map<Integer, List<Integer>> succs, Set<Integer> guarded) {
+            this.bodies = bodies;
+            this.succs = succs;
+            this.guarded = guarded;
+        }
+
+        String write() {
+            // Reverse postorder from the first block.
+            List<Integer> post = new ArrayList<>();
+            Set<Integer> seen = new java.util.HashSet<>();
+            Deque<int[]> stack = new ArrayDeque<>();
+            stack.push(new int[] {0, 0});
+            seen.add(0);
+            while (!stack.isEmpty()) {
+                int[] top = stack.peek();
+                List<Integer> out = succs.getOrDefault(top[0], List.of());
+                if (top[1] < out.size()) {
+                    int next = out.get(top[1]++);
+                    if (seen.add(next)) stack.push(new int[] {next, 0});
+                } else {
+                    post.add(top[0]);
+                    stack.pop();
+                }
+            }
+            List<Integer> order = new ArrayList<>(post);
+            java.util.Collections.reverse(order);
+            for (int k = 0; k < order.size(); k++) rpo.put(order.get(k), k);
+            Map<Integer, List<Integer>> preds = new HashMap<>();
+            for (int b : order) for (int t : succs.getOrDefault(b, List.of())) preds.computeIfAbsent(t, x -> new ArrayList<>()).add(b);
+            // Dominators (Cooper, Harvey and Kennedy).
+            idom.put(0, 0);
+            for (boolean changed = true; changed; ) {
+                changed = false;
+                for (int b : order) {
+                    if (b == 0) continue;
+                    Integer best = null;
+                    for (int p : preds.getOrDefault(b, List.of())) {
+                        if (!idom.containsKey(p)) continue;
+                        best = best == null ? p : intersect(p, best);
+                    }
+                    if (best != null && !best.equals(idom.get(b))) {
+                        idom.put(b, best);
+                        changed = true;
+                    }
+                }
+            }
+            for (int b : order) if (b != 0) children.computeIfAbsent(idom.get(b), x -> new ArrayList<>()).add(b);
+            for (int b : order) {
+                int forward = 0;
+                for (int p : preds.getOrDefault(b, List.of())) {
+                    if (rpo.get(p) >= rpo.get(b)) {
+                        // A back edge: its target must dominate it, or the loop is entered at two places.
+                        if (!dominates(b, p)) return null;
+                        loops.add(b);
+                    } else {
+                        forward++;
+                    }
+                }
+                if (forward >= 2) merges.add(b);
+            }
+            StringBuilder out = new StringBuilder();
+            tree(0, 1, out);
+            out.append("    unreachable!()\n");
+            return out.toString();
+        }
+
+        private int intersect(int a, int b) {
+            while (a != b) {
+                while (rpo.get(a) > rpo.get(b)) a = idom.get(a);
+                while (rpo.get(b) > rpo.get(a)) b = idom.get(b);
+            }
+            return a;
+        }
+
+        private boolean dominates(int a, int b) {
+            for (int x = b; ; x = idom.get(x)) {
+                if (x == a) return true;
+                if (x == 0) return false;
+            }
+        }
+
+        private static String ind(int depth) {
+            return "    ".repeat(depth);
+        }
+
+        private void tree(int x, int depth, StringBuilder out) {
+            List<Integer> ys = new ArrayList<>();
+            for (int c : children.getOrDefault(x, List.of())) if (merges.contains(c)) ys.add(c);
+            ys.sort((a, b) -> rpo.get(b) - rpo.get(a));
+            if (loops.contains(x)) {
+                out.append(ind(depth)).append("'l").append(x).append(": loop {\n");
+                within(x, ys, depth + 1, out);
+                out.append(ind(depth)).append("}\n");
+            } else {
+                within(x, ys, depth, out);
+            }
+        }
+
+        private void within(int x, List<Integer> ys, int depth, StringBuilder out) {
+            if (!ys.isEmpty()) {
+                int y = ys.get(0);
+                out.append(ind(depth)).append("'b").append(y).append(": {\n");
+                within(x, ys.subList(1, ys.size()), depth + 1, out);
+                out.append(ind(depth)).append("}\n");
+                tree(y, depth, out);
+                return;
+            }
+            List<String> lines = bodies.get(x);
+            List<Integer> to = succs.getOrDefault(x, List.of());
+            String last = lines.isEmpty() ? "" : lines.get(lines.size() - 1);
+            java.util.regex.Matcher go = GOTO.matcher(last), when = IF.matcher(last);
+            boolean plain = !guarded.contains(x);
+            int keep = plain && (go.matches() || when.matches()) ? lines.size() - 1 : lines.size();
+            for (int k = 0; k < keep; k++) out.append(ind(depth)).append(lines.get(k)).append('\n');
+            if (to.isEmpty()) return;
+            if (plain && go.matches()) {
+                branch(x, Integer.parseInt(go.group(1)), depth, out);
+            } else if (plain && when.matches()) {
+                out.append(ind(depth)).append("if ").append(when.group(1)).append(" {\n");
+                branch(x, Integer.parseInt(when.group(2)), depth + 1, out);
+                out.append(ind(depth)).append("} else {\n");
+                branch(x, Integer.parseInt(when.group(3)), depth + 1, out);
+                out.append(ind(depth)).append("}\n");
+            } else if (to.size() == 1 && plain) {
+                branch(x, to.get(0), depth, out);
+            } else {
+                out.append(ind(depth)).append("match block {\n");
+                for (int t : to) {
+                    out.append(ind(depth + 1)).append(t).append(" => {\n");
+                    branch(x, t, depth + 2, out);
+                    out.append(ind(depth + 1)).append("}\n");
+                }
+                out.append(ind(depth + 1)).append("_ => unreachable!(),\n");
+                out.append(ind(depth)).append("}\n");
+            }
+        }
+
+        private void branch(int from, int to, int depth, StringBuilder out) {
+            if (rpo.get(to) <= rpo.get(from)) {
+                out.append(ind(depth)).append("continue 'l").append(to).append(";\n");
+            } else if (merges.contains(to)) {
+                out.append(ind(depth)).append("break 'b").append(to).append(";\n");
+            } else {
+                tree(to, depth, out);
+            }
+        }
+    }
+
     // ---- the library: Math's methods with exact counterparts ----
 
     /** The Rust for a call of Java's library, `$0`, `$1` for its arguments; null when there is none known to be exact. */
@@ -716,6 +886,9 @@ final class MethodRust {
             Map<Integer, List<Character>> entry = new HashMap<>();
             entry.put(0, List.of());
             Map<Integer, List<String>> bodies = new TreeMap<>();
+            // Each block's successors: where it branches, then its handlers' blocks.
+            Map<Integer, List<Integer>> succs = new TreeMap<>();
+            Set<Integer> guardedBlocks = new TreeSet<>();
             boolean flows = false;
             Deque<Integer> work = new ArrayDeque<>(List.of(0));
             while (!work.isEmpty()) {
@@ -725,6 +898,9 @@ final class MethodRust {
                 Block block = new Block(entry.get(b), blockOf, covering.containsKey(b));
                 List<String> lines = block.run(from, to);
                 flows |= !block.next.isEmpty() || covering.containsKey(b);
+                List<Integer> out = new ArrayList<>();
+                for (int next : block.next) if (!out.contains(next)) out.add(next);
+                succs.put(b, out);
                 for (int next : block.next) {
                     List<Character> had = entry.putIfAbsent(next, block.exit);
                     if (had != null && !had.equals(block.exit)) throw new Bytecode.Invalid("the stack differs where two paths meet, at block " + next);
@@ -744,8 +920,10 @@ final class MethodRust {
                     guarded.add("    Err(e) => {");
                     boolean all = false;
                     String sep = "        ";
+                    guardedBlocks.add(b);
                     for (ClassData.Handler h : covering.get(b)) {
                         int target = blockOf.get(at.get(h.handler()));
+                        if (!succs.get(b).contains(target)) succs.get(b).add(target);
                         List<Character> had = entry.putIfAbsent(target, List.of('A'));
                         if (had != null && !had.equals(List.of('A'))) throw new Bytecode.Invalid("a handler is also reached with another stack, at block " + target);
                         work.add(target);
@@ -768,7 +946,7 @@ final class MethodRust {
 
             StringBuilder out = new StringBuilder();
             out.append("/// `").append(owner.replace('/', '.')).append('.').append(m.name()).append(m.descriptor()).append("`, translated from its bytecode.\n");
-            out.append("#[allow(non_snake_case, unused_mut, unused_assignments, unused_variables, unused_parens, unreachable_code, clippy::all)]\n");
+            out.append("#[allow(non_snake_case, unused_mut, unused_assignments, unused_variables, unused_parens, unreachable_code, unused_labels, clippy::all)]\n");
             out.append("pub fn ").append(function).append('(');
             List<String> converted = new ArrayList<>();
             Set<String> declared = new TreeSet<>();
@@ -804,8 +982,11 @@ final class MethodRust {
                 String type = "JR<" + (r.equals("V") ? "()" : rust(r)) + ">";
                 out.append("    let jresult: ").append(type).append(" = (|| -> ").append(type).append(" {\n");
             }
+            String structured = flows ? new Structure(bodies, succs, guardedBlocks).write() : null;
             if (!flows) {
                 for (String line : bodies.get(0)) out.append("    ").append(line).append('\n');
+            } else if (structured != null) {
+                out.append("    let mut block: u32 = 0;\n").append(structured);
             } else {
                 out.append("    let mut block: u32 = 0;\n    loop {\n        match block {\n");
                 bodies.forEach((b, lines) -> {

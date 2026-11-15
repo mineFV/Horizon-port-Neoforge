@@ -937,6 +937,9 @@ lacks "$TR/out/translated.rs" '/// `java.lang.String.repeat'"'"'(Ljava'
 # Collections: the model's HashMap (the JDK's order), and Object's methods first on a lambda of Comparator.
 says "$TR/out/translated.rs" '/// `java.util.HashMap.putVal(ILjava/lang/Object;Ljava/lang/Object;ZZ)Ljava/lang/Object;`, translated from its bytecode.'
 says "$TR/out/translated.rs" 'fn jnative_array_like(a: Ref, length: i32) -> JR<Ref> {'
+# The flow as Rust's own loops and labelled blocks (Ramsey's structuring), not a match on the block in a loop.
+says "$TR/out/translated.rs" ": loop {"
+says "$TR/out/translated.rs" "break 'b"
 # A negative constant of the class file, as a whole argument: no parentheses (rustc warns of them).
 says "$TR/out/translated.rs" 'Value::F(-2.5f32)'
 lacks "$TR/out/translation.md" 'nothing implements equals(Ljava/lang/Object;)Z on java.util.Comparator'

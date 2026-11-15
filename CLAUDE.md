@@ -32,7 +32,7 @@ its machines (block entities, menus, screens) and its logic, not only its wiring
    constants, getClass, isInstance, names, getEnumConstants, Enum.valueOf, Integer.TYPE and kin); lambdas box, unbox and widen as
    LambdaMetafactory does; EnumMap and EnumSet; streams (Stream, IntStream, LongStream, Collectors, spliterators),
    run as the JDK runs a sequential one. Step (c) is done but for what `lib/README.md` lists. Then (d) the game's API; then its
-   output goes into `port`'s bundle, and its flow is rebuilt as loops and `if`s.
+   output goes into `port`'s bundle. Its flow is rebuilt as loops and labelled blocks.
 
 It is separate code that **calls** other programs and never contains theirs:
 
@@ -111,7 +111,7 @@ The tool's commands: `metadata`, `license`, `analyze`, `port`, `check`, `pack`, 
 | `Machines` | The block entities in the machines file, on Horizon's block-entity hook points; `report/machines.md` |
 | `exporter/` (not in `src/`) | The NeoForge mod `dump` compiles at run time: places each block with a block entity and writes `<facts>.machines.json` |
 | `lib/` (not in `src/`), `Library` | The translator's model of Java's library: our own Java, from the API specification, compiled by `build.sh` with `--patch-module java.base=lib` into the jar's `model/`; its `native` methods in Rust |
-| `Bytecode`, `MethodRust`, `JarRust`, `JavaWorld` | `translate`, our own translator: every opcode decoded; a method's bytecode as a Rust function (each basic block an arm of a `match` in a `loop`) and what it needs; the classes as the JVM resolves them (field slots, call selection, subtypes, class ids); the jar's methods, kept until what each needs is translated, as one module with the object model's runtime, dispatchers, type tests, class initializers and lambda classes, and why for the rest |
+| `Bytecode`, `MethodRust`, `JarRust`, `JavaWorld` | `translate`, our own translator: every opcode decoded; a method's bytecode as a Rust function (its blocks as labelled loops and blocks, or as arms of a `match` in a `loop` when the flow is irreducible) and what it needs; the classes as the JVM resolves them (field slots, call selection, subtypes, class ids); the jar's methods, kept until what each needs is translated, as one module with the object model's runtime, dispatchers, type tests, class initializers and lambda classes, and why for the rest |
 | `Pack` | `pack`: the bundle as a `.hnmod`, written as Horizon's `docs/api/mod-files.md` says |
 | `Report` | `report.md` and `report.json` |
 | `Toml`, `Json`, `Translator` | Small readers, and the one place that starts `horizon-port.jar` |
@@ -189,6 +189,11 @@ The tool's commands: `metadata`, `license`, `analyze`, `port`, `check`, `pack`, 
 - **Monitors are by object, in one table**: the thread that holds each and how many times (reentrant), waited for
   on a Condvar; a synchronized method's body runs in a closure, so that its monitor is let go however it ends. Not
   modelled: Object.wait and notify, Thread.holdsLock.
+- **The flow is rebuilt as Rust's own loops and labelled blocks** (`MethodRust.Structure`, after Ramsey's "Beyond
+  Relooper"): a block a back edge reaches is a `'lN: loop` its back edges continue, one two forward edges reach
+  follows a `'bN: { ... }` they break out of, any other is written inside its one predecessor's branch. A block in
+  a try range still runs in its closure, which sets where it went. A loop entered at two places (an irreducible
+  flow) keeps the `loop { match block ... }`.
 - **A final class has no subclass**: whether an object is an Integer (a cast the model's IntStream makes) has an
   answer even for an object of a class whose superclass is outside the jar.
 - **javac casts a generic array to its bound**: `T[] universe = c.getEnumConstants()` with `T extends Enum` is a
@@ -261,6 +266,8 @@ Say so rather than assume it works:
   with pattern switches (typeSwitch on types): 9002 and 9019, type-checked;
   with monitors (synchronized methods and blocks): 9008 and 9025, type-checked;
   with ArrayDeque and LinkedList: 9017 and 9034, type-checked;
+  with the flow rebuilt as loops and labelled blocks (3 methods left as a match on the block): the same counts,
+  type-checked;
 - our translator's output has been compiled and run on the test's made-up classes only. Mekanism's translation was
   type-checked by rustc (`--emit=metadata`): 4363 methods at the maintainer's request (2026-11-14), then 8154
   (and 7721 with `--server`) on 2026-11-15, while the maintainer was away and had left the decisions to the agent:
