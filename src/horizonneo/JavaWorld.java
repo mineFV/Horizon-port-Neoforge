@@ -272,17 +272,54 @@ final class JavaWorld {
 
     // ---- subtypes ----
 
-    /** Answers already given by subtype, by "a t": the world doesn't change once the methods are checked. */
-    private final Map<String, Optional<Boolean>> subtypes = new java.util.HashMap<>();
+    /**
+     * A type's supertypes, found once: its superclasses in a chain (broken: it reached a class not read, not
+     * Object), and all its supertypes (unknown: one of them wasn't read). Answering each "is a a t?" from them, rather
+     * than remembering each answer, keeps a big jar's pairs out of memory.
+     */
+    private record Supers(Set<String> chain, boolean chainBroken, Set<String> all, boolean unknownAny) {}
+
+    private final Map<String, Supers> supers = new java.util.HashMap<>();
+
+    private Supers supers(String start) {
+        Supers found = supers.get(start);
+        if (found != null) return found;
+        Set<String> chain = new HashSet<>();
+        boolean broken = false;
+        ClassData first = known(start);
+        if (first != null) {
+            for (String c = first.superName; c != null; ) {
+                chain.add(c);
+                ClassData data = known(c);
+                if (data == null) {
+                    broken = !c.equals(OBJECT);
+                    break;
+                }
+                c = data.superName;
+            }
+        }
+        Set<String> all = new HashSet<>();
+        boolean unknown = false;
+        Deque<String> todo = new ArrayDeque<>(List.of(start));
+        while (!todo.isEmpty()) {
+            String c = todo.poll();
+            if (!all.add(c)) continue;
+            ClassData data = known(c);
+            if (data == null) {
+                if (!c.equals(OBJECT)) unknown = true;
+                continue;
+            }
+            todo.addAll(data.interfaces);
+            if (data.superName != null) todo.add(data.superName);
+        }
+        found = new Supers(chain, broken, all, unknown);
+        supers.put(start, found);
+        return found;
+    }
 
     /** Whether type a (a class, an array descriptor or a lambda key) is a subtype of t; null when it can't be told. */
     Boolean subtype(String a, String t) {
-        String key = a + " " + t;
-        Optional<Boolean> known = subtypes.get(key);
-        if (known != null) return known.orElse(null);
-        Boolean answer = subtypeOf(a, t);
-        subtypes.put(key, Optional.ofNullable(answer));
-        return answer;
+        return subtypeOf(a, t);
     }
 
     private Boolean subtypeOf(String a, String t) {
@@ -306,35 +343,19 @@ final class JavaWorld {
         if (target != null && (target.access & ClassData.INTERFACE) == 0) {
             // A class: only the superclasses lead to it (a lambda's class has Object's alone).
             if (a.startsWith(LAMBDA)) return false;
-            ClassData start0 = known(a);
-            if (start0 == null) return jar.contains(t) && !jar.contains(a) ? false : null;
-            for (String c = start0.superName; c != null; ) {
-                if (c.equals(t)) return true;
-                ClassData data = known(c);
-                if (data == null) return c.equals(OBJECT) || jar.contains(t) ? false : null;
-                c = data.superName;
-            }
-            return false;
+            if (known(a) == null) return jar.contains(t) && !jar.contains(a) ? false : null;
+            Supers sup = supers(a);
+            if (sup.chain().contains(t)) return true;
+            if (!sup.chainBroken() || jar.contains(t)) return false;
+            return null;
         }
-        boolean unknown = false;
-        Deque<String> todo = new ArrayDeque<>(List.of(start));
-        Set<String> seen = new HashSet<>();
-        while (!todo.isEmpty()) {
-            String c = todo.poll();
-            if (!seen.add(c)) continue;
-            if (c.equals(t)) return true;
-            ClassData data = known(c);
-            if (data == null) {
-                // A type outside the jar can't be a subtype of one of the jar's: the game and Java's library don't
-                // know the mod, and a mod this one is built on can't be built on it in turn. Only a type outside
-                // the jar may hide behind one.
-                if (!c.equals(OBJECT) && !jar.contains(t)) unknown = true;
-                continue;
-            }
-            todo.addAll(data.interfaces);
-            if (data.superName != null) todo.add(data.superName);
-        }
-        return unknown ? null : false;
+        // A type outside the jar can't be a subtype of one of the jar's: the game and Java's library don't know the
+        // mod, and a mod this one is built on can't be built on it in turn. Only a type outside the jar may hide
+        // behind one.
+        Supers sup = supers(start);
+        if (sup.all().contains(t)) return true;
+        if (sup.unknownAny() && !jar.contains(t)) return null;
+        return false;
     }
 
     /** `Lfoo/Bar;` as foo/Bar, `[I` as itself. */

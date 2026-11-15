@@ -649,7 +649,8 @@ final class JarRust {
             StringBuilder literalText = new StringBuilder();
             literals.forEach((text, name) -> literalText.append(literal(name, text)));
             StringBuilder nativeText = new StringBuilder();
-            for (Map.Entry<String, Library.Native> e : Library.NATIVES.entrySet()) {
+            // In a fixed order: Map.ofEntries iterates in an order of its own each run.
+            for (Map.Entry<String, Library.Native> e : new TreeMap<>(Library.NATIVES).entrySet()) {
                 Library.Native n = e.getValue();
                 if (!natives.contains(n.name())) continue;
                 String text = n.rust();

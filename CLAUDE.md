@@ -209,6 +209,11 @@ The tool's commands: `metadata`, `license`, `analyze`, `port`, `check`, `pack`, 
   class without `--server` dropped 1188 of Mekanism's methods.
 - **The JDK the tests run on is 25, and its ConcurrentHashMap isn't 21's** where it shows: a map's constructor
   sizes the table for the map, putAll doesn't size it first. Probed with reflection on its table.
+- **Remembering every "is a a t?" answer filled the heap**: a pair of strings per answer, millions of them (Mekanism
+  ran out of 2 GB, Guava and fastutil with it out of 8). Each type's supertypes are found once instead (its chain
+  of superclasses, all of them, whether one wasn't read): Mekanism translates in 1 GB, the same methods.
+- **The output is the same run after run**: the natives, kept in a Map.ofEntries (whose order is salted per JVM),
+  are written sorted.
 - **A final class has no subclass**: whether an object is an Integer (a cast the model's IntStream makes) has an
   answer even for an object of a class whose superclass is outside the jar.
 - **javac casts a generic array to its bound**: `T[] universe = c.getEnumConstants()` with `T extends Enum` is a
