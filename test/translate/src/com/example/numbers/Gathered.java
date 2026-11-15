@@ -826,9 +826,37 @@ public final class Gathered {
 
     // ---- threads ----
 
+    /** Its initializer takes a while: a second thread asking for it waits for the first's (JVMS 5.5). */
+    static final class Slow {
+        static final int V;
+
+        static {
+            int v = 0;
+            try {
+                Thread.sleep(30);
+                v = 42;
+            } catch (InterruptedException e) {
+                v = -1;
+            }
+            V = v;
+        }
+
+        static int v() {
+            return V;
+        }
+    }
+
     public static String threads(int n) {
         StringBuilder b = new StringBuilder();
         try {
+            int[] raced = new int[2];
+            Thread first = new Thread(() -> raced[0] = Slow.v());
+            Thread second = new Thread(() -> raced[1] = Slow.v());
+            first.start();
+            second.start();
+            first.join();
+            second.join();
+            b.append(raced[0]).append(raced[1]).append(" ");
             long[] sum = {0};
             Thread t = new Thread(() -> {
                 for (int k = 0; k <= n * 100; k++) sum[0] += k;
