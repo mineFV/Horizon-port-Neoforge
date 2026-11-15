@@ -8,6 +8,7 @@ import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.TreeSet;
@@ -65,6 +66,11 @@ final class JarRust {
     }
 
     static Result translate(ModJar jar) throws IOException {
+        return translate(jar, Map.of());
+    }
+
+    /** outside: classes the mod runs with, known for their supertypes alone (`JavaWorld.outside`). */
+    static Result translate(ModJar jar, Map<String, ClassData> outside) throws IOException {
         Map<String, ClassData> classes = new TreeMap<>();
         try (ZipFile zip = new ZipFile(jar.path().toFile())) {
             Enumeration<? extends ZipEntry> entries = zip.entries();
@@ -76,16 +82,23 @@ final class JarRust {
                 classes.put(c.name, c);
             }
         }
-        return translate(classes);
+        return translate(classes, Library.classes(), outside);
     }
 
     static Result translate(Map<String, ClassData> classes) throws IOException {
         return translate(classes, Library.classes());
     }
 
-    /** jar: the mod's classes; model: the library model's (`Library`), translated with them where the mod reaches them. */
     static Result translate(Map<String, ClassData> jar, Map<String, ClassData> model) {
-        JavaWorld world = new JavaWorld(jar, model);
+        return translate(jar, model, Map.of());
+    }
+
+    /**
+     * jar: the mod's classes; model: the library model's (`Library`), translated with them where the mod reaches them;
+     * outside: classes known for their supertypes alone.
+     */
+    static Result translate(Map<String, ClassData> jar, Map<String, ClassData> model, Map<String, ClassData> outside) {
+        JavaWorld world = new JavaWorld(jar, model, outside);
         int methods = 0;
         Map<Id, String> why = new TreeMap<>();
         Map<Id, List<Need>> needs = new TreeMap<>();
@@ -195,8 +208,15 @@ final class JarRust {
 
     // ---- what each method needs, until nothing changes ----
 
-    /** What the translated methods instantiate: classes and arrays they make, lambda sites they reach. */
-    record Instances(Set<String> classes, Set<String> arrays, Set<String> lambdas) {
+    /**
+     * What the translated methods instantiate: classes and arrays they make, lambda sites they reach; tests: the
+     * type tests' answers over them, by type, asked once per set.
+     */
+    record Instances(Set<String> classes, Set<String> arrays, Set<String> lambdas, Map<String, Optional<String>> tests) {
+        Instances(Set<String> classes, Set<String> arrays, Set<String> lambdas) {
+            this(classes, arrays, lambdas, new HashMap<>());
+        }
+
         List<String> all() {
             List<String> out = new ArrayList<>(classes);
             out.addAll(arrays);
@@ -286,6 +306,23 @@ final class JarRust {
                 }
                 return null;
             }
+            case "test" -> {
+                Optional<String> known = inst.tests().get(n.type());
+                if (known == null) {
+                    known = Optional.ofNullable(testWhy(n, world, inst));
+                    inst.tests().put(n.type(), known);
+                }
+                return known.orElse(null);
+            }
+            default -> {
+                return null;
+            }
+        }
+    }
+
+    /** Why a type test (or an aastore's) isn't certain over every object there can be; null when it is. */
+    private static String testWhy(Need n, JavaWorld world, Instances inst) {
+        switch (n.kind()) {
             case "test" -> {
                 if (n.type().equals("aastore")) {
                     for (String a : inst.arrays()) {

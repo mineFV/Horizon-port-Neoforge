@@ -62,7 +62,7 @@ bash test/run-test.sh         # builds, writes the fixture, runs everything; end
 java -jar build/horizon-port-neoforge.jar --help
 ```
 
-The tool's commands: `metadata`, `license`, `analyze`, `port`, `check`, `pack`, `dump`, `translate`. The tests need
+The tool's commands: `metadata`, `license`, `analyze`, `port`, `check`, `pack`, `dump`, `translate` (`--server`: a NeoForge server's libraries, for the game's supertypes). The tests need
 `horizon-port.jar`; the ones that pack a `.hmod` or check a `.hnmod` are skipped, with a note, without Horizon's tools.
 
 ## Rules that are not up for interpretation
@@ -150,6 +150,12 @@ The tool's commands: `metadata`, `license`, `analyze`, `port`, `check`, `pack`, 
   redeclares one (Comparator's `equals`); and of two default methods, the one a subinterface overrides isn't a
   candidate (List's `getFirst` over SequencedCollection's). A constructor reference (`Foo::new`) makes objects as
   `new` does: one whose superclass is outside the jar can't be made, and isn't counted among the objects there are.
+- **An object whose supertypes aren't all known isn't made**: one of the mod's classes implementing another mod's
+  interface (JEI's) would leave every "is it a List?" about the objects there are without an answer, and kept
+  thousands of methods out. `translate --server` reads the supertypes (and the declared methods, for selection) of
+  the game's, NeoForge's and their libraries' classes from a server's libraries; the client's classes and other
+  mods' stay unknown. A default method of an interface read that way is the game's code: a call that may select it
+  isn't translated. Type tests are answered once per set of objects: asking them per method took minutes.
 - **HotSpot drops the message of a JVM exception it throws often at one place** (OmitStackTraceInFastThrow): the
   Java reference of `test/translate/` runs with it off.
 - **Rust's `as` from a float to an int is Java's cast** (saturating, NaN to 0), but `f64::min`/`max` and `signum`
@@ -203,9 +209,10 @@ Say so rather than assume it works:
 - the library model leaves out what needs Class objects (getClass, Enum.valueOf, getDeclaringClass, EnumMap),
   parsing numbers (Character's Unicode tables), streams: a method that uses them isn't translated. Where its
   collections differ from the JDK's is in `lib/README.md` (a HashMap bin the JDK makes a tree, Set.of's order);
-- Mekanism with the collections (2026-11-15): 6414 of 24149 methods. Most of what is left asks whether one of the
-  mod's classes that implements an interface of the game or NeoForge is a `List`, an `Iterator`...: the
-  translator doesn't read the game's jars, so a type of the game hides its supertypes;
+- Mekanism (2026-11-15): 6414 of 24149 methods with the collections; then 8154 without `--server` and 7721 with
+  it (NeoForge 21.1.266's libraries). Fewer with it: the objects of classes implementing NeoForge's interfaces can
+  then be made, and calls that may reach their methods that use the game aren't translated. Both are sound in the
+  closed world;
 - our translator's output has been compiled and run on the test's made-up classes only. Mekanism's 4363 translated
   methods (of 24149; horizon-port translates 350) were type-checked by rustc once, at the maintainer's request
   (2026-11-14, `--emit=metadata`: no error, no warning), never run. Nothing calls them yet: the world of

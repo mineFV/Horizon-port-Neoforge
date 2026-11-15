@@ -7,6 +7,7 @@ import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.TreeMap;
 
@@ -30,6 +31,8 @@ final class JavaWorld {
     final Map<String, ClassData> classes;
     /** The jar's own classes. */
     final Set<String> jar;
+    /** Classes outside the jar and the model, known for their supertypes alone. */
+    private final Map<String, ClassData> outside;
     /** Ids by type: a class's internal name, an array's descriptor, a lambda's key. */
     private final Map<String, Integer> ids = new TreeMap<>();
     private int next = PRIMITIVE_ARRAYS.size() + 1;
@@ -39,6 +42,15 @@ final class JavaWorld {
     }
 
     JavaWorld(Map<String, ClassData> jar, Map<String, ClassData> model) {
+        this(jar, model, Map.of());
+    }
+
+    /**
+     * outside: classes of the game, NeoForge and the libraries the mod runs with (`--server`), known for their
+     * supertypes alone: they answer subtype questions, and are never translated nor laid out.
+     */
+    JavaWorld(Map<String, ClassData> jar, Map<String, ClassData> model, Map<String, ClassData> outside) {
+        this.outside = outside;
         Map<String, ClassData> all = new TreeMap<>(model);
         all.putAll(jar);
         this.classes = all;
@@ -205,16 +217,74 @@ final class JavaWorld {
         return found;
     }
 
-    /** A type's superclass and interfaces, from the jar, the model or the JDK; null when none of them has it. */
+    /** A type's superclass and interfaces, from the jar, the model, the JDK or the classes outside; null when none has it. */
     private ClassData known(String name) {
         ClassData c = classes.get(name);
-        return c != null ? c : jdkClass(name);
+        if (c != null) return c;
+        c = jdkClass(name);
+        return c != null ? c : outside.get(name);
+    }
+
+    /**
+     * The classes of these jars, by internal name, the first jar's first: what `--server` reads from a NeoForge
+     * server's libraries (NeoForge's patched classes before the game's own, as `Dump.classpath` orders them).
+     */
+    static Map<String, ClassData> outside(List<java.nio.file.Path> jars) throws java.io.IOException {
+        Map<String, ClassData> out = new java.util.HashMap<>();
+        for (java.nio.file.Path p : jars) {
+            try (java.util.zip.ZipFile zip = new java.util.zip.ZipFile(p.toFile())) {
+                for (var e = zip.entries(); e.hasMoreElements(); ) {
+                    java.util.zip.ZipEntry entry = e.nextElement();
+                    String name = entry.getName();
+                    if (entry.isDirectory() || !name.endsWith(".class") || name.startsWith("META-INF/") || name.endsWith("module-info.class")) continue;
+                    String internal = name.substring(0, name.length() - ".class".length());
+                    if (out.containsKey(internal)) continue;
+                    try {
+                        ClassData c = ClassData.parse(ModJar.read(zip, entry, Analyzer.MAX_CLASS));
+                        out.putIfAbsent(c.name, c);
+                    } catch (RuntimeException | java.io.IOException unreadable) {
+                        // A class this reader can't parse stays unknown: questions about it stay unanswered.
+                    }
+                }
+            }
+        }
+        return out;
+    }
+
+    /**
+     * A supertype of c (c itself included) that isn't known, or null when every one is: an object of such a class
+     * would leave every question "is it a ...?" about it without an answer, so the translation doesn't make one.
+     */
+    String unknownSupertype(String c) {
+        Deque<String> todo = new ArrayDeque<>(List.of(c));
+        Set<String> seen = new HashSet<>();
+        while (!todo.isEmpty()) {
+            String t = todo.poll();
+            if (!seen.add(t) || t.equals(OBJECT)) continue;
+            ClassData data = known(t);
+            if (data == null) return t;
+            todo.addAll(data.interfaces);
+            if (data.superName != null) todo.add(data.superName);
+        }
+        return null;
     }
 
     // ---- subtypes ----
 
+    /** Answers already given by subtype, by "a t": the world doesn't change once the methods are checked. */
+    private final Map<String, Optional<Boolean>> subtypes = new java.util.HashMap<>();
+
     /** Whether type a (a class, an array descriptor or a lambda key) is a subtype of t; null when it can't be told. */
     Boolean subtype(String a, String t) {
+        String key = a + " " + t;
+        Optional<Boolean> known = subtypes.get(key);
+        if (known != null) return known.orElse(null);
+        Boolean answer = subtypeOf(a, t);
+        subtypes.put(key, Optional.ofNullable(answer));
+        return answer;
+    }
+
+    private Boolean subtypeOf(String a, String t) {
         if (a.equals(t) || t.equals(OBJECT)) return true;
         if (a.startsWith("[")) {
             if (t.equals("java/lang/Cloneable") || t.equals("java/io/Serializable")) return true;
@@ -230,13 +300,15 @@ final class JavaWorld {
         if (target != null && (target.access & ClassData.INTERFACE) == 0) {
             // A class: only the superclasses lead to it (a lambda's class has Object's alone).
             if (a.startsWith(LAMBDA)) return false;
-            for (String c = classes.containsKey(a) ? classes.get(a).superName : null; c != null; ) {
+            ClassData start0 = known(a);
+            if (start0 == null) return jar.contains(t) && !jar.contains(a) ? false : null;
+            for (String c = start0.superName; c != null; ) {
                 if (c.equals(t)) return true;
                 ClassData data = known(c);
                 if (data == null) return c.equals(OBJECT) || jar.contains(t) ? false : null;
                 c = data.superName;
             }
-            return classes.containsKey(a) ? false : null;
+            return false;
         }
         boolean unknown = false;
         Deque<String> todo = new ArrayDeque<>(List.of(start));
@@ -285,7 +357,17 @@ final class JavaWorld {
         for (String c = r; c != null; ) {
             ClassData data = classes.get(c);
             if (data == null && c.equals(OBJECT)) break;
-            if (data == null) return new Selected(null, "on " + r.replace('/', '.') + " it may be " + c.replace('/', '.') + "'s, outside the jar");
+            if (data == null) {
+                // Read from outside (the JDK's, the game's with --server): it answers which methods it declares.
+                ClassData read = r.startsWith(LAMBDA) || !interfaceOutside(c) ? null : known(c);
+                if (read == null) return new Selected(null, "on " + r.replace('/', '.') + " it may be " + c.replace('/', '.') + "'s, outside the jar");
+                for (ClassData.Method d : read.methods) {
+                    if (d.name().equals(name) && d.descriptor().equals(descriptor) && !d.isStatic() && (d.access() & (ClassData.ABSTRACT | 0x0002)) == 0) {
+                        return new Selected(null, "on " + r.replace('/', '.') + " it is " + c.replace('/', '.') + "'s, outside the jar");
+                    }
+                }
+                break;
+            }
             ClassData.Method m = declared(c, name, descriptor);
             if (m != null && !m.isStatic() && (m.access() & 0x0002) == 0) {
                 if ((m.access() & ClassData.ABSTRACT) != 0) break;
@@ -301,10 +383,15 @@ final class JavaWorld {
         while (!todo.isEmpty()) {
             String i = todo.poll();
             if (!seen.add(i)) continue;
-            ClassData data = classes.get(i);
+            ClassData data = known(i);
             if (data == null) return new Selected(null, "on " + r.replace('/', '.') + " it may be a default method of " + i.replace('/', '.') + ", outside the jar");
-            ClassData.Method m = declared(i, name, descriptor);
-            if (m != null && !m.isStatic() && (m.access() & (ClassData.ABSTRACT | 0x0002)) == 0) found.add(new JarRust.Id(i, name, descriptor));
+            ClassData.Method m = null;
+            for (ClassData.Method d : data.methods) if (d.name().equals(name) && d.descriptor().equals(descriptor)) m = d;
+            if (m != null && !m.isStatic() && (m.access() & (ClassData.ABSTRACT | 0x0002)) == 0) {
+                // An interface read from outside (the JDK's, the game's) declares this default: running it isn't translated.
+                if (!classes.containsKey(i)) return new Selected(null, "on " + r.replace('/', '.') + " it is a default method of " + i.replace('/', '.') + ", outside the jar");
+                found.add(new JarRust.Id(i, name, descriptor));
+            }
             todo.addAll(data.interfaces);
         }
         // The maximally-specific ones (JVMS 5.4.3.3): a default an interface overrides in a subinterface isn't one.
@@ -329,6 +416,12 @@ final class JavaWorld {
         ClassData.Method m = declared(OBJECT, name, descriptor);
         if (m != null && !m.isStatic() && (m.access() & (ClassData.ABSTRACT | 0x0002)) == 0) return new Selected(new JarRust.Id(OBJECT, name, descriptor), null);
         return select(lambdaInterface(key), name, descriptor);
+    }
+
+    /** Whether c is an interface known from outside the jar and the model. */
+    private boolean interfaceOutside(String c) {
+        ClassData data = known(c);
+        return data != null && !classes.containsKey(c) && (data.access & ClassData.INTERFACE) != 0;
     }
 
     private static boolean objectMethod(String name, String descriptor) {

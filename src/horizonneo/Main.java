@@ -2,6 +2,7 @@ package horizonneo;
 
 import java.io.IOException;
 import java.io.PrintStream;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -73,7 +74,7 @@ public final class Main {
                 return check(Line.read(args, Set.of("--horizon-src", "--translator", "--horizon-tools"), Set.of("--compile")), out, err);
             }
             case "translate" -> {
-                return translate(Line.read(args, Set.of("--out"), Set.of()), out, err);
+                return translate(Line.read(args, Set.of("--out", "--server"), Set.of()), out, err);
             }
             case "dump" -> {
                 return dump(Line.read(args, Set.of("--server", "--horizon-src", "--out", "--python"), Set.of()), out, err);
@@ -103,10 +104,21 @@ public final class Main {
         if (!jar.neoforge()) throw new Usage("`translate` takes a NeoForge mod: " + path.getFileName() + " has no " + ModsToml.PATH);
         String id = NeoForgeFrontend.read(jar).info().id();
         Path dir = line.options().containsKey("--out") ? Path.of(line.options().get("--out")) : Path.of("out", id.replaceAll("[^A-Za-z0-9_-]", "_") + "-translated");
-        JarRust.Result r = JarRust.translate(jar);
+        Map<String, ClassData> outside = Map.of();
+        String read = "no --server: the supertypes of the game's classes aren't known";
+        if (line.options().containsKey("--server")) {
+            Path server = Path.of(line.options().get("--server"));
+            if (!Files.isDirectory(server.resolve("libraries"))) throw new Usage(server + " isn't a NeoForge server: it has no libraries/ folder");
+            List<Path> jars = Dump.classpath(server);
+            outside = JavaWorld.outside(jars);
+            read = "the supertypes of " + outside.size() + " classes of the game, NeoForge and their libraries, from " + jars.size() + " jars in " + server;
+        }
+        JarRust.Result r = JarRust.translate(jar, outside);
         java.nio.file.Files.createDirectories(dir);
         java.nio.file.Files.writeString(dir.resolve("translated.rs"), r.rust(), java.nio.charset.StandardCharsets.UTF_8);
-        java.nio.file.Files.writeString(dir.resolve("translation.md"), JarRust.report(r, -1), java.nio.charset.StandardCharsets.UTF_8);
+        java.nio.file.Files.writeString(dir.resolve("translation.md"), JarRust.report(r, -1).replaceFirst("\n\n", "\n\nRead: " + java.util.regex.Matcher.quoteReplacement(read) + ".\n\n"),
+                java.nio.charset.StandardCharsets.UTF_8);
+        out.println("Read: " + read + ".");
         out.println(jar.path().getFileName() + ": " + r.translated().size() + " of " + r.methods() + " methods translated from their bytecode, by this tool's own translator");
         int shown = 0;
         for (var e : r.reasons().entrySet()) {
@@ -460,7 +472,7 @@ public final class Main {
                   mod is run). The last line is `RESULT: ok`, `RESULT: ok, not compiled` or
                   `RESULT: failed (...)`; exit code 0 or 1.
 
-              translate <mod.jar> [--out DIR]
+              translate <mod.jar> [--out DIR] [--server FOLDER]
                   This tool's own translator, from the mod's bytecode to Rust (no decompiling):
                   numbers with Java's exact semantics (wrapping arithmetic, NaN, casts),
                   branches, loops and switches, Math's methods with an exact counterpart;
@@ -473,6 +485,11 @@ public final class Main {
                   streams, the game. Writes DIR/translated.rs
                   and DIR/translation.md (default: out/<mod id>-translated/), which says
                   why each other method isn't translated. Nothing is compiled or run.
+                  --server: a NeoForge server's folder (as for dump): the supertypes of the
+                  classes in its libraries (the game's, NeoForge's, theirs) are read, so a
+                  question such as "is this class of the mod a List?" can be answered
+                  when the class implements one of the game's interfaces. Only the
+                  server's classes: the client's stay unknown.
 
               dump <mod.jar> --server FOLDER --horizon-src FOLDER [--out FILE] [--python PROGRAM]
                   The mod's real facts, read in NeoForge itself by Horizon's own oracle

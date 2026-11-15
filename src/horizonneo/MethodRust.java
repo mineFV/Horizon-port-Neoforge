@@ -199,6 +199,8 @@ final class MethodRust {
                     case 8 -> {
                         // A constructor reference makes objects as `new` does, and is refused where `new` is.
                         if (!world.concrete(site.owner())) return "it makes an object whose superclass is outside the jar: " + site.owner().replace('/', '.');
+                        String hidden = world.unknownSupertype(site.owner());
+                        if (hidden != null) return unknownWhy(site.owner(), hidden);
                         needs.add(new Need("new", null, site.owner(), null, null));
                         needs.add(new Need("init", null, site.owner(), null, null));
                         needs.add(new Need("call", impl, null, null, null));
@@ -215,6 +217,8 @@ final class MethodRust {
                 if (where(c, world) != null && outside(c) != null) return "it makes an object of " + outside(c) + ": " + c.replace('/', '.');
                 if (world.cls(c) == null) return "it makes an object of another library or mod: " + c.replace('/', '.');
                 if (!world.concrete(c)) return "it makes an object whose superclass is outside the jar: " + c.replace('/', '.');
+                String hidden = world.unknownSupertype(c);
+                if (hidden != null) return unknownWhy(c, hidden);
                 needs.add(new Need("new", null, c, null, null));
                 if (!c.equals(owner)) needs.add(new Need("init", null, c, null, null));
                 return null;
@@ -372,8 +376,17 @@ final class MethodRust {
         return primitive(d) ? null : new JarRust.Id("java/util/Objects", "equals", "(Ljava/lang/Object;Ljava/lang/Object;)Z");
     }
 
+    /** Why an object of class c isn't made: its supertype hidden isn't known. */
+    private static String unknownWhy(String c, String hidden) {
+        return "it makes an object whose supertypes aren't all known: " + c.replace('/', '.') + " is a " + hidden.replace('/', '.')
+                + ", which isn't read (another mod's, or the game's without --server)";
+    }
+
     /** Why a lambda site can't be translated: its values would need boxing, or another adaptation. */
     private static String lambdaWhy(ClassData.LambdaSite site, JavaWorld world, List<Need> needs) {
+        String iface = JavaWorld.type(ClassData.returns(site.site()));
+        String hidden = world.unknownSupertype(iface);
+        if (hidden != null) return unknownWhy("a lambda of " + iface, hidden);
         if (where(site.owner(), world) != null) return "it makes a lambda that runs " + where(site.owner(), world) + ": " + site.owner().replace('/', '.') + "." + site.name();
         List<String> captured = ClassData.parameters(site.site());
         List<String> sam = ClassData.parameters(site.erased());

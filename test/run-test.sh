@@ -930,6 +930,22 @@ says "$TR/out/translated.rs" '/// `java.util.HashMap.putVal(ILjava/lang/Object;L
 says "$TR/out/translated.rs" 'fn jnative_array_like(a: Ref, length: i32) -> JR<Ref> {'
 lacks "$TR/out/translation.md" 'nothing implements equals(Ljava/lang/Object;)Z on java.util.Comparator'
 lacks "$TR/out/translation.md" 'several default methods could be getFirst'
+# --server: the supertypes of the game's classes, read from a server's libraries (a stand-in here).
+mkdir -p "$TR/game" "$TR/gamey/META-INF" "$TR/server/libraries/net/neoforged/neoforge/21.1.1"
+javac --release 21 -d "$TR/game" test/translate/game/net/minecraft/world/Named.java
+jar --create --file "$TR/server/libraries/net/neoforged/neoforge/21.1.1/neoforge-21.1.1-server.jar" -C "$TR/game" .
+javac --release 21 -cp "$TR/game" -d "$TR/gamey" test/translate/gamey/com/example/gamey/Tagged.java
+sed 's/numbers/gamey/g; s/Numbers/Gamey/' "$TR/jar/META-INF/neoforge.mods.toml" > "$TR/gamey/META-INF/neoforge.mods.toml"
+jar --create --file "$B/jars/gamey.jar" -C "$TR/gamey" .
+exits 0 tool translate "$B/jars/gamey.jar" --out "$TR/gamey-out"
+says "$OUT" "no --server: the supertypes of the game's classes aren't known"
+says "$TR/gamey-out/translation.md" '`com.example.gamey.Tagged.size(I)I`: it makes an object whose supertypes aren'"'"'t all known: com.example.gamey.Tagged$Tag is a net.minecraft.world.Named'
+exits 0 tool translate "$B/jars/gamey.jar" --server "$TR/server" --out "$TR/gamey-out"
+says "$OUT" "Read: the supertypes of 1 classes of the game, NeoForge and their libraries, from 1 jars in"
+says "$TR/gamey-out/translation.md" '- `com.example.gamey.Tagged.size(I)I` as `tagged__size`'
+says "$TR/gamey-out/translation.md" 'on com.example.gamey.Tagged$Tag it is a default method of net.minecraft.world.Named, outside the jar'
+exits 2 tool translate "$B/jars/gamey.jar" --server "$TR/game"
+says "$ERR" "isn't a NeoForge server: it has no libraries/ folder"
 exits 2 tool translate "$B/jars/fabric.jar"
 says "$ERR" '`translate` takes a NeoForge mod'
 if command -v rustc > /dev/null; then
