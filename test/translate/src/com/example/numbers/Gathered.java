@@ -329,6 +329,12 @@ public final class Gathered {
                 + " " + String.class.getEnumConstants() + " " + Boxes.Color.GREEN.getClass().getEnumConstants() + " " + Enum.valueOf(Boxes.Color.class, "BLUE") + " "
                 + Boxes.Color.valueOf(n % 2 == 0 ? "RED" : "GREEN") + " " + attempt(() -> Enum.valueOf(Boxes.Color.class, "PURPLE" + n)) + " "
                 + attempt(() -> Boxes.Color.valueOf(null)) + " " + Gathered.class.desiredAssertionStatus() + " " + checked(n);
+        Class<?>[] primitives = {int.class, Boolean.TYPE, void.class, long.class, char.class, double.class, Void.TYPE, byte.class, short.class, float.class};
+        Class<?> p = primitives[n % primitives.length];
+        s += " | " + p + " " + p.getName() + " " + p.getSimpleName() + " " + p.getCanonicalName() + " " + p.getTypeName() + " " + p.isPrimitive() + " " + p.isArray() + " "
+                + p.isInterface() + " " + p.isEnum() + " " + p.getSuperclass() + " " + p.isAssignableFrom(p) + " " + Object.class.isAssignableFrom(p) + " "
+                + p.isAssignableFrom(Integer.class) + " " + p.isInstance(n) + " " + (p == int.class) + " " + (p == Integer.TYPE) + " " + Integer.class.isPrimitive() + " "
+                + p.getEnumConstants() + " " + attempt(() -> p.cast(n)) + " " + p.cast(null) + " " + (p.hashCode() == p.hashCode()) + " " + p.equals(long.class);
         return s;
     }
 

@@ -128,9 +128,25 @@ final class JarRust {
 
         Map<Id, String> translated = new TreeMap<>();
         String rust;
+        // Every method that checks, for revive: settle drops methods for good.
+        Map<Id, List<Need>> pool = new TreeMap<>(needs);
         // Written until every method written has what it needs written too: one whose flow can't be followed drops out.
         while (true) {
-            settle(world, needs, why);
+            // Two ways, each leaving methods that have what they need; the one that leaves more of the mod's is kept.
+            // The other first drops what drops whatever objects there are (a call, a class initializer): the objects
+            // are then only those of the methods that may stay, and fewer objects ask less of the type tests and
+            // virtual calls. Neither way's methods are always more than the other's.
+            Map<Id, List<Need>> first = new TreeMap<>(needs);
+            Map<Id, String> whyFirst = new TreeMap<>(why);
+            settle(world, first, whyFirst, null, true);
+            settleAndRevive(world, pool, first, whyFirst);
+            settleAndRevive(world, pool, needs, why);
+            if (own(world, first) > own(world, needs)) {
+                needs.clear();
+                needs.putAll(first);
+                why.clear();
+                why.putAll(whyFirst);
+            }
             Set<Id> reached = reached(world, needs);
             Map<Id, List<Need>> written = new TreeMap<>();
             for (Id id : reached) if (needs.containsKey(id)) written.put(id, needs.get(id));
@@ -151,6 +167,7 @@ final class JarRust {
                 } catch (RuntimeException e) {
                     why.put(id, "its flow couldn't be followed: " + e.getMessage());
                     needs.remove(id);
+                    pool.remove(id);
                     again = true;
                 }
             }
@@ -227,6 +244,20 @@ final class JarRust {
             return out;
         }
 
+        /**
+         * Whether what a method makes (an object, a lambda, a class constant) is among these. A class constant only
+         * counts for the enums a class object may stand for: one of another type, or of an enum already among them,
+         * adds nothing.
+         */
+        boolean has(Need n, JavaWorld world) {
+            return switch (n.kind()) {
+                case "new" -> (n.type().startsWith("[") ? arrays : classes).contains(n.type());
+                case "lambda" -> lambdas.contains(n.type());
+                case "class" -> !world.enumClass(n.type()) || enums(world).contains(n.type());
+                default -> true;
+            };
+        }
+
         List<String> all() {
             List<String> out = new ArrayList<>(classes);
             out.addAll(arrays);
@@ -254,12 +285,34 @@ final class JarRust {
         return new Instances(classes, arrays, lambdas, constants);
     }
 
-    private static void settle(JavaWorld world, Map<Id, List<Need>> needs, Map<Id, String> why) {
+    private static void settleAndRevive(JavaWorld world, Map<Id, List<Need>> pool, Map<Id, List<Need>> needs, Map<Id, String> why) {
+        settle(world, needs, why, null, false);
+        while (revive(world, pool, needs, why)) {
+            // What came back may let more come back.
+        }
+    }
+
+    /** The needs that ask something of every object there may be. */
+    private static final Set<String> OVER_OBJECTS = Set.of("dispatch", "enums", "test");
+
+    /**
+     * Drops the methods whose needs aren't met until none is left to drop; objectsAside: only by the needs that ask
+     * nothing of the objects there may be. The objects there can be are those the methods left make; with frozen,
+     * frozen's, and a method that would make one frozen hasn't drops out (it keeps the reason it had).
+     */
+    private static void settle(JavaWorld world, Map<Id, List<Need>> needs, Map<Id, String> why, Instances frozen, boolean objectsAside) {
         for (boolean changed = true; changed; ) {
             changed = false;
-            Instances inst = instances(world, needs);
+            Instances inst = frozen != null ? frozen : objectsAside ? null : instances(world, needs);
             for (Id id : List.copyOf(needs.keySet())) {
                 for (Need n : needs.get(id)) {
+                    if (objectsAside && OVER_OBJECTS.contains(n.kind())) continue;
+                    if (frozen != null && !frozen.has(n, world)) {
+                        why.putIfAbsent(id, "it makes an object no other translated method makes");
+                        needs.remove(id);
+                        changed = true;
+                        break;
+                    }
                     String reason = unmet(n, world, needs, why, inst);
                     if (reason == null) continue;
                     why.put(id, reason);
@@ -269,6 +322,39 @@ final class JarRust {
                 }
             }
         }
+    }
+
+    /**
+     * settle drops a method for good, though what dropped it may go later: Enum.valueOf drops while an enum whose
+     * values() isn't translated has a class constant, and stays dropped once the method with that constant drops in
+     * turn. So every method is checked again over frozen objects, those that the methods the mod's reach make, and a
+     * method that would make more stays out: each method reached then still has what it needs. True when more of the
+     * mod's came back. (Taking in what the methods back make instead, until the objects cover it, brought fewer back
+     * on Mekanism: the objects some make cost many others.)
+     */
+    private static boolean revive(JavaWorld world, Map<Id, List<Need>> pool, Map<Id, List<Need>> needs, Map<Id, String> why) {
+        Instances frozen = instances(world, reachedNeeds(world, needs));
+        Map<Id, List<Need>> again = new TreeMap<>(pool);
+        Map<Id, String> whyAgain = new TreeMap<>(why);
+        settle(world, again, whyAgain, frozen, false);
+        if (own(world, again) <= own(world, needs)) return false;
+        needs.clear();
+        needs.putAll(again);
+        why.clear();
+        why.putAll(whyAgain);
+        why.keySet().removeAll(needs.keySet());
+        return true;
+    }
+
+    /** The needs of the methods written: only what the mod's methods reach runs, and makes objects. */
+    private static Map<Id, List<Need>> reachedNeeds(JavaWorld world, Map<Id, List<Need>> needs) {
+        Map<Id, List<Need>> out = new TreeMap<>();
+        for (Id id : reached(world, needs)) out.put(id, needs.get(id));
+        return out;
+    }
+
+    private static long own(JavaWorld world, Map<Id, List<Need>> needs) {
+        return needs.keySet().stream().filter(id -> world.jar.contains(id.owner())).count();
     }
 
     /** Why a need isn't met by what is translated; null when it is. */
@@ -554,13 +640,14 @@ final class JarRust {
         /** The natives that read the class objects' tables: when one is written, the tables are. */
         static final Set<String> CLASS_NATIVES = Set.of("jnative_object_get_class", "jnative_class_name", "jnative_class_simple_name",
                 "jnative_class_canonical_name", "jnative_class_instance", "jnative_class_assignable", "jnative_class_flags", "jnative_class_super",
-                "jnative_class_enum_values");
+                "jnative_class_enum_values", "jnative_class_primitive");
 
         /** The class objects' tables, over every type with an id and their supertypes (each given an id here). */
         String classTables() {
             // Every supertype of a type with an id gets one: the tables walk them.
             java.util.Deque<String> todo = new java.util.ArrayDeque<>(world.ids().keySet());
             todo.addAll(List.of(JavaWorld.OBJECT, "java/lang/Cloneable", "java/io/Serializable"));
+            for (char k : JavaWorld.PRIMITIVES.toCharArray()) todo.add(JavaWorld.PRIMITIVE + k);
             Set<String> seen = new java.util.HashSet<>();
             while (!todo.isEmpty()) {
                 String t = todo.poll();
@@ -585,7 +672,9 @@ final class JarRust {
                 String t = e.getKey();
                 int id = e.getValue();
                 int f = 0;
-                if (t.startsWith("[")) {
+                if (t.startsWith(JavaWorld.PRIMITIVE)) {
+                    f = 8;
+                } else if (t.startsWith("[")) {
                     f = 4;
                     String component = t.substring(1);
                     if (component.length() > 1) comp.append("        ").append(id).append(" => ").append(world.id(JavaWorld.type(component))).append(",\n");
@@ -611,6 +700,8 @@ final class JarRust {
                 String can = canonicalName(t);
                 if (can != null) canonical.append("        ").append(id).append(" => Some(").append(MethodRust.rustText(can)).append("),\n");
             }
+            StringBuilder primitives = new StringBuilder();
+            for (char k : JavaWorld.PRIMITIVES.toCharArray()) primitives.append("        b'").append(k).append("' => ").append(world.id(JavaWorld.PRIMITIVE + k)).append(",\n");
             StringBuilder enums = new StringBuilder();
             for (String e : inst.enums(world)) {
                 String fn = functions.get(new Id(e, "values", "()[L" + e + ";"));
@@ -627,16 +718,23 @@ final class JarRust {
                     + "\n/// A class's superclass (0: none, an interface, Object).\n#[allow(dead_code)]\nfn jclass_super(c: u32) -> u32 {\n    match c {\n" + sup + "        _ => 0,\n    }\n}\n"
                     + "\n/// A type's direct interfaces.\n#[allow(dead_code)]\nfn jclass_interfaces(c: u32) -> &'static [u32] {\n    match c {\n" + ifs + "        _ => &[],\n    }\n}\n"
                     + "\n/// An array of references' component type (0: not one).\n#[allow(dead_code)]\nfn jclass_component(c: u32) -> u32 {\n    match c {\n" + comp + "        _ => 0,\n    }\n}\n"
-                    + "\n/// 1: an interface, 2: an enum's own class, 4: an array.\n#[allow(dead_code)]\nfn jclass_flags(c: u32) -> i32 {\n    match c {\n" + flags + "        _ => 0,\n    }\n}\n"
+                    + "\n/// 1: an interface, 2: an enum's own class, 4: an array, 8: a primitive type or void.\n#[allow(dead_code)]\nfn jclass_flags(c: u32) -> i32 {\n    match c {\n" + flags + "        _ => 0,\n    }\n}\n"
                     + "\n/// getSimpleName.\n#[allow(dead_code)]\nfn jclass_simple(c: u32) -> &'static str {\n    match c {\n" + simple + "        _ => \"?\",\n    }\n}\n"
                     + "\n/// getCanonicalName (None for a local or anonymous class, a lambda's).\n#[allow(dead_code)]\nfn jclass_canonical(c: u32) -> Option<&'static str> {\n    match c {\n" + canonical + "        _ => None,\n    }\n}\n"
+                    + "\n/// The id of a primitive type or void, from its descriptor.\n#[allow(dead_code)]\nfn jclass_primitive(descriptor: i32) -> u32 {\n    match descriptor as u8 {\n" + primitives + "        _ => 0,\n    }\n}\n"
                     + "\n/// An enum's values(), from its class's id; null for any other type.\n#[allow(dead_code)]\nfn jenum_values(c: u32) -> JR<Ref> {\n    match c {\n" + enums + "        _ => Ok(None),\n    }\n}\n"
                     + """
 
                     /// Whether an object of type a is one of type t (Class.isInstance, isAssignableFrom).
                     #[allow(dead_code)]
                     fn jinstance_of(t: u32, a: u32) -> bool {
-                        if a == t || t == JOBJECT {
+                        if a == t {
+                            return true;
+                        }
+                        if jclass_flags(a) & 8 != 0 || jclass_flags(t) & 8 != 0 {
+                            return false;
+                        }
+                        if t == JOBJECT {
                             return true;
                         }
                         if jclass_flags(a) & 4 != 0 {
@@ -685,6 +783,7 @@ final class JarRust {
 
         /** getSimpleName, as the JDK gives it from the InnerClasses attribute. */
         String simpleName(String t) {
+            if (t.startsWith(JavaWorld.PRIMITIVE)) return primitiveName(t.charAt(JavaWorld.PRIMITIVE.length()));
             if (t.startsWith("[")) {
                 String component = t.substring(1);
                 return (component.length() == 1 ? primitiveName(component.charAt(0)) : simpleName(JavaWorld.type(component))) + "[]";
@@ -700,6 +799,7 @@ final class JarRust {
 
         /** getCanonicalName: null for a local or anonymous class, a lambda's, or an array of one. */
         String canonicalName(String t) {
+            if (t.startsWith(JavaWorld.PRIMITIVE)) return primitiveName(t.charAt(JavaWorld.PRIMITIVE.length()));
             if (t.startsWith("[")) {
                 String component = t.substring(1);
                 if (component.length() == 1) return primitiveName(component.charAt(0)) + "[]";
@@ -725,6 +825,7 @@ final class JarRust {
                 case 'I' -> "int";
                 case 'J' -> "long";
                 case 'F' -> "float";
+                case 'V' -> "void";
                 default -> "double";
             };
         }
@@ -754,7 +855,8 @@ final class JarRust {
             b.append("\n/// Each class's binary name, as getClass().getName() gives it.\n#[allow(dead_code)]\nfn jclass_name(c: u32) -> &'static str {\n    match c {\n");
             for (Map.Entry<String, Integer> e : new TreeMap<>(world.ids()).entrySet()) {
                 String t = e.getKey();
-                String shown = t.startsWith(JavaWorld.LAMBDA) ? t.substring(JavaWorld.LAMBDA.length(), t.indexOf('#')).replace('/', '.') + "$$Lambda" : t.replace('/', '.');
+                String shown = t.startsWith(JavaWorld.LAMBDA) ? t.substring(JavaWorld.LAMBDA.length(), t.indexOf('#')).replace('/', '.') + "$$Lambda"
+                        : t.startsWith(JavaWorld.PRIMITIVE) ? primitiveName(t.charAt(JavaWorld.PRIMITIVE.length())) : t.replace('/', '.');
                 b.append("        ").append(e.getValue()).append(" => ").append(MethodRust.rustText(shown)).append(",\n");
             }
             b.append("        _ => \"?\",\n    }\n}\n");
@@ -1439,7 +1541,7 @@ final class JarRust {
         StringBuilder b = new StringBuilder("# What horizon-port-neoforge's own translator translated\n\n");
         b.append(r.translated().size()).append(" of ").append(r.methods()).append(" methods with a body, from their bytecode");
         if (horizonPort >= 0) b.append(" (horizon-port, from decompiled Java: ").append(horizonPort).append(")");
-        b.append(". Objects, arrays, fields, inheritance, lambdas, exceptions and the library model (texts, boxes, collections...) are translated; Class objects, streams and the game come next.\n\n");
+        b.append(". Objects, arrays, fields, inheritance, lambdas, exceptions and the library model (texts, boxes, collections, Class objects...) are translated; streams and the game come next.\n\n");
         b.append("| Why the others aren't | Methods |\n|---|---|\n");
         r.reasons().forEach((w, n) -> b.append("| ").append(w.replace("|", "\\|")).append(" | ").append(n).append(" |\n"));
         b.append("\n## Translated\n\n");

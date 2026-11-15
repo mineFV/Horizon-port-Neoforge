@@ -22,9 +22,10 @@ public class EnumMap<K extends Enum<K>, V> extends AbstractMap<K, V> implements 
         return (V) (value == NULL ? null : value);
     }
 
+    @SuppressWarnings("unchecked")
     public EnumMap(Class<K> keyType) {
         this.keyType = keyType;
-        keyUniverse = keyType.getEnumConstants();
+        keyUniverse = (K[]) keyType.jEnumUniverse();
         vals = new Object[keyUniverse.length];
     }
 
@@ -46,7 +47,7 @@ public class EnumMap<K extends Enum<K>, V> extends AbstractMap<K, V> implements 
         } else {
             if (m.isEmpty()) throw new IllegalArgumentException("Specified map is empty");
             keyType = m.keySet().iterator().next().getDeclaringClass();
-            keyUniverse = keyType.getEnumConstants();
+            keyUniverse = (K[]) keyType.jEnumUniverse();
             vals = new Object[keyUniverse.length];
             putAll(m);
         }

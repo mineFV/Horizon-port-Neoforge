@@ -2,6 +2,9 @@ package java.lang;
 
 /** The model of java.lang.Integer: boxes (valueOf's cache from -128 to 127 included) and texts. parseInt isn't modelled yet. */
 public final class Integer extends Number implements Comparable<Integer> {
+    @SuppressWarnings("unchecked")
+    public static final Class<Integer> TYPE = (Class<Integer>) Class.jPrimitive('I');
+
     public static final int MIN_VALUE = 0x80000000;
     public static final int MAX_VALUE = 0x7fffffff;
     public static final int SIZE = 32;

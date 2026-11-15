@@ -3,8 +3,8 @@ package java.lang;
 /**
  * The model of java.lang.Class: a type of the translation's world, by the runtime's id for it. There is one object
  * for each type (`Foo.class == foo.getClass()`), made by the runtime. Its names, supertypes and enum constants come
- * from tables the translator writes. Not modelled: primitive types' objects (int.class), reflection on members,
- * annotations, getComponentType, getPackage, records' components.
+ * from tables the translator writes. A primitive type's object (int.class, Integer.TYPE) is one too. Not modelled:
+ * reflection on members, annotations, getComponentType, getPackage, records' components.
  */
 public final class Class<T> implements java.io.Serializable {
     private final int id;
@@ -82,7 +82,7 @@ public final class Class<T> implements java.io.Serializable {
     }
 
     public boolean isPrimitive() {
-        return false;
+        return (jFlags(id) & 8) != 0;
     }
 
     /** null for Object, an interface; Object for an array. */
@@ -97,13 +97,22 @@ public final class Class<T> implements java.io.Serializable {
         return (T[]) jEnumValues(id);
     }
 
+    /**
+     * getEnumConstants as an array of Enum, for Enum.valueOf, EnumMap and EnumSet: the JDK's own array is of the
+     * enum's type, which a cast to the generic type would test against every array there is. Not the JDK's API: a
+     * mod, built against the JDK, can't call it.
+     */
+    public Enum<?>[] jEnumUniverse() {
+        return jEnumValues(id);
+    }
+
     /** Assertions are off, as a JVM's are unless it is told otherwise. */
     public boolean desiredAssertionStatus() {
         return false;
     }
 
     public String toString() {
-        return (isInterface() ? "interface " : "class ").concat(getName());
+        return (isInterface() ? "interface " : isPrimitive() ? "" : "class ").concat(getName());
     }
 
     private static native String jName(int id);
@@ -121,5 +130,8 @@ public final class Class<T> implements java.io.Serializable {
     private static native Class<?> jSuper(int id);
 
     /** The enum's values(), or null when it isn't an enum: the translator asks for every enum's values() it may need. */
-    private static native Object[] jEnumValues(int id);
+    private static native Enum<?>[] jEnumValues(int id);
+
+    /** The object of a primitive type or void, by its descriptor: Integer.TYPE and the like. */
+    static native Class<?> jPrimitive(char descriptor);
 }

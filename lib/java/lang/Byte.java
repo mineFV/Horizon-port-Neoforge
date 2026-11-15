@@ -2,6 +2,9 @@ package java.lang;
 
 /** The model of java.lang.Byte: boxes (valueOf's cache from -128 to 127 included). */
 public final class Byte extends Number implements Comparable<Byte> {
+    @SuppressWarnings("unchecked")
+    public static final Class<Byte> TYPE = (Class<Byte>) Class.jPrimitive('B');
+
     private final byte value;
 
     public Byte(byte value) {

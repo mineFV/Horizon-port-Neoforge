@@ -178,11 +178,18 @@ final class Library {
                         Ok(if s == 0 { None } else { jclass_object(s) })
                     }
                     """)),
-            Map.entry("java/lang/Class.jEnumValues(I)[Ljava/lang/Object;", new Native("jnative_class_enum_values", """
+            Map.entry("java/lang/Class.jEnumValues(I)[Ljava/lang/Enum;", new Native("jnative_class_enum_values", """
                     /// getEnumConstants: the enum's values(), a new array each time; null for any other type.
                     #[allow(dead_code)]
                     fn jnative_class_enum_values(c: i32) -> JR<Ref> {
                         jenum_values(c as u32)
+                    }
+                    """)),
+            Map.entry("java/lang/Class.jPrimitive(C)Ljava/lang/Class;", new Native("jnative_class_primitive", """
+                    /// Integer.TYPE and the like: the object of a primitive type or void, by its descriptor.
+                    #[allow(dead_code)]
+                    fn jnative_class_primitive(descriptor: u16) -> JR<Ref> {
+                        Ok(jclass_object(jclass_primitive(descriptor as i32)))
                     }
                     """)),
             Map.entry("java/util/Arrays.newArrayLike([Ljava/lang/Object;I)[Ljava/lang/Object;", new Native("jnative_array_like", """

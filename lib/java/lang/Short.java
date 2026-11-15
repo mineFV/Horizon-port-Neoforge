@@ -2,6 +2,9 @@ package java.lang;
 
 /** The model of java.lang.Short: boxes (valueOf's cache from -128 to 127 included). */
 public final class Short extends Number implements Comparable<Short> {
+    @SuppressWarnings("unchecked")
+    public static final Class<Short> TYPE = (Class<Short>) Class.jPrimitive('S');
+
     private final short value;
 
     public Short(short value) {

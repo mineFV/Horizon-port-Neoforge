@@ -40,11 +40,12 @@ public abstract class Enum<E extends Enum<E>> implements Comparable<E>, java.io.
         return (Class<E>) ((zuper == Enum.class) ? clazz : zuper);
     }
 
+    @SuppressWarnings("unchecked")
     public static <T extends Enum<T>> T valueOf(Class<T> enumClass, String name) {
-        T[] universe = enumClass.getEnumConstants();
+        Enum<?>[] universe = enumClass.jEnumUniverse();
         if (universe == null) throw new IllegalArgumentException(enumClass.getName().concat(" is not an enum class"));
         if (name == null) throw new NullPointerException("Name is null");
-        for (T constant : universe) if (constant.name().equals(name)) return constant;
+        for (Enum<?> constant : universe) if (constant.name().equals(name)) return (T) constant;
         throw new IllegalArgumentException("No enum constant ".concat(String.valueOf(enumClass.getCanonicalName())).concat(".").concat(name));
     }
 

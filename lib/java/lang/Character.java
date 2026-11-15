@@ -2,6 +2,9 @@ package java.lang;
 
 /** The model of java.lang.Character: boxes (valueOf's cache from 0 to 127 included). Its Unicode tables aren't modelled. */
 public final class Character implements java.io.Serializable, Comparable<Character> {
+    @SuppressWarnings("unchecked")
+    public static final Class<Character> TYPE = (Class<Character>) Class.jPrimitive('C');
+
     public static final char MIN_VALUE = '\u0000';
     public static final char MAX_VALUE = '￿';
     private final char value;

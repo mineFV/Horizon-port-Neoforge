@@ -460,6 +460,12 @@ final class JavaWorld {
 
     static final String LAMBDA = "lambda:";
 
+    /** The key of a primitive type's or void's class object: "primitive:I" for int.class. */
+    static final String PRIMITIVE = "primitive:";
+
+    /** The descriptors of the primitive types and void. */
+    static final String PRIMITIVES = "ZBCSIJFDV";
+
     /** The ObjectMethods sites (a record's equals, hashCode, toString), by key. */
     final Map<String, MethodRust.ObjectMethodsSite> objectMethods = new LinkedHashMap<>();
 

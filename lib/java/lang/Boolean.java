@@ -2,6 +2,9 @@ package java.lang;
 
 /** The model of java.lang.Boolean: its two objects, as valueOf gives them. */
 public final class Boolean implements java.io.Serializable, Comparable<Boolean> {
+    @SuppressWarnings("unchecked")
+    public static final Class<Boolean> TYPE = (Class<Boolean>) Class.jPrimitive('Z');
+
     public static final Boolean TRUE = new Boolean(true);
     public static final Boolean FALSE = new Boolean(false);
     private final boolean value;

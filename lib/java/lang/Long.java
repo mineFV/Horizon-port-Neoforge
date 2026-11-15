@@ -2,6 +2,9 @@ package java.lang;
 
 /** The model of java.lang.Long: boxes (valueOf's cache from -128 to 127 included) and texts. parseLong isn't modelled yet. */
 public final class Long extends Number implements Comparable<Long> {
+    @SuppressWarnings("unchecked")
+    public static final Class<Long> TYPE = (Class<Long>) Class.jPrimitive('J');
+
     public static final long MIN_VALUE = 0x8000000000000000L;
     public static final long MAX_VALUE = 0x7fffffffffffffffL;
     public static final int SIZE = 64;

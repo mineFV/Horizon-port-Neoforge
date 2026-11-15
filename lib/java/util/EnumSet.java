@@ -18,7 +18,7 @@ public abstract class EnumSet<E extends Enum<E>> extends AbstractSet<E> implemen
     }
 
     public static <E extends Enum<E>> EnumSet<E> noneOf(Class<E> elementType) {
-        Enum<?>[] universe = elementType.getEnumConstants();
+        Enum<?>[] universe = elementType.jEnumUniverse();
         if (universe == null) throw new ClassCastException(String.valueOf(elementType).concat(" not an enum"));
         if (universe.length <= 64) return new RegularEnumSet<>(elementType, universe);
         return new JumboEnumSet<>(elementType, universe);

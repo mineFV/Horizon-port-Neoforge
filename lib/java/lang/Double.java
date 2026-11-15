@@ -2,6 +2,9 @@ package java.lang;
 
 /** The model of java.lang.Double: boxes (no cache, as the JDK's), the bits of a value, comparisons with NaN and -0.0 ordered. */
 public final class Double extends Number implements Comparable<Double> {
+    @SuppressWarnings("unchecked")
+    public static final Class<Double> TYPE = (Class<Double>) Class.jPrimitive('D');
+
     private final double value;
 
     public Double(double value) {

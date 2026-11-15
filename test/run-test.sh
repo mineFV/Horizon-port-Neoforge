@@ -908,7 +908,7 @@ javac --release 21 -cp "$TR/classes" -d "$TR/classes" test/translate/NumbersChec
 printf 'modLoader = "javafml"\nloaderVersion = "[4,)"\nlicense = "MIT"\n[[mods]]\nmodId = "numbers"\nversion = "1.0"\ndisplayName = "Numbers"\n' > "$TR/jar/META-INF/neoforge.mods.toml"
 jar --create --file "$B/jars/numbers.jar" -C "$TR/jar" . -C "$TR/classes" com
 exits 0 tool translate "$B/jars/numbers.jar" --out "$TR/out"
-says "$OUT" "numbers.jar: 254 of 254 methods translated from their bytecode"
+says "$OUT" "numbers.jar: 255 of 255 methods translated from their bytecode"
 # Class objects: an enum's valueOf (Enum.valueOf with a class constant), and their tables.
 says "$TR/out/translation.md" '- `com.example.numbers.Boxes$Color.valueOf(Ljava/lang/String;)Lcom/example/numbers/Boxes$Color;` as'
 says "$TR/out/translated.rs" 'fn jinstance_of(t: u32, a: u32) -> bool {'
@@ -943,16 +943,20 @@ lacks "$TR/out/translation.md" 'nothing implements equals(Ljava/lang/Object;)Z o
 lacks "$TR/out/translation.md" 'several default methods could be getFirst'
 # --server: the supertypes of the game's classes, read from a server's libraries (a stand-in here).
 mkdir -p "$TR/game" "$TR/gamey/META-INF" "$TR/server/libraries/net/neoforged/neoforge/21.1.1"
-javac --release 21 -d "$TR/game" test/translate/game/net/minecraft/world/Named.java
+javac --release 21 -d "$TR/game" test/translate/game/net/minecraft/world/Named.java test/translate/game/net/minecraft/world/Light.java
 jar --create --file "$TR/server/libraries/net/neoforged/neoforge/21.1.1/neoforge-21.1.1-server.jar" -C "$TR/game" .
+rm -rf "$TR/gamey/com"
 javac --release 21 -cp "$TR/game" -d "$TR/gamey" test/translate/gamey/com/example/gamey/Tagged.java
 sed 's/numbers/gamey/g; s/Numbers/Gamey/' "$TR/jar/META-INF/neoforge.mods.toml" > "$TR/gamey/META-INF/neoforge.mods.toml"
 jar --create --file "$B/jars/gamey.jar" -C "$TR/gamey" .
 exits 0 tool translate "$B/jars/gamey.jar" --out "$TR/gamey-out"
 says "$OUT" "no --server: the supertypes of the game's classes aren't known"
 says "$TR/gamey-out/translation.md" '`com.example.gamey.Tagged.size(I)I`: it makes an object whose supertypes aren'"'"'t all known: com.example.gamey.Tagged$Tag is a net.minecraft.world.Named'
+# A method dropped while something it needs may hold, back once what dropped it is gone.
+says "$TR/gamey-out/translation.md" '- `com.example.gamey.Tagged.pick(Ljava/lang/String;)I` as `tagged__pick`'
+says "$TR/gamey-out/translation.md" '`com.example.gamey.Tagged$Stuck.valueOf(Ljava/lang/String;)Lcom/example/gamey/Tagged$Stuck;`: it initializes com.example.gamey.Tagged$Stuck'
 exits 0 tool translate "$B/jars/gamey.jar" --server "$TR/server" --out "$TR/gamey-out"
-says "$OUT" "Read: the supertypes of 1 classes of the game, NeoForge and their libraries, from 1 jars in"
+says "$OUT" "Read: the supertypes of 2 classes of the game, NeoForge and their libraries, from 1 jars in"
 says "$TR/gamey-out/translation.md" '- `com.example.gamey.Tagged.size(I)I` as `tagged__size`'
 says "$TR/gamey-out/translation.md" 'on com.example.gamey.Tagged$Tag it is a default method of net.minecraft.world.Named, outside the jar'
 exits 2 tool translate "$B/jars/gamey.jar" --server "$TR/game"

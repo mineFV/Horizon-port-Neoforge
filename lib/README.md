@@ -16,7 +16,7 @@ and why:
 
 - a bin of nine keys or more in a table of 64 or more is a red-black tree in the JDK, which iterates its root
   first; the model keeps it a list. The JDK's tree orders keys of no common Comparable class by their class names
-  and identity hashes, which the model has no Class objects for, and which change from run to run anyway;
+  and identity hashes, which change from run to run anyway;
 - Set.of, Set.copyOf, Map.of, Map.ofEntries and Map.copyOf iterate in the order their elements were given: the
   JDK's order is salted at random when the JVM starts, so no program can count on it;
 - sorting (Arrays.sort, List.sort, Collections.sort) gives the JDK's result, as any stable sort does, but asks the
@@ -24,6 +24,6 @@ and why:
 - a sublist of List.of is a copy (the JDK's is a view; neither can change), and the views Collections'
   unmodifiable maps give of their entries are new objects each time they are iterated.
 
-Not modelled: Class objects (EnumMap, EnumSet, toArray's runtime types beyond copying an array's own class), streams,
+Not modelled: toArray's runtime types beyond copying an array's own class, Class.getComponentType, streams,
 spliterators, list iterators, reversed views, TreeMap, ArrayDeque, concurrent collections.
 

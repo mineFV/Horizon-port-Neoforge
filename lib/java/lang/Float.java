@@ -2,6 +2,9 @@ package java.lang;
 
 /** The model of java.lang.Float: boxes (no cache, as the JDK's), the bits of a value, comparisons with NaN and -0.0 ordered. */
 public final class Float extends Number implements Comparable<Float> {
+    @SuppressWarnings("unchecked")
+    public static final Class<Float> TYPE = (Class<Float>) Class.jPrimitive('F');
+
     private final float value;
 
     public Float(float value) {
