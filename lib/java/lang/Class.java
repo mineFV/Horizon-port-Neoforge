@@ -4,7 +4,7 @@ package java.lang;
  * The model of java.lang.Class: a type of the translation's world, by the runtime's id for it. There is one object
  * for each type (`Foo.class == foo.getClass()`), made by the runtime. Its names, supertypes and enum constants come
  * from tables the translator writes. A primitive type's object (int.class, Integer.TYPE) is one too. Not modelled:
- * reflection on members, annotations, getComponentType, getPackage, records' components.
+ * reflection on members, annotations, getPackage, records' components.
  */
 public final class Class<T> implements java.io.Serializable {
     private final int id;
@@ -90,6 +90,17 @@ public final class Class<T> implements java.io.Serializable {
     public Class<? super T> getSuperclass() {
         return (Class<? super T>) jSuper(id);
     }
+
+    /** An array's component type (int.class for an int[]); null for any other type. */
+    public Class<?> getComponentType() {
+        return jComponent(id);
+    }
+
+    public Class<?> componentType() {
+        return jComponent(id);
+    }
+
+    private static native Class<?> jComponent(int id);
 
     /** Its constants in order, a new array each time; null when it isn't an enum. */
     @SuppressWarnings("unchecked")

@@ -3,7 +3,7 @@ package java.util;
 /**
  * The model of java.util.UUID: its two longs, their text, equality, order and hash as the JDK's. randomUUID's bits come
  * from the runtime's random source (the JDK's from a SecureRandom: either is random); nameUUIDFromBytes's MD5 is
- * written here from RFC 1321. Not modelled: fromString, timestamp and its kin.
+ * written here from RFC 1321. Not modelled: timestamp and its kin.
  */
 public final class UUID implements java.io.Serializable, Comparable<UUID> {
     private final long mostSigBits;
@@ -24,6 +24,58 @@ public final class UUID implements java.io.Serializable, Comparable<UUID> {
     }
 
     private static native long jRandom();
+
+    /** Five hexadecimal groups between dashes (the usual 8-4-4-4-12 read fast), with the JDK's errors. */
+    public static UUID fromString(String name) {
+        if (name.length() == 36) {
+            if (name.charAt(8) == '-' && name.charAt(13) == '-' && name.charAt(18) == '-' && name.charAt(23) == '-') {
+                long msb1 = parse4Nibbles(name, 0);
+                long msb2 = parse4Nibbles(name, 4);
+                long msb3 = parse4Nibbles(name, 9);
+                long msb4 = parse4Nibbles(name, 14);
+                long lsb1 = parse4Nibbles(name, 19);
+                long lsb2 = parse4Nibbles(name, 24);
+                long lsb3 = parse4Nibbles(name, 28);
+                long lsb4 = parse4Nibbles(name, 32);
+                if ((msb1 | msb2 | msb3 | msb4 | lsb1 | lsb2 | lsb3 | lsb4) >= 0) {
+                    return new UUID(msb1 << 48 | msb2 << 32 | msb3 << 16 | msb4, lsb1 << 48 | lsb2 << 32 | lsb3 << 16 | lsb4);
+                }
+            }
+        }
+        return fromString1(name);
+    }
+
+    /** Four ASCII hexadecimal digits from i, -1 when one isn't. */
+    private static long parse4Nibbles(String name, int i) {
+        long v = 0;
+        for (int k = i; k < i + 4; k++) {
+            char c = name.charAt(k);
+            int d = c >= '0' && c <= '9' ? c - '0' : c >= 'a' && c <= 'f' ? c - 'a' + 10 : c >= 'A' && c <= 'F' ? c - 'A' + 10 : -1;
+            if (d < 0) return -1;
+            v = (v << 4) | d;
+        }
+        return v;
+    }
+
+    private static UUID fromString1(String name) {
+        int len = name.length();
+        if (len > 36) throw new IllegalArgumentException("UUID string too large");
+        int dash1 = name.indexOf('-', 0);
+        int dash2 = name.indexOf('-', dash1 + 1);
+        int dash3 = name.indexOf('-', dash2 + 1);
+        int dash4 = name.indexOf('-', dash3 + 1);
+        int dash5 = name.indexOf('-', dash4 + 1);
+        if (dash4 < 0 || dash5 >= 0) throw new IllegalArgumentException("Invalid UUID string: ".concat(name));
+        long mostSigBits = Long.parseLong(name, 0, dash1, 16) & 0xffffffffL;
+        mostSigBits <<= 16;
+        mostSigBits |= Long.parseLong(name, dash1 + 1, dash2, 16) & 0xffffL;
+        mostSigBits <<= 16;
+        mostSigBits |= Long.parseLong(name, dash2 + 1, dash3, 16) & 0xffffL;
+        long leastSigBits = Long.parseLong(name, dash3 + 1, dash4, 16) & 0xffffL;
+        leastSigBits <<= 48;
+        leastSigBits |= Long.parseLong(name, dash4 + 1, len, 16) & 0xffffffffffffL;
+        return new UUID(mostSigBits, leastSigBits);
+    }
 
     /** Version 3: the MD5 of the bytes, with the version and the IETF variant set. */
     public static UUID nameUUIDFromBytes(byte[] name) {

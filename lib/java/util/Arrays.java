@@ -857,4 +857,54 @@ public final class Arrays {
         Objects.requireNonNull(generator);
         for (int i = 0; i < array.length; i++) array[i] = generator.apply(i);
     }
+
+    /** The elements' hashes, an array's by its contents (deeply for an array of objects). */
+    public static int deepHashCode(Object[] a) {
+        if (a == null) return 0;
+        int result = 1;
+        for (Object element : a) {
+            int elementHash;
+            if (element == null) elementHash = 0;
+            else if (element instanceof Object[] oa) elementHash = deepHashCode(oa);
+            else if (element instanceof int[] x) elementHash = hashCode(x);
+            else if (element instanceof long[] x) elementHash = hashCode(x);
+            else if (element instanceof short[] x) elementHash = hashCode(x);
+            else if (element instanceof char[] x) elementHash = hashCode(x);
+            else if (element instanceof byte[] x) elementHash = hashCode(x);
+            else if (element instanceof boolean[] x) elementHash = hashCode(x);
+            else if (element instanceof float[] x) elementHash = hashCode(x);
+            else if (element instanceof double[] x) elementHash = hashCode(x);
+            else elementHash = element.hashCode();
+            result = 31 * result + elementHash;
+        }
+        return result;
+    }
+
+    public static boolean deepEquals(Object[] a1, Object[] a2) {
+        if (a1 == a2) return true;
+        if (a1 == null || a2 == null) return false;
+        int length = a1.length;
+        if (a2.length != length) return false;
+        for (int i = 0; i < length; i++) {
+            Object e1 = a1[i];
+            Object e2 = a2[i];
+            if (e1 == e2) continue;
+            if (e1 == null) return false;
+            if (!deepEquals0(e1, e2)) return false;
+        }
+        return true;
+    }
+
+    static boolean deepEquals0(Object e1, Object e2) {
+        if (e1 instanceof Object[] x && e2 instanceof Object[] y) return deepEquals(x, y);
+        if (e1 instanceof byte[] x && e2 instanceof byte[] y) return equals(x, y);
+        if (e1 instanceof short[] x && e2 instanceof short[] y) return equals(x, y);
+        if (e1 instanceof int[] x && e2 instanceof int[] y) return equals(x, y);
+        if (e1 instanceof long[] x && e2 instanceof long[] y) return equals(x, y);
+        if (e1 instanceof char[] x && e2 instanceof char[] y) return equals(x, y);
+        if (e1 instanceof float[] x && e2 instanceof float[] y) return equals(x, y);
+        if (e1 instanceof double[] x && e2 instanceof double[] y) return equals(x, y);
+        if (e1 instanceof boolean[] x && e2 instanceof boolean[] y) return equals(x, y);
+        return e1.equals(e2);
+    }
 }

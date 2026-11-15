@@ -248,4 +248,8 @@ public final class StringBuilder implements java.io.Serializable, Comparable<Str
     public String toString() {
         return new String(value, 0, count);
     }
+
+    public CharSequence subSequence(int start, int end) {
+        return substring(start, end);
+    }
 }

@@ -192,4 +192,76 @@ public final class Long extends Number implements Comparable<Long> {
     public static Long valueOf(String s) {
         return Long.valueOf(parseLong(s, 10));
     }
+
+    /** The characters from beginIndex to endIndex, with the JDK's messages (the index of the bad one in the part). */
+    public static long parseLong(CharSequence s, int beginIndex, int endIndex, int radix) {
+        java.util.Objects.requireNonNull(s);
+        int length = s.length();
+        if (beginIndex < 0 || beginIndex > endIndex || endIndex > length) {
+            throw new IndexOutOfBoundsException("Range [".concat(Integer.toString(beginIndex)).concat(", ").concat(Integer.toString(endIndex)).concat(") out of bounds for length ")
+                    .concat(Integer.toString(length)));
+        }
+        NumberFormatException.checkRadix(radix);
+        boolean negative = false;
+        int i = beginIndex;
+        long limit = -MAX_VALUE;
+        if (i >= endIndex) throw new NumberFormatException("");
+        char firstChar = s.charAt(i);
+        if (firstChar < '0') {
+            if (firstChar == '-') {
+                negative = true;
+                limit = MIN_VALUE;
+            } else if (firstChar != '+') {
+                throw forCharSequence(s, beginIndex, endIndex, i);
+            }
+            i++;
+        }
+        if (i >= endIndex) throw forCharSequence(s, beginIndex, endIndex, i);
+        long multmin = limit / radix;
+        long result = 0;
+        while (i < endIndex) {
+            int digit = Character.digit(s.charAt(i), radix);
+            if (digit < 0 || result < multmin) throw forCharSequence(s, beginIndex, endIndex, i);
+            result *= radix;
+            if (result < limit + digit) throw forCharSequence(s, beginIndex, endIndex, i);
+            i++;
+            result -= digit;
+        }
+        return negative ? result : -result;
+    }
+
+    private static NumberFormatException forCharSequence(CharSequence s, int beginIndex, int endIndex, int errorIndex) {
+        return new NumberFormatException("Error at index ".concat(Integer.toString(errorIndex - beginIndex)).concat(" in: \"")
+                .concat(s.subSequence(beginIndex, endIndex).toString()).concat("\""));
+    }
+
+    /**
+     * As an unsigned value: an optional '+', digits read from the left; the first trouble met is the one reported
+     * (a digit the radix hasn't, or the value past 2^64 - 1), as the JDK the tests run on.
+     */
+    public static long parseUnsignedLong(String s, int radix) {
+        if (s == null) throw new NumberFormatException("Cannot parse null string");
+        NumberFormatException.checkRadix(radix);
+        int len = s.length();
+        if (len == 0) throw NumberFormatException.forInputString(s, radix);
+        int i = 0;
+        char firstChar = s.charAt(0);
+        if (firstChar == '-') throw new NumberFormatException("Illegal leading minus sign on unsigned string ".concat(s).concat("."));
+        if (firstChar == '+') i = 1;
+        if (i >= len) throw NumberFormatException.forInputString(s, radix);
+        long result = 0;
+        for (; i < len; i++) {
+            int d = Character.digit(s.charAt(i), radix);
+            if (d < 0) throw NumberFormatException.forInputString(s, radix);
+            long lo = (result & 0xffffffffL) * radix + d;
+            long hi = (result >>> 32) * radix + (lo >>> 32);
+            if ((hi >>> 32) != 0) throw new NumberFormatException("String value ".concat(s).concat(" exceeds range of unsigned long."));
+            result = (hi << 32) | (lo & 0xffffffffL);
+        }
+        return result;
+    }
+
+    public static long parseUnsignedLong(String s) {
+        return parseUnsignedLong(s, 10);
+    }
 }

@@ -525,4 +525,16 @@ public final class String implements java.io.Serializable, Comparable<String>, C
         }
         return b.toString();
     }
+
+    public static String copyValueOf(char[] data) {
+        return new String(data);
+    }
+
+    public static String copyValueOf(char[] data, int offset, int count) {
+        return new String(data, offset, count);
+    }
+
+    public CharSequence subSequence(int beginIndex, int endIndex) {
+        return substring(beginIndex, endIndex);
+    }
 }

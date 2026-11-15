@@ -708,7 +708,7 @@ final class JarRust {
         /** The natives that read the class objects' tables: when one is written, the tables are. */
         static final Set<String> CLASS_NATIVES = Set.of("jnative_object_get_class", "jnative_class_name", "jnative_class_simple_name",
                 "jnative_class_canonical_name", "jnative_class_instance", "jnative_class_assignable", "jnative_class_flags", "jnative_class_super",
-                "jnative_class_enum_values", "jnative_class_primitive");
+                "jnative_class_enum_values", "jnative_class_primitive", "jnative_system_arraycopy", "jnative_class_component");
 
         /** The class objects' tables, over every type with an id and their supertypes (each given an id here). */
         String classTables() {

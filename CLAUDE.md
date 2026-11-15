@@ -274,17 +274,17 @@ Say so rather than assume it works:
 - the library model leaves out reflection on members, parsing numbers (Character's Unicode tables), case
   mapping (toUpperCase), limit and skip: a method that uses them isn't translated. Where its
   collections differ from the JDK's is in `lib/README.md` (a HashMap bin the JDK makes a tree, Set.of's order);
-- Mekanism (2026-11-15, afternoon): 9050 of 24149 methods without `--server`, 9067 with it (NeoForge 21.1.266's
+- Mekanism (2026-11-15, afternoon): 9057 of 24149 methods without `--server`, 9074 with it (NeoForge 21.1.266's
   libraries), in about 35 s and 1 GB, the same output run after run. The steps, each type-checked: 6414 (the
   collections), 8154 (no object whose supertypes aren't all known), 7302 (class objects; static methods initializing
   their class, which rightly dropped those whose initializer isn't translated), 7668 (`revive`), 8967 (the makers of
   an object a call can't run on drop, not the callers), 9067 (the rest of the library model: streams, UUID, atomics,
-  threads and executors, Unicode, TreeMap, ConcurrentHashMap...). With `--server` there were fewer for a while:
+  threads and executors, Unicode, TreeMap, ConcurrentHashMap...), 9074 (arraycopy, BitSet, UUID.fromString...). With `--server` there were fewer for a while:
   objects of classes implementing NeoForge's interfaces can then be made, and calls that may reach them must be
   certain. The game holds the rest back: `essais/mekanism/phase-d-notes.md` measures what each part of it is worth;
 - our translator's output has been compiled and run on the test's made-up classes only. Mekanism's translation was
   type-checked by rustc (`--emit=metadata`): 4363 methods at the maintainer's request (2026-11-14), then every
-  version up to 9067 on 2026-11-15, while the maintainer was away and had left the decisions to the agent: no
+  version up to 9074 on 2026-11-15, while the maintainer was away and had left the decisions to the agent: no
   error, no warning. Never run. Nothing calls them yet: the world of
   objects is closed, and a translated method called from the game with an object of the game's would break that;
 - the facts read blocks without a level: what a block decides from its neighbours or its block entity (a cable's

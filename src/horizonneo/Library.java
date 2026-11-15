@@ -500,6 +500,79 @@ final class Library {
                         Ok(juni_text(JUNI_UPPER_TEXT, cp))
                     }
                     """)),
+            Map.entry("java/lang/System.arraycopy(Ljava/lang/Object;ILjava/lang/Object;II)V", new Native("jnative_system_arraycopy", """
+                    /// System.arraycopy, checked as HotSpot checks it, with its messages; the source read first (an
+                    /// overlap copies as if through a buffer); an element that can't go in stops it, those before it copied.
+                    #[allow(dead_code)]
+                    fn jnative_system_arraycopy(src: Ref, src_pos: i32, dst: Ref, dst_pos: i32, length: i32) -> JR<()> {
+                        let s = jobj(&src)?.clone();
+                        let d = jobj(&dst)?.clone();
+                        let (sc, dc) = (s.class, d.class);
+                        const KINDS: [&str; 8] = ["boolean", "byte", "char", "short", "int", "long", "float", "double"];
+                        let primitive = |c: u32| (1..=8).contains(&c);
+                        if jclass_flags(sc) & 4 == 0 && !primitive(sc) {
+                            return Err(jexception(JID_ARRAY_STORE, Some(&format!("arraycopy: source type {} is not an array", jclass_name(sc)))));
+                        }
+                        if jclass_flags(dc) & 4 == 0 && !primitive(dc) {
+                            return Err(jexception(JID_ARRAY_STORE, Some(&format!("arraycopy: destination type {} is not an array", jclass_name(dc)))));
+                        }
+                        let elements = |c: u32| if primitive(c) { KINDS[(c - 1) as usize].to_string() } else { "object array".to_string() };
+                        if (primitive(sc) || primitive(dc)) && sc != dc {
+                            return Err(jexception(JID_ARRAY_STORE, Some(&format!("arraycopy: type mismatch: can not copy {}[] into {}[]", elements(sc), elements(dc)))));
+                        }
+                        let slen = jlock(&s.slots).len();
+                        let dlen = jlock(&d.slots).len();
+                        if src_pos < 0 {
+                            return Err(jexception(JID_ARRAY_INDEX, Some(&format!("arraycopy: source index {} out of bounds for {}[{}]", src_pos, elements(sc), slen))));
+                        }
+                        if dst_pos < 0 {
+                            return Err(jexception(JID_ARRAY_INDEX, Some(&format!("arraycopy: destination index {} out of bounds for {}[{}]", dst_pos, elements(dc), dlen))));
+                        }
+                        if length < 0 {
+                            return Err(jexception(JID_ARRAY_INDEX, Some(&format!("arraycopy: length {} is negative", length))));
+                        }
+                        let last_src = (length as u32).wrapping_add(src_pos as u32);
+                        let last_dst = (length as u32).wrapping_add(dst_pos as u32);
+                        if last_src as usize > slen {
+                            return Err(jexception(JID_ARRAY_INDEX, Some(&format!("arraycopy: last source index {} out of bounds for {}[{}]", last_src, elements(sc), slen))));
+                        }
+                        if last_dst as usize > dlen {
+                            return Err(jexception(JID_ARRAY_INDEX, Some(&format!("arraycopy: last destination index {} out of bounds for {}[{}]", last_dst, elements(dc), dlen))));
+                        }
+                        if length == 0 {
+                            return Ok(());
+                        }
+                        let part: Vec<Value> = jlock(&s.slots)[src_pos as usize..(src_pos + length) as usize].to_vec();
+                        let (scomp, dcomp) = (jclass_component(sc), jclass_component(dc));
+                        let check = !primitive(sc) && !(scomp == dcomp || jinstance_of(dcomp, scomp));
+                        let mut g = jlock(&d.slots);
+                        for (k, v) in part.into_iter().enumerate() {
+                            if check {
+                                if let Value::A(Some(o)) = &v {
+                                    if !jinstance_of(dcomp, o.class) {
+                                        return Err(jexception(JID_ARRAY_STORE, Some(&format!(
+                                            "arraycopy: element type mismatch: can not cast one of the elements of {}[] to the type of the destination array, {}",
+                                            jclass_name(scomp), jclass_name(dcomp)))));
+                                    }
+                                }
+                            }
+                            g[dst_pos as usize + k] = v;
+                        }
+                        Ok(())
+                    }
+                    """)),
+            Map.entry("java/lang/Class.jComponent(I)Ljava/lang/Class;", new Native("jnative_class_component", """
+                    /// getComponentType: an array's component's class object, null for any other type.
+                    #[allow(dead_code)]
+                    fn jnative_class_component(c: i32) -> JR<Ref> {
+                        let c = c as u32;
+                        if (1..=8).contains(&c) {
+                            return Ok(jclass_object(jclass_primitive(b"ZBCSIJFD"[(c - 1) as usize] as i32)));
+                        }
+                        let comp = jclass_component(c);
+                        Ok(if comp == 0 { None } else { jclass_object(comp) })
+                    }
+                    """)),
             Map.entry("java/util/Arrays.newArrayLike([Ljava/lang/Object;I)[Ljava/lang/Object;", new Native("jnative_array_like", """
                     /// A new array of a's class (a String[] for a String[]), of this length, all null; the length isn't negative.
                     #[allow(dead_code)]

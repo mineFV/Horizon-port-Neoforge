@@ -1,11 +1,13 @@
 package java.lang;
 
 /**
- * The model of java.lang.System: the time, identity hashes. Not modelled: arraycopy, the streams (out, err, in),
+ * The model of java.lang.System: arraycopy, the time, identity hashes. Not modelled: the streams (out, err, in),
  * properties, the environment, exit.
  */
 public final class System {
     private System() {}
+
+    public static native void arraycopy(Object src, int srcPos, Object dest, int destPos, int length);
 
     /** The milliseconds since 1970-01-01T00:00Z, by the machine's clock. */
     public static native long currentTimeMillis();

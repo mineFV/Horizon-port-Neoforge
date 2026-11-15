@@ -1174,4 +1174,90 @@ public final class Gathered {
         b.append(attempt(() -> java.util.concurrent.CompletableFuture.failedFuture(new RuntimeException("x" + n)).getNow(5)));
         return b.toString();
     }
+
+    // ---- arraycopy, BitSet, UUID.fromString, unsigned parsing, deep arrays ----
+
+    public static String extras(int n) {
+        StringBuilder b = new StringBuilder();
+        int[] ints = {1, 2, 3, 4, 5, 6};
+        System.arraycopy(ints, 0, ints, 1 + n % 3, 3);
+        Object[] objs = {"a", 1, "c", 2.5};
+        String[] strs = new String[4];
+        b.append(Arrays.toString(ints)).append(attempt(() -> {
+            System.arraycopy(objs, 0, strs, 0, 4);
+            return "copied";
+        })).append(Arrays.toString(strs));
+        b.append(attempt(() -> {
+            System.arraycopy("x", 0, ints, 0, 1);
+            return 1;
+        })).append(attempt(() -> {
+            System.arraycopy(ints, 0, "y", 0, 1);
+            return 1;
+        })).append(attempt(() -> {
+            System.arraycopy(ints, 0, new long[3], 0, 1);
+            return 1;
+        })).append(attempt(() -> {
+            System.arraycopy(objs, 0, ints, 0, 1);
+            return 1;
+        })).append(attempt(() -> {
+            System.arraycopy(ints, -n - 1, ints, 0, 1);
+            return 1;
+        })).append(attempt(() -> {
+            System.arraycopy(objs, 0, objs, -1, 1);
+            return 1;
+        })).append(attempt(() -> {
+            System.arraycopy(ints, 0, ints, 0, -2);
+            return 1;
+        })).append(attempt(() -> {
+            System.arraycopy(ints, 4, ints, 0, 3 + n);
+            return 1;
+        })).append(attempt(() -> {
+            System.arraycopy(ints, 0, new int[2], 1, 2);
+            return 1;
+        })).append(attempt(() -> {
+            System.arraycopy(null, 0, ints, 0, 1);
+            return 1;
+        })).append(" ");
+        b.append(int[].class.getComponentType()).append(String[][].class.getComponentType()).append(String.class.getComponentType()).append(" ");
+        java.util.BitSet bits = new java.util.BitSet();
+        bits.set(3);
+        bits.set(n * 10 + 70);
+        bits.set(5, 9 + n);
+        bits.clear(6);
+        java.util.BitSet other = new java.util.BitSet(20);
+        other.set(4, 12);
+        b.append(bits).append(bits.size()).append(bits.length()).append(bits.cardinality()).append(bits.nextSetBit(4)).append(bits.nextClearBit(5)).append(bits.previousSetBit(60))
+                .append(bits.get(7)).append(bits.intersects(other)).append(bits.hashCode()).append(other.size());
+        bits.and(other);
+        b.append(bits);
+        bits.or(other);
+        bits.xor(java.util.BitSet.valueOf(new long[] {0b1010L}));
+        b.append(bits).append(bits.equals(other)).append(attempt(() -> new java.util.BitSet(-1))).append(attempt(() -> {
+            other.set(-1);
+            return 1;
+        })).append(attempt(() -> other.previousSetBit(-2))).append(Arrays.toString(other.toLongArray())).append(" ");
+        for (String u : new String[] {"123e4567-e89b-12d3-a456-42661417400" + n, "1-2-3-4-5", "123E4567-E89B-12D3-A456-426614174000", "x-2-3-4-5", "1-2-3-4", "1-2-3-4-5-6",
+            "0123456789abcdef0123456789abcdef01234567", "ffffffff-ffff-ffff-ffff-ffffffffffff"}) {
+            b.append(attempt(() -> java.util.UUID.fromString(u))).append(";");
+        }
+        for (String u : new String[] {"18446744073709551615", "18446744073709551616", "-1", "9223372036854775808", "", "ffffffffffffffff", "1" + n}) {
+            b.append(attempt(() -> Long.parseUnsignedLong(u))).append(attempt(() -> Long.parseUnsignedLong(u, 16))).append(";");
+        }
+        b.append(attempt(() -> Long.parseLong("x123y", 1, 4, 10))).append(attempt(() -> Long.parseLong("x1a3y", 1, 4, 10))).append(attempt(() -> Long.parseLong("abc", 2, 1, 10)))
+                .append(attempt(() -> Long.parseLong("-", 0, 1, 10))).append(" ");
+        Object[] deep = {1, new int[] {n, 2}, new Object[] {"x", new long[] {3}}, null};
+        Object[] deep2 = {1, new int[] {n, 2}, new Object[] {"x", new long[] {3}}, null};
+        b.append(Arrays.deepEquals(deep, deep2)).append(Arrays.deepHashCode(deep) == Arrays.deepHashCode(deep2)).append(Arrays.deepHashCode(deep)).append(Arrays.equals(deep, deep2));
+        java.util.Set<String> fromMap = Collections.newSetFromMap(new LinkedHashMap<>());
+        fromMap.add("q" + n);
+        fromMap.add("p");
+        b.append(fromMap).append(fromMap.add("p")).append(attempt(() -> Collections.newSetFromMap(new HashMap<>(Map.of("x", true)))))
+                .append(attempt(() -> java.util.Objects.requireNonNull(null, () -> "supplied" + n))).append(String.copyValueOf(new char[] {'a', 'b', 'c'}, 1, 2));
+        int r = java.util.concurrent.ThreadLocalRandom.current().nextInt(5, 9);
+        b.append(r >= 5 && r < 9).append(attempt(() -> {
+            java.util.concurrent.ThreadLocalRandom.current().setSeed(1);
+            return 1;
+        }));
+        return b.toString();
+    }
 }
