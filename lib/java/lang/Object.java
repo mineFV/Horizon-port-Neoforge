@@ -2,12 +2,15 @@ package java.lang;
 
 /**
  * The model of java.lang.Object. hashCode is the object's identity, as the JVM's is (its value differs from a JVM's,
- * which differs from run to run anyway). getClass and clone aren't modelled yet.
+ * which differs from run to run anyway). clone isn't modelled yet.
  */
 public class Object {
     public Object() {}
 
     public native int hashCode();
+
+    /** The object's class: one object for each type, the same as its class constant. */
+    public final native Class<?> getClass();
 
     public boolean equals(Object obj) {
         return this == obj;

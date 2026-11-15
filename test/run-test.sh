@@ -908,8 +908,17 @@ javac --release 21 -cp "$TR/classes" -d "$TR/classes" test/translate/NumbersChec
 printf 'modLoader = "javafml"\nloaderVersion = "[4,)"\nlicense = "MIT"\n[[mods]]\nmodId = "numbers"\nversion = "1.0"\ndisplayName = "Numbers"\n' > "$TR/jar/META-INF/neoforge.mods.toml"
 jar --create --file "$B/jars/numbers.jar" -C "$TR/jar" . -C "$TR/classes" com
 exits 0 tool translate "$B/jars/numbers.jar" --out "$TR/out"
-says "$OUT" "numbers.jar: 230 of 231 methods translated from their bytecode"
-says "$TR/out/translation.md" '`com.example.numbers.Boxes$Color.valueOf(Ljava/lang/String;)Lcom/example/numbers/Boxes$Color;`: it uses a class or another constant'
+says "$OUT" "numbers.jar: 239 of 239 methods translated from their bytecode"
+# Class objects: an enum's valueOf (Enum.valueOf with a class constant), and their tables.
+says "$TR/out/translation.md" '- `com.example.numbers.Boxes$Color.valueOf(Ljava/lang/String;)Lcom/example/numbers/Boxes$Color;` as'
+says "$TR/out/translated.rs" 'fn jinstance_of(t: u32, a: u32) -> bool {'
+says "$TR/out/translated.rs" 'fn jnative_object_get_class(this: Ref) -> JR<Ref> {'
+# A static method initializes its class first, as invokestatic does: here, for its assertions' flag.
+if grep -A1 'pub fn gathered__checked(mut l0: i32) -> JR<Ref> {' "$TR/out/translated.rs" | grep -q '^    jinit_[0-9]*()?;$'; then
+  echo "  ok: gathered__checked initializes its class first"
+else
+  echo "  FAIL: gathered__checked doesn't initialize its class first"; failures=$((failures + 1))
+fi
 says "$OUT" "Nothing was compiled or run"
 says "$TR/out/translated.rs" 'pub fn numbers__collatz(mut l0: i64) -> JR<i64> {'
 says "$TR/out/translated.rs" 'pub fn numbers__is_digit(p0: u16) -> JR<bool> {'

@@ -28,8 +28,9 @@ its machines (block entities, menus, screens) and its logic, not only its wiring
    library is a model of our own (`lib/`), translated with the mod: Object, String (texts and their joins),
    Throwable and the JVM's exceptions, Record (its ObjectMethods), Enum, the boxes with their caches, Objects,
    java.util.function, the collections (ArrayList, HashMap and LinkedHashMap in the JDK's order, the sets, List.of
-   and kin, Collections, Arrays, Comparator), Optional and StringBuilder; lambdas box, unbox and widen as LambdaMetafactory does.
-   Left in (c): Class objects (EnumMap, Enum.valueOf), streams. Then (d) the game's API; then its
+   and kin, Collections, Arrays, Comparator), Optional, StringBuilder, and Class objects (one for each type, class
+   constants, getClass, isInstance, names, getEnumConstants, Enum.valueOf); lambdas box, unbox and widen as
+   LambdaMetafactory does. Left in (c): EnumMap and EnumSet, streams. Then (d) the game's API; then its
    output goes into `port`'s bundle, and its flow is rebuilt as loops and `if`s.
 
 It is separate code that **calls** other programs and never contains theirs:
@@ -156,6 +157,15 @@ The tool's commands: `metadata`, `license`, `analyze`, `port`, `check`, `pack`, 
   the game's, NeoForge's and their libraries' classes from a server's libraries; the client's classes and other
   mods' stay unknown. A default method of an interface read that way is the game's code: a call that may select it
   isn't translated. Type tests are answered once per set of objects: asking them per method took minutes.
+- **Calling a static method initializes its class** (invokestatic, JVMS 5.5), from wherever it is called: each
+  translated static method of a class with an initializer (or a superclass with one) starts with it. Without it,
+  one called from outside the class (the game, the test's harness) ran with its statics unset (an `assert` fired:
+  `$assertionsDisabled` is set by the initializer). Mekanism went from 8160 to 7302: the methods that left were
+  static ones of classes whose initializer isn't translated, which Java would have run first.
+- **Class objects come from tables the translator writes**: a type's superclass, interfaces, array component and
+  flags (walked by `jinstance_of`), simple and canonical names (from the InnerClasses attribute, which `ClassData`
+  now reads), and each enum's `values()`. A call to getEnumConstants needs the `values()` of every enum whose class
+  object there may be (a class constant, or the class of an object there is).
 - **HotSpot drops the message of a JVM exception it throws often at one place** (OmitStackTraceInFastThrow): the
   Java reference of `test/translate/` runs with it off.
 - **Rust's `as` from a float to an int is Java's cast** (saturating, NaN to 0), but `f64::min`/`max` and `signum`
@@ -206,13 +216,13 @@ Say so rather than assume it works:
   82 with energy, 16 with tanks, no menu NeoForge could be asked for. The tests run `Machines` on a made-up
   machines file; the exporter itself only compiles and runs against a real server;
 - the machine helpers passed `check` (by reading) on Mekanism's bundle, never cargo nor the game;
-- the library model leaves out what needs Class objects (getClass, Enum.valueOf, getDeclaringClass, EnumMap),
-  parsing numbers (Character's Unicode tables), streams: a method that uses them isn't translated. Where its
+- the library model leaves out primitive types' class objects (int.class), reflection on members, EnumMap and
+  EnumSet, parsing numbers (Character's Unicode tables), streams: a method that uses them isn't translated. Where its
   collections differ from the JDK's is in `lib/README.md` (a HashMap bin the JDK makes a tree, Set.of's order);
 - Mekanism (2026-11-15): 6414 of 24149 methods with the collections; then 8154 without `--server` and 7721 with
   it (NeoForge 21.1.266's libraries). Fewer with it: the objects of classes implementing NeoForge's interfaces can
   then be made, and calls that may reach their methods that use the game aren't translated. Both are sound in the
-  closed world;
+  closed world. With class objects and static methods that initialize their class: 7302 (2026-11-15), type-checked;
 - our translator's output has been compiled and run on the test's made-up classes only. Mekanism's translation was
   type-checked by rustc (`--emit=metadata`): 4363 methods at the maintainer's request (2026-11-14), then 8154
   (and 7721 with `--server`) on 2026-11-15, while the maintainer was away and had left the decisions to the agent:

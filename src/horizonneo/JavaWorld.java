@@ -65,7 +65,8 @@ final class JavaWorld {
     int id(String type) {
         Integer id = ids.get(type);
         if (id != null) return id;
-        if (!type.startsWith("[") && !type.startsWith(LAMBDA)) throw new IllegalArgumentException("no id for " + type);
+        // An array, a lambda, or a type with no objects of its own (an interface, an abstract class, a type outside
+        // the jar): it has an id when a class object stands for it, or for the class objects' tables.
         ids.put(type, next);
         return next++;
     }
@@ -416,6 +417,17 @@ final class JavaWorld {
         ClassData.Method m = declared(OBJECT, name, descriptor);
         if (m != null && !m.isStatic() && (m.access() & (ClassData.ABSTRACT | 0x0002)) == 0) return new Selected(new JarRust.Id(OBJECT, name, descriptor), null);
         return select(lambdaInterface(key), name, descriptor);
+    }
+
+    /** An enum's own class (not a constant's body): ACC_ENUM, and Enum its superclass. */
+    boolean enumClass(String c) {
+        ClassData data = classes.get(c);
+        return data != null && (data.access & 0x4000) != 0 && "java/lang/Enum".equals(data.superName);
+    }
+
+    /** A type's superclass and interfaces as far as they are known (the jar, the model, the JDK, --server); null when it isn't. */
+    ClassData knownClass(String name) {
+        return known(name);
     }
 
     /** Whether c is an interface known from outside the jar and the model. */

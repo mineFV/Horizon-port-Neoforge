@@ -85,6 +85,7 @@ final class MethodRust {
             needs.add(new Need("test", null, h.type(), null, null));
         }
         if ((m.access() & 0x0020) != 0) return new Check("it is synchronized: monitors aren't translated yet", needs);
+        if (initsOnEntry(owner, m, world)) needs.add(new Need("init", null, owner, null, null));
         List<Insn> code;
         try {
             code = Bytecode.decode(m.body().code());
@@ -106,7 +107,13 @@ final class MethodRust {
                 Object c = pool.constant(i.index());
                 if (c instanceof Number) return null;
                 if (c instanceof String) return text(world, needs);
-                return "it uses a class or another constant: classes as values aren't translated yet";
+                if (c instanceof ClassData.TypeName t && world.concrete(CLASS)) {
+                    // A class constant: the runtime's one object for that type.
+                    needs.add(new Need("new", null, CLASS, null, null));
+                    needs.add(new Need("class", null, t.descriptor(), null, null));
+                    return null;
+                }
+                return "it uses a constant not translated yet (a method handle or a method type)";
             }
             case GETSTATIC, PUTSTATIC -> {
                 String[] t = pool.member(i.index());
@@ -125,6 +132,8 @@ final class MethodRust {
             case INVOKESTATIC -> {
                 String[] t = pool.member(i.index());
                 Call call = new Call(t[0], t[1], t[2]);
+                // Class.getEnumConstants: every enum whose class object there may be has its values() translated.
+                if (t[0].equals(CLASS) && t[1].equals("jEnumValues")) needs.add(new Need("enums", null, null, null, null));
                 if (library(call) != null) return null;
                 if (where(t[0], world) != null) return "it calls " + where(t[0], world) + ": " + display(call);
                 String declaring = null;
@@ -267,6 +276,8 @@ final class MethodRust {
     }
 
     static final String STRING = "java/lang/String";
+
+    static final String CLASS = "java/lang/Class";
 
     /** The model's String.valueOf (or jtext, for a String) that turns a value of this descriptor into text. */
     static JarRust.Id textOf(String d) {
@@ -459,6 +470,17 @@ final class MethodRust {
         if (held == null) needs.add(new Need("test", null, b, null, null));
         needs.add(new Need("dispatch", null, b, UNBOX.get(through), "()" + through));
         return null;
+    }
+
+    /**
+     * Whether a static method starts by initializing its class, as invokestatic does (JVMS 5.5) from wherever it is
+     * called: from the game, or from code that doesn't know the class is initialized yet. Initializing an initialized
+     * class, or one this thread is initializing, does nothing.
+     */
+    static boolean initsOnEntry(String owner, ClassData.Method m, JavaWorld world) {
+        if ((m.access() & 0x0008) == 0 || m.name().equals("<clinit>")) return false;
+        for (String c : world.initOrder(owner)) if (world.declared(c, "<clinit>", "()V") != null) return true;
+        return false;
     }
 
     /** Whether a use of class c's statics, from code of class current, has to initialize c first (JVMS 5.5). */
@@ -722,6 +744,7 @@ final class MethodRust {
             String r = ClassData.returns(m.descriptor());
             out.append(") -> JR<").append(r.equals("V") ? "()" : rust(r)).append("> {\n");
             converted.forEach(c -> out.append(c).append('\n'));
+            if (initsOnEntry(owner, m, world)) out.append("    ").append(names.init(owner)).append("()?;\n");
             for (Map<Character, String> types : locals.values()) {
                 for (Map.Entry<Character, String> e : types.entrySet()) {
                     if (declared.add(e.getValue())) out.append("    let mut ").append(e.getValue()).append(": ").append(kindType(e.getKey())).append(" = ").append(zero(e.getKey())).append(";\n");
@@ -797,6 +820,7 @@ final class MethodRust {
                         case Float n -> push('F', literal(n));
                         case Double n -> push('D', literal(n));
                         case String text -> pushTemp('A', names.literal(text) + "()");
+                        case ClassData.TypeName t -> pushTemp('A', "jclass_object(" + names.id(t.descriptor()) + ")");
                         default -> throw new IllegalStateException("ldc of " + c);
                     }
                 } else if (op >= ILOAD && op <= ALOAD) {

@@ -211,7 +211,7 @@ final class ImmutableCollections {
         }
     }
 
-    static final class List12<E> extends AbstractImmutableList<E> {
+    static final class List12<E> extends AbstractImmutableList<E> implements java.io.Serializable {
         private final E e0;
         private final Object e1;
 
@@ -255,7 +255,7 @@ final class ImmutableCollections {
         }
     }
 
-    static final class ListN<E> extends AbstractImmutableList<E> {
+    static final class ListN<E> extends AbstractImmutableList<E> implements java.io.Serializable {
         private final Object[] elements;
 
         ListN(Object[] elements) {
@@ -294,7 +294,7 @@ final class ImmutableCollections {
         public abstract int hashCode();
     }
 
-    static final class Set12<E> extends AbstractImmutableSet<E> {
+    static final class Set12<E> extends AbstractImmutableSet<E> implements java.io.Serializable {
         private final E e0;
         private final Object e1;
 
@@ -347,7 +347,7 @@ final class ImmutableCollections {
         }
     }
 
-    static final class SetN<E> extends AbstractImmutableSet<E> {
+    static final class SetN<E> extends AbstractImmutableSet<E> implements java.io.Serializable {
         private final Object[] elements;
 
         SetN(Object[] elements) {
@@ -454,7 +454,7 @@ final class ImmutableCollections {
         }
     }
 
-    static final class Map1<K, V> extends AbstractImmutableMap<K, V> {
+    static final class Map1<K, V> extends AbstractImmutableMap<K, V> implements java.io.Serializable {
         private final K k0;
         private final V v0;
 
@@ -493,7 +493,7 @@ final class ImmutableCollections {
     }
 
     /** Its keys and values one after the other, in the order given. */
-    static final class MapN<K, V> extends AbstractImmutableMap<K, V> {
+    static final class MapN<K, V> extends AbstractImmutableMap<K, V> implements java.io.Serializable {
         private final Object[] table;
         private final int size;
 

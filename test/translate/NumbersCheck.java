@@ -114,6 +114,7 @@ public final class NumbersCheck {
             p("optionals", n, () -> Gathered.optionals(n));
             p("arrayHelpers", n, () -> Gathered.arrays(n));
             p("builders", n, () -> Gathered.builders(n));
+            p("classes", n, () -> Gathered.classes(n));
         }
         for (double d : DOUBLES) p("doubleText", d(d), () -> Texts.doubleText(d));
         for (float f : FLOATS) p("floatText", f(f), () -> Texts.floatText(f));

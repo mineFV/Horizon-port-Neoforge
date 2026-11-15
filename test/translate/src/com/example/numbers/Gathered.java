@@ -306,6 +306,36 @@ public final class Gathered {
         return s;
     }
 
+    // ---- Class objects ----
+
+    public static String classes(int n) {
+        class Local {}
+        Runnable lambda = () -> {};
+        Object[] things = {"s", n, new ArrayList<>(), List.of(1), Boxes.Color.GREEN, Boxes.Color.RED, new int[1], new String[0], new Item("a", 1), new Object(),
+            Optional.empty(), new Local(), new Object() {}, new Item[1][], Map.entry(1, 2)};
+        Object o = things[n % things.length];
+        Class<?> c = o.getClass();
+        String s = c.getName() + " " + c.getSimpleName() + " " + c.getCanonicalName() + " " + c.getTypeName() + " " + c + " " + c.isArray() + " " + c.isEnum() + " "
+                + c.isInterface() + " " + c.getSuperclass() + " " + (c == o.getClass()) + " " + c.isInstance(o) + " " + Comparable.class.isInstance(o) + " "
+                + Object[].class.isInstance(o) + " " + Cloneable.class.isInstance(o) + " " + java.io.Serializable.class.isInstance(o) + " " + Runnable.class.isInstance(o) + " "
+                + Number.class.isAssignableFrom(c) + " " + c.isAssignableFrom(Integer.class) + " " + attempt(() -> String.class.cast(o)) + " "
+                + (o instanceof Enum<?> e ? e.getDeclaringClass().getName() : "-");
+        s += " | " + (String.class == "x".getClass()) + " " + (int[].class == new int[0].getClass()) + " " + Integer.class.isInstance(n) + " " + Runnable.class.isInstance(lambda)
+                + " " + Runnable.class.isInterface() + " " + Runnable.class + " " + Comparable.class.getSuperclass() + " " + Object.class.getSuperclass() + " "
+                + String[].class.getSuperclass() + " " + Object[].class.isAssignableFrom(String[][].class) + " " + int[].class.getSimpleName() + " "
+                + Map.Entry.class.getCanonicalName() + " " + Arrays.toString(Boxes.Color.class.getEnumConstants()) + " " + (Boxes.Color.class.getEnumConstants() != Boxes.Color.class.getEnumConstants())
+                + " " + String.class.getEnumConstants() + " " + Boxes.Color.GREEN.getClass().getEnumConstants() + " " + Enum.valueOf(Boxes.Color.class, "BLUE") + " "
+                + Boxes.Color.valueOf(n % 2 == 0 ? "RED" : "GREEN") + " " + attempt(() -> Enum.valueOf(Boxes.Color.class, "PURPLE" + n)) + " "
+                + attempt(() -> Boxes.Color.valueOf(null)) + " " + Gathered.class.desiredAssertionStatus() + " " + checked(n);
+        return s;
+    }
+
+    /** An assert: off, as a JVM's are unless told otherwise. */
+    static String checked(int n) {
+        assert n < 0 : "never checked";
+        return "unchecked";
+    }
+
     static <T> String collect(Collection<T> from, Collection<T> into) {
         into.addAll(from);
         into.forEach(x -> {});

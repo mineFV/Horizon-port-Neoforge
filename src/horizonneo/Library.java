@@ -123,6 +123,68 @@ final class Library {
                         Ok(Some(Arc::new(Obj { class: o.class, slots: Mutex::new(slots) })))
                     }
                     """)),
+            Map.entry("java/lang/Object.getClass()Ljava/lang/Class;", new Native("jnative_object_get_class", """
+                    /// getClass: the one class object of the object's type.
+                    #[allow(dead_code)]
+                    fn jnative_object_get_class(this: Ref) -> JR<Ref> {
+                        Ok(jclass_object(jobj(&this)?.class))
+                    }
+                    """)),
+            Map.entry("java/lang/Class.jName(I)Ljava/lang/String;", new Native("jnative_class_name", """
+                    /// Class.getName: the binary name, one String for each (the JVM interns them).
+                    #[allow(dead_code)]
+                    fn jnative_class_name(c: i32) -> JR<Ref> {
+                        Ok(jintern(&jclass_name(c as u32).encode_utf16().collect::<Vec<u16>>()))
+                    }
+                    """)),
+            Map.entry("java/lang/Class.jSimpleName(I)Ljava/lang/String;", new Native("jnative_class_simple_name", """
+                    #[allow(dead_code)]
+                    fn jnative_class_simple_name(c: i32) -> JR<Ref> {
+                        Ok(jstring(jclass_simple(c as u32)))
+                    }
+                    """)),
+            Map.entry("java/lang/Class.jCanonicalName(I)Ljava/lang/String;", new Native("jnative_class_canonical_name", """
+                    #[allow(dead_code)]
+                    fn jnative_class_canonical_name(c: i32) -> JR<Ref> {
+                        Ok(jclass_canonical(c as u32).map(jstring).unwrap_or(None))
+                    }
+                    """)),
+            Map.entry("java/lang/Class.jInstance(ILjava/lang/Object;)Z", new Native("jnative_class_instance", """
+                    #[allow(dead_code)]
+                    fn jnative_class_instance(c: i32, o: Ref) -> JR<bool> {
+                        Ok(match &o {
+                            Some(x) => jinstance_of(c as u32, x.class),
+                            None => false,
+                        })
+                    }
+                    """)),
+            Map.entry("java/lang/Class.jAssignable(II)Z", new Native("jnative_class_assignable", """
+                    #[allow(dead_code)]
+                    fn jnative_class_assignable(c: i32, other: i32) -> JR<bool> {
+                        Ok(jinstance_of(c as u32, other as u32))
+                    }
+                    """)),
+            Map.entry("java/lang/Class.jFlags(I)I", new Native("jnative_class_flags", """
+                    #[allow(dead_code)]
+                    fn jnative_class_flags(c: i32) -> JR<i32> {
+                        Ok(jclass_flags(c as u32))
+                    }
+                    """)),
+            Map.entry("java/lang/Class.jSuper(I)Ljava/lang/Class;", new Native("jnative_class_super", """
+                    /// getSuperclass: none for Object and an interface, Object for an array.
+                    #[allow(dead_code)]
+                    fn jnative_class_super(c: i32) -> JR<Ref> {
+                        let s = jclass_super(c as u32);
+                        Ok(if s == 0 { None } else { jclass_object(s) })
+                    }
+                    """)),
+            Map.entry("java/lang/Class.jEnumValues(I)[Ljava/lang/Object;", new Native("jnative_class_enum_values", """
+                    /// getEnumConstants: the enum's values(), a new array each time; null for any other type.
+                    #[allow(dead_code)]
+                    fn jnative_class_enum_values(c: i32) -> JR<Ref> {
+                        jenum_values(c as u32)
+                    }
+                    """)),
             Map.entry("java/util/Arrays.newArrayLike([Ljava/lang/Object;I)[Ljava/lang/Object;", new Native("jnative_array_like", """
                     /// A new array of a's class (a String[] for a String[]), of this length, all null; the length isn't negative.
                     #[allow(dead_code)]

@@ -176,6 +176,14 @@ final class ClassData {
     final Set<String> classRefs;
     /** The constant pool, for the translator. */
     final Pool pool;
+    /**
+     * From the InnerClasses attribute, this class's own entry: the class it is a member of (null when it is a local or
+     * anonymous class, or not nested) and its simple name as the source names it (null when anonymous); nested is
+     * false when there is no entry for it, a top-level class.
+     */
+    boolean nested;
+    String outerName;
+    String innerName;
 
     private ClassData(String name, String superName, List<String> interfaces, int access, List<Annotation> annotations,
                       List<Field> fields, List<Method> methods, Set<String> classRefs, Pool pool) {
@@ -313,7 +321,14 @@ final class ClassData {
             }
             for (Field f : fields) named(f.descriptor(), classRefs);
             for (Method m : methods) named(m.descriptor(), classRefs);
-            return new ClassData(name, superName, interfaces, access, own.annotations, fields, methods, classRefs, this);
+            ClassData out = new ClassData(name, superName, interfaces, access, own.annotations, fields, methods, classRefs, this);
+            for (int[] entry : own.inner) {
+                if (entry[0] == 0 || !className(entry[0]).equals(name)) continue;
+                out.nested = true;
+                out.outerName = entry[1] == 0 ? null : className(entry[1]);
+                out.innerName = entry[2] == 0 ? null : utf(entry[2]);
+            }
+            return out;
         }
 
         /** Adds the classes a descriptor names: `(ILfoo/Bar;)Lfoo/Baz;` names foo/Bar and foo/Baz. */
@@ -427,6 +442,8 @@ final class ClassData {
             int codeStart, codeLength = -1, maxStack, maxLocals;
             Object constant;
             final List<Handler> handlers = new ArrayList<>();
+            /** InnerClasses: inner class, outer class, inner name, flags (constant pool indexes; 0 for none). */
+            final List<int[]> inner = new ArrayList<>();
         }
 
         private Attributes attributes() {
@@ -441,6 +458,9 @@ final class ClassData {
                         for (int k = u2(); k > 0; k--) out.annotations.add(annotation(0));
                     }
                     case "Signature" -> out.signature = utf(u2());
+                    case "InnerClasses" -> {
+                        for (int k = u2(); k > 0; k--) out.inner.add(new int[] {u2(), u2(), u2(), u2()});
+                    }
                     case "ConstantValue" -> out.constant = constant(u2());
                     case "Code" -> {
                         out.maxStack = u2();

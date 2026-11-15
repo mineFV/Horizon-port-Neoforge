@@ -1,8 +1,8 @@
 package java.lang;
 
 /**
- * The model of java.lang.Enum: a constant's name and ordinal. Not modelled yet: getDeclaringClass, valueOf (both need
- * Class objects); compareTo doesn't check that both constants are of one enum, which generic code can't break.
+ * The model of java.lang.Enum: a constant's name and ordinal, its class, valueOf. compareTo doesn't check that both
+ * constants are of one enum, which generic code can't break.
  */
 public abstract class Enum<E extends Enum<E>> implements Comparable<E>, java.io.Serializable {
     private final String name;
@@ -31,6 +31,21 @@ public abstract class Enum<E extends Enum<E>> implements Comparable<E>, java.io.
 
     public final int hashCode() {
         return super.hashCode();
+    }
+
+    @SuppressWarnings("unchecked")
+    public final Class<E> getDeclaringClass() {
+        Class<?> clazz = getClass();
+        Class<?> zuper = clazz.getSuperclass();
+        return (Class<E>) ((zuper == Enum.class) ? clazz : zuper);
+    }
+
+    public static <T extends Enum<T>> T valueOf(Class<T> enumClass, String name) {
+        T[] universe = enumClass.getEnumConstants();
+        if (universe == null) throw new IllegalArgumentException(enumClass.getName().concat(" is not an enum class"));
+        if (name == null) throw new NullPointerException("Name is null");
+        for (T constant : universe) if (constant.name().equals(name)) return constant;
+        throw new IllegalArgumentException("No enum constant ".concat(String.valueOf(enumClass.getCanonicalName())).concat(".").concat(name));
     }
 
     public final int compareTo(E o) {

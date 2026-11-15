@@ -162,6 +162,7 @@ fn main() {
         p("optionals", n.to_string(), text(gathered__optionals(n)));
         p("arrayHelpers", n.to_string(), text(gathered__arrays(n)));
         p("builders", n.to_string(), text(gathered__builders(n)));
+        p("classes", n.to_string(), text(gathered__classes(n)));
     }
     for d0 in doubles() {
         p("doubleText", d(d0), text(texts__double_text(d0)));

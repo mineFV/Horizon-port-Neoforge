@@ -178,6 +178,9 @@ final class JarRust {
             for (Need n : needs.get(id)) {
                 switch (n.kind()) {
                     case "call", "lambda" -> todo.add(n.id());
+                    case "enums" -> {
+                        for (String e : inst.enums(world)) todo.add(new Id(e, "values", "()[L" + e + ";"));
+                    }
                     case "init" -> {
                         for (String c : world.initOrder(n.type())) if (world.declared(c, "<clinit>", "()V") != null) todo.add(new Id(c, "<clinit>", "()V"));
                     }
@@ -212,9 +215,16 @@ final class JarRust {
      * What the translated methods instantiate: classes and arrays they make, lambda sites they reach; tests: the
      * type tests' answers over them, by type, asked once per set.
      */
-    record Instances(Set<String> classes, Set<String> arrays, Set<String> lambdas, Map<String, Optional<String>> tests) {
-        Instances(Set<String> classes, Set<String> arrays, Set<String> lambdas) {
-            this(classes, arrays, lambdas, new HashMap<>());
+    record Instances(Set<String> classes, Set<String> arrays, Set<String> lambdas, Set<String> constants, Map<String, Optional<String>> tests) {
+        Instances(Set<String> classes, Set<String> arrays, Set<String> lambdas, Set<String> constants) {
+            this(classes, arrays, lambdas, constants, new HashMap<>());
+        }
+
+        /** The enums a class object may stand for: of a class constant, or of an object's getClass(). */
+        Set<String> enums(JavaWorld world) {
+            Set<String> out = new TreeSet<>();
+            for (Set<String> types : List.of(classes, constants)) for (String t : types) if (world.enumClass(t)) out.add(t);
+            return out;
         }
 
         List<String> all() {
@@ -226,20 +236,22 @@ final class JarRust {
     }
 
     static Instances instances(JavaWorld world, Map<Id, List<Need>> needs) {
-        Set<String> classes = new TreeSet<>(), arrays = new TreeSet<>(), lambdas = new TreeSet<>();
-        // What the runtime makes itself: the exceptions it throws, with their messages.
+        Set<String> classes = new TreeSet<>(), arrays = new TreeSet<>(), lambdas = new TreeSet<>(), constants = new TreeSet<>();
+        // What the runtime makes itself: the exceptions it throws, with their messages; class objects (getClass).
         for (String c : Library.thrownClasses()) if (world.concrete(c)) classes.add(c);
         if (world.concrete(MethodRust.STRING)) {
             classes.add(MethodRust.STRING);
             arrays.add("[C");
         }
+        if (world.concrete(MethodRust.CLASS)) classes.add(MethodRust.CLASS);
         for (List<Need> list : needs.values()) {
             for (Need n : list) {
                 if (n.kind().equals("new")) (n.type().startsWith("[") ? arrays : classes).add(n.type());
                 if (n.kind().equals("lambda")) lambdas.add(n.type());
+                if (n.kind().equals("class")) constants.add(n.type());
             }
         }
-        return new Instances(classes, arrays, lambdas);
+        return new Instances(classes, arrays, lambdas, constants);
     }
 
     private static void settle(JavaWorld world, Map<Id, List<Need>> needs, Map<Id, String> why) {
@@ -302,6 +314,13 @@ final class JarRust {
                     JavaWorld.Selected s = world.selectOnLambda(key, n.name(), n.descriptor());
                     if (s.why() != null) return "a virtual call isn't certain: on a lambda, " + n.type().replace('/', '.') + "." + n.name() + " " + s.why();
                     String r = untranslated("it calls " + n.name() + " on a lambda, which may run ", s.id(), needs, why);
+                    if (r != null) return r;
+                }
+                return null;
+            }
+            case "enums" -> {
+                for (String e : inst.enums(world)) {
+                    String r = untranslated("it asks an enum's class for its constants, and ", new Id(e, "values", "()[L" + e + ";"), needs, why);
                     if (r != null) return r;
                 }
                 return null;
@@ -532,12 +551,193 @@ final class JarRust {
                     + units + "]));\n    TEXT.clone()\n}\n";
         }
 
+        /** The natives that read the class objects' tables: when one is written, the tables are. */
+        static final Set<String> CLASS_NATIVES = Set.of("jnative_object_get_class", "jnative_class_name", "jnative_class_simple_name",
+                "jnative_class_canonical_name", "jnative_class_instance", "jnative_class_assignable", "jnative_class_flags", "jnative_class_super",
+                "jnative_class_enum_values");
+
+        /** The class objects' tables, over every type with an id and their supertypes (each given an id here). */
+        String classTables() {
+            // Every supertype of a type with an id gets one: the tables walk them.
+            java.util.Deque<String> todo = new java.util.ArrayDeque<>(world.ids().keySet());
+            todo.addAll(List.of(JavaWorld.OBJECT, "java/lang/Cloneable", "java/io/Serializable"));
+            Set<String> seen = new java.util.HashSet<>();
+            while (!todo.isEmpty()) {
+                String t = todo.poll();
+                if (!seen.add(t)) continue;
+                world.id(t);
+                if (t.startsWith("[")) {
+                    String component = t.substring(1);
+                    if (component.length() > 1) todo.add(JavaWorld.type(component));
+                } else if (t.startsWith(JavaWorld.LAMBDA)) {
+                    todo.add(world.lambdaInterface(t));
+                } else {
+                    ClassData c = world.knownClass(t);
+                    if (c == null) continue;
+                    if (c.superName != null) todo.add(c.superName);
+                    todo.addAll(c.interfaces);
+                }
+            }
+            Map<String, Integer> ids = new TreeMap<>(world.ids());
+            StringBuilder sup = new StringBuilder(), ifs = new StringBuilder(), comp = new StringBuilder(), flags = new StringBuilder(),
+                    simple = new StringBuilder(), canonical = new StringBuilder();
+            for (Map.Entry<String, Integer> e : ids.entrySet()) {
+                String t = e.getKey();
+                int id = e.getValue();
+                int f = 0;
+                if (t.startsWith("[")) {
+                    f = 4;
+                    String component = t.substring(1);
+                    if (component.length() > 1) comp.append("        ").append(id).append(" => ").append(world.id(JavaWorld.type(component))).append(",\n");
+                    sup.append("        ").append(id).append(" => ").append(world.id(JavaWorld.OBJECT)).append(",\n");
+                } else if (t.startsWith(JavaWorld.LAMBDA)) {
+                    sup.append("        ").append(id).append(" => ").append(world.id(JavaWorld.OBJECT)).append(",\n");
+                    ifs.append("        ").append(id).append(" => &[").append(world.id(world.lambdaInterface(t))).append("],\n");
+                } else {
+                    ClassData c = world.knownClass(t);
+                    if (c != null) {
+                        if ((c.access & ClassData.INTERFACE) != 0) f |= 1;
+                        if (world.enumClass(t)) f |= 2;
+                        if (c.superName != null && (c.access & ClassData.INTERFACE) == 0) sup.append("        ").append(id).append(" => ").append(world.id(c.superName)).append(",\n");
+                        if (!c.interfaces.isEmpty()) {
+                            List<String> list = new ArrayList<>();
+                            for (String i : c.interfaces) list.add(String.valueOf(world.id(i)));
+                            ifs.append("        ").append(id).append(" => &[").append(String.join(", ", list)).append("],\n");
+                        }
+                    }
+                }
+                if (f != 0) flags.append("        ").append(id).append(" => ").append(f).append(",\n");
+                simple.append("        ").append(id).append(" => ").append(MethodRust.rustText(simpleName(t))).append(",\n");
+                String can = canonicalName(t);
+                if (can != null) canonical.append("        ").append(id).append(" => Some(").append(MethodRust.rustText(can)).append("),\n");
+            }
+            StringBuilder enums = new StringBuilder();
+            for (String e : inst.enums(world)) {
+                String fn = functions.get(new Id(e, "values", "()[L" + e + ";"));
+                if (fn != null) enums.append("        ").append(world.id(e)).append(" => ").append(fn).append("(),\n");
+            }
+            JavaWorld.FieldAt idSlot = world.field(MethodRust.CLASS, "id", "I", false);
+            if (idSlot.why() != null) throw new IllegalStateException("the library model's Class has no id field");
+            return "\n// ---- class objects: one for each type, and their tables ----\n"
+                    + "#[allow(dead_code)]\nconst JCLASS: u32 = " + world.id(MethodRust.CLASS) + ";\n"
+                    + "#[allow(dead_code)]\nconst JCLASS_LAYOUT: &[u8] = b\"" + world.layout(MethodRust.CLASS) + "\";\n"
+                    + "#[allow(dead_code)]\nconst JOBJECT: u32 = " + world.id(JavaWorld.OBJECT) + ";\n"
+                    + "#[allow(dead_code)]\nconst JCLONEABLE: u32 = " + world.id("java/lang/Cloneable") + ";\n"
+                    + "#[allow(dead_code)]\nconst JSERIALIZABLE: u32 = " + world.id("java/io/Serializable") + ";\n"
+                    + "\n/// A class's superclass (0: none, an interface, Object).\n#[allow(dead_code)]\nfn jclass_super(c: u32) -> u32 {\n    match c {\n" + sup + "        _ => 0,\n    }\n}\n"
+                    + "\n/// A type's direct interfaces.\n#[allow(dead_code)]\nfn jclass_interfaces(c: u32) -> &'static [u32] {\n    match c {\n" + ifs + "        _ => &[],\n    }\n}\n"
+                    + "\n/// An array of references' component type (0: not one).\n#[allow(dead_code)]\nfn jclass_component(c: u32) -> u32 {\n    match c {\n" + comp + "        _ => 0,\n    }\n}\n"
+                    + "\n/// 1: an interface, 2: an enum's own class, 4: an array.\n#[allow(dead_code)]\nfn jclass_flags(c: u32) -> i32 {\n    match c {\n" + flags + "        _ => 0,\n    }\n}\n"
+                    + "\n/// getSimpleName.\n#[allow(dead_code)]\nfn jclass_simple(c: u32) -> &'static str {\n    match c {\n" + simple + "        _ => \"?\",\n    }\n}\n"
+                    + "\n/// getCanonicalName (None for a local or anonymous class, a lambda's).\n#[allow(dead_code)]\nfn jclass_canonical(c: u32) -> Option<&'static str> {\n    match c {\n" + canonical + "        _ => None,\n    }\n}\n"
+                    + "\n/// An enum's values(), from its class's id; null for any other type.\n#[allow(dead_code)]\nfn jenum_values(c: u32) -> JR<Ref> {\n    match c {\n" + enums + "        _ => Ok(None),\n    }\n}\n"
+                    + """
+
+                    /// Whether an object of type a is one of type t (Class.isInstance, isAssignableFrom).
+                    #[allow(dead_code)]
+                    fn jinstance_of(t: u32, a: u32) -> bool {
+                        if a == t || t == JOBJECT {
+                            return true;
+                        }
+                        if jclass_flags(a) & 4 != 0 {
+                            if jclass_flags(t) & 4 == 0 {
+                                return t == JCLONEABLE || t == JSERIALIZABLE;
+                            }
+                            let (ca, ct) = (jclass_component(a), jclass_component(t));
+                            return ca != 0 && ct != 0 && jinstance_of(ct, ca);
+                        }
+                        let mut todo = vec![a];
+                        let mut seen = Vec::new();
+                        while let Some(c) = todo.pop() {
+                            if c == t {
+                                return true;
+                            }
+                            if seen.contains(&c) {
+                                continue;
+                            }
+                            seen.push(c);
+                            let s = jclass_super(c);
+                            if s != 0 {
+                                todo.push(s);
+                            }
+                            todo.extend_from_slice(jclass_interfaces(c));
+                        }
+                        false
+                    }
+
+                    /// The one class object of a type.
+                    #[allow(dead_code)]
+                    fn jclass_object(c: u32) -> Ref {
+                        static OBJECTS: LazyLock<Mutex<std::collections::HashMap<u32, Ref>>> = LazyLock::new(|| Mutex::new(std::collections::HashMap::new()));
+                        let mut objects = jlock(&*OBJECTS);
+                        objects
+                            .entry(c)
+                            .or_insert_with(|| {
+                                let o = jnew(JCLASS, JCLASS_LAYOUT);
+                                jset(&o, JCLASS_ID, Value::I(c as i32));
+                                o
+                            })
+                            .clone()
+                    }
+                    """
+                    + "#[allow(dead_code)]\nconst JCLASS_ID: usize = " + idSlot.slot() + ";\n";
+        }
+
+        /** getSimpleName, as the JDK gives it from the InnerClasses attribute. */
+        String simpleName(String t) {
+            if (t.startsWith("[")) {
+                String component = t.substring(1);
+                return (component.length() == 1 ? primitiveName(component.charAt(0)) : simpleName(JavaWorld.type(component))) + "[]";
+            }
+            if (t.startsWith(JavaWorld.LAMBDA)) {
+                String name = t.substring(JavaWorld.LAMBDA.length(), t.indexOf('#')) + "$$Lambda";
+                return name.substring(name.lastIndexOf('/') + 1);
+            }
+            ClassData c = world.knownClass(t);
+            if (c != null && c.nested) return c.innerName == null ? "" : c.innerName;
+            return t.substring(t.lastIndexOf('/') + 1);
+        }
+
+        /** getCanonicalName: null for a local or anonymous class, a lambda's, or an array of one. */
+        String canonicalName(String t) {
+            if (t.startsWith("[")) {
+                String component = t.substring(1);
+                if (component.length() == 1) return primitiveName(component.charAt(0)) + "[]";
+                String c = canonicalName(JavaWorld.type(component));
+                return c == null ? null : c + "[]";
+            }
+            if (t.startsWith(JavaWorld.LAMBDA)) return null;
+            ClassData c = world.knownClass(t);
+            if (c != null && c.nested) {
+                if (c.outerName == null || c.innerName == null) return null;
+                String outer = canonicalName(c.outerName);
+                return outer == null ? null : outer + "." + c.innerName;
+            }
+            return t.replace('/', '.');
+        }
+
+        private static String primitiveName(char k) {
+            return switch (k) {
+                case 'Z' -> "boolean";
+                case 'B' -> "byte";
+                case 'C' -> "char";
+                case 'S' -> "short";
+                case 'I' -> "int";
+                case 'J' -> "long";
+                case 'F' -> "float";
+                default -> "double";
+            };
+        }
+
         /**
          * The part of the runtime that the model's classes shape: the ids of the exceptions the runtime throws, how
          * their message and cause are kept, how a String keeps its units, each class's name.
          */
         String worldRuntime() {
+            // The class objects' tables first: they give ids to supertypes, which jclass_name then names.
+            String classes = natives.stream().anyMatch(CLASS_NATIVES::contains) ? classTables() : "";
             StringBuilder b = new StringBuilder("\n// ---- the runtime's exceptions and texts, from the library model ----\n");
+            b.append(classes);
             for (Map.Entry<String, String> e : Library.THROWN.entrySet()) {
                 b.append("#[allow(dead_code)]\nconst ").append(e.getKey()).append(": u32 = ").append(world.concrete(e.getValue()) ? world.id(e.getValue()) : 0).append(";\n");
             }
