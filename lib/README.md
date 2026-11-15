@@ -46,6 +46,10 @@ An ArrayDeque is laid out as the JDK's (17 slots at first, its growth, removal m
 iterators show it: they visit as many elements as there were when they started, and a null slot is a
 ConcurrentModificationException.
 
+String.getBytes encodes into UTF-8 (the default charset, as since Java 18), ISO-8859-1 and US-ASCII with the JDK's
+replacements ('?' for a surrogate without its other half, and for a character the charset lacks); decoding isn't
+modelled. UUID.nameUUIDFromBytes's MD5 is written from RFC 1321.
+
 Not modelled: toArray's runtime types beyond copying an array's own class, Class.getComponentType, limit, skip,
 takeWhile, dropWhile, iterate, generate, DoubleStream, list iterators, reversed views, TreeMap, ArrayDeque,
 concurrent collections.

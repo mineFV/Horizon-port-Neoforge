@@ -129,4 +129,12 @@ public final class Integer extends Number implements Comparable<Integer> {
     public static int compareUnsigned(int x, int y) {
         return compare(x + MIN_VALUE, y + MIN_VALUE);
     }
+
+    public static int rotateLeft(int i, int distance) {
+        return (i << distance) | (i >>> -distance);
+    }
+
+    public static int rotateRight(int i, int distance) {
+        return (i >>> distance) | (i << -distance);
+    }
 }

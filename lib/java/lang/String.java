@@ -275,4 +275,14 @@ public final class String implements java.io.Serializable, Comparable<String>, C
         }
         return new String(out, true);
     }
+
+    public byte[] getBytes(java.nio.charset.Charset charset) {
+        if (charset == null) throw new NullPointerException();
+        return charset.jEncode(value);
+    }
+
+    /** In the default charset: UTF-8, as the JDK's has been since Java 18 (JEP 400). */
+    public byte[] getBytes() {
+        return java.nio.charset.StandardCharsets.UTF_8.jEncode(value);
+    }
 }

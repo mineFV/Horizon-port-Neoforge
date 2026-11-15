@@ -121,6 +121,7 @@ public final class NumbersCheck {
             p("patterns", n, () -> Gathered.patterns(n));
             p("monitors", n, () -> Gathered.monitors(n));
             p("queues", n, () -> Gathered.queues(n));
+            p("bytes", n, () -> Gathered.bytes(n));
         }
         for (double d : DOUBLES) p("doubleText", d(d), () -> Texts.doubleText(d));
         for (float f : FLOATS) p("floatText", f(f), () -> Texts.floatText(f));

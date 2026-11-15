@@ -64,6 +64,10 @@ public final class Character implements java.io.Serializable, Comparable<Charact
         return ch >= '\uDC00' && ch <= '\uDFFF';
     }
 
+    public static int toCodePoint(char high, char low) {
+        return ((high << 10) + low) + (0x010000 - (0xD800 << 10) - 0xDC00);
+    }
+
     public static boolean isSurrogate(char ch) {
         return ch >= '\uD800' && ch <= '\uDFFF';
     }

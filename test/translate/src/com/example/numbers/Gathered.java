@@ -742,4 +742,21 @@ public final class Gathered {
         b.append(q.poll()).append(q.peek()).append(q.size());
         return b.toString();
     }
+
+    // ---- bytes of texts, name-based UUIDs ----
+
+    public static String bytes(int n) {
+        String[] texts = {"mekanism.common", "", "abc" + n, "caf\u00e9 \u00ff\u0100", "\u20ac\u4e2d", "\ud83d\ude00!", "x\ud83dy", "\ude00\ud83d", "a".repeat(n * 7)};
+        String t = texts[n % texts.length];
+        StringBuilder b = new StringBuilder();
+        for (java.nio.charset.Charset cs : List.of(java.nio.charset.StandardCharsets.UTF_8, java.nio.charset.StandardCharsets.ISO_8859_1, java.nio.charset.StandardCharsets.US_ASCII)) {
+            b.append(cs).append(Arrays.toString(t.getBytes(cs))).append(" ");
+        }
+        b.append(Arrays.toString(t.getBytes())).append(" ").append(java.util.UUID.nameUUIDFromBytes(t.getBytes(java.nio.charset.StandardCharsets.UTF_8)))
+                .append(" ").append(java.util.UUID.nameUUIDFromBytes(new byte[n * 13])).append(" ")
+                .append(java.nio.charset.StandardCharsets.UTF_8.compareTo(java.nio.charset.StandardCharsets.US_ASCII))
+                .append(java.nio.charset.StandardCharsets.UTF_8.equals(java.nio.charset.StandardCharsets.UTF_8)).append(java.nio.charset.StandardCharsets.ISO_8859_1.name())
+                .append(Integer.rotateLeft(0x12345678 * (n + 1), n)).append(Integer.rotateRight(-n, 3));
+        return b.toString();
+    }
 }
