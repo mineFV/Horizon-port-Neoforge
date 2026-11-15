@@ -18,6 +18,8 @@ rm -rf "$out/model"
 mkdir -p "$out/model" "$out/classes/model"
 javac --patch-module java.base=lib -d "$out/model" $(find lib -name '*.java' | sort)
 (cd "$out/model" && find . -name '*.class' | sed 's|^\./||' | sort) > "$out/model/index.txt"
+# Unicode's tables for the model's Character and String, from this JDK (data of its Unicode version, no code).
+java --add-opens java.base/java.lang=ALL-UNNAMED tools/UnicodeTables.java "$out/classes/horizonneo/unicode.rs"
 cp -r "$out/model/." "$out/classes/model/"
 # The machines exporter isn't compiled here (it needs NeoForge's jars): `dump` compiles it against a server's own.
 mkdir -p "$out/classes/exporter"

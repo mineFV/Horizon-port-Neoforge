@@ -1,6 +1,6 @@
 package java.lang;
 
-/** The model of java.lang.Long: boxes (valueOf's cache from -128 to 127 included) and texts. parseLong isn't modelled yet. */
+/** The model of java.lang.Long: boxes (valueOf's cache from -128 to 127 included) and texts. */
 public final class Long extends Number implements Comparable<Long> {
     @SuppressWarnings("unchecked")
     public static final Class<Long> TYPE = (Class<Long>) Class.jPrimitive('J');
@@ -148,5 +148,48 @@ public final class Long extends Number implements Comparable<Long> {
 
     public static int signum(long i) {
         return (int) ((i >> 63) | (-i >>> 63));
+    }
+
+    /**
+     * An optional sign, then digits as Character.digit reads them in the radix (other scripts' and full-width digits
+     * among them), within the type's range; else a NumberFormatException with the JDK's message.
+     */
+    public static long parseLong(String s, int radix) {
+        if (s == null) throw new NumberFormatException("Cannot parse null string");
+        NumberFormatException.checkRadix(radix);
+        int len = s.length();
+        if (len == 0) throw NumberFormatException.forInputString("", radix);
+        int i = 0;
+        char firstChar = s.charAt(0);
+        boolean negative = false;
+        if (firstChar == '-' || firstChar == '+') {
+            negative = firstChar == '-';
+            if (len == 1) throw NumberFormatException.forInputString(s, radix);
+            i = 1;
+        }
+        // Accumulated negatively, so that the minimum fits.
+        long limit = negative ? Long.MIN_VALUE : -Long.MAX_VALUE;
+        long multmin = limit / radix;
+        long result = 0;
+        while (i < len) {
+            int digit = Character.digit(s.charAt(i++), radix);
+            if (digit < 0 || result < multmin) throw NumberFormatException.forInputString(s, radix);
+            result *= radix;
+            if (result < limit + digit) throw NumberFormatException.forInputString(s, radix);
+            result -= digit;
+        }
+        return negative ? result : -result;
+    }
+
+    public static long parseLong(String s) {
+        return parseLong(s, 10);
+    }
+
+    public static Long valueOf(String s, int radix) {
+        return Long.valueOf(parseLong(s, radix));
+    }
+
+    public static Long valueOf(String s) {
+        return Long.valueOf(parseLong(s, 10));
     }
 }

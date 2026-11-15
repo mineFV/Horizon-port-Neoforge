@@ -439,6 +439,67 @@ final class Library {
                         Ok(())
                     }
                     """)),
+            Map.entry("java/lang/Character.jType(I)I", new Native("jnative_char_type", """
+                    #[allow(dead_code)]
+                    fn jnative_char_type(cp: i32) -> JR<i32> {
+                        Ok(if (0..0x110000).contains(&cp) { juni_run(JUNI_TYPE, cp) } else { 0 })
+                    }
+                    """)),
+            Map.entry("java/lang/Character.jLower(I)I", new Native("jnative_char_lower", """
+                    #[allow(dead_code)]
+                    fn jnative_char_lower(cp: i32) -> JR<i32> {
+                        Ok(juni_map(JUNI_LOWER, cp))
+                    }
+                    """)),
+            Map.entry("java/lang/Character.jUpper(I)I", new Native("jnative_char_upper", """
+                    #[allow(dead_code)]
+                    fn jnative_char_upper(cp: i32) -> JR<i32> {
+                        Ok(juni_map(JUNI_UPPER, cp))
+                    }
+                    """)),
+            Map.entry("java/lang/Character.jProperty(II)Z", new Native("jnative_char_property", """
+                    #[allow(dead_code)]
+                    fn jnative_char_property(which: i32, cp: i32) -> JR<bool> {
+                        if !(0..0x110000).contains(&cp) {
+                            return Ok(false);
+                        }
+                        let table = match which {
+                            0 => JUNI_LOWERCASE,
+                            1 => JUNI_UPPERCASE,
+                            2 => JUNI_ALPHABETIC,
+                            _ => JUNI_CASED,
+                        };
+                        Ok(juni_run(table, cp) != 0)
+                    }
+                    """)),
+            Map.entry("java/lang/Character.jDigit(I)I", new Native("jnative_char_digit", """
+                    /// Character.digit's value in radix 36, -1 for none.
+                    #[allow(dead_code)]
+                    fn jnative_char_digit(cp: i32) -> JR<i32> {
+                        if cp < 0 {
+                            return Ok(-1);
+                        }
+                        let c = cp as u32;
+                        let i = JUNI_DIGIT.partition_point(|e| e.0 <= c);
+                        if i == 0 {
+                            return Ok(-1);
+                        }
+                        let (first, last, value) = JUNI_DIGIT[i - 1];
+                        Ok(if c <= last { value as i32 + (c - first) as i32 } else { -1 })
+                    }
+                    """)),
+            Map.entry("java/lang/Character.jLowerText(I)Ljava/lang/String;", new Native("jnative_char_lower_text", """
+                    #[allow(dead_code)]
+                    fn jnative_char_lower_text(cp: i32) -> JR<Ref> {
+                        Ok(juni_text(JUNI_LOWER_TEXT, cp))
+                    }
+                    """)),
+            Map.entry("java/lang/Character.jUpperText(I)Ljava/lang/String;", new Native("jnative_char_upper_text", """
+                    #[allow(dead_code)]
+                    fn jnative_char_upper_text(cp: i32) -> JR<Ref> {
+                        Ok(juni_text(JUNI_UPPER_TEXT, cp))
+                    }
+                    """)),
             Map.entry("java/util/Arrays.newArrayLike([Ljava/lang/Object;I)[Ljava/lang/Object;", new Native("jnative_array_like", """
                     /// A new array of a's class (a String[] for a String[]), of this length, all null; the length isn't negative.
                     #[allow(dead_code)]
@@ -450,6 +511,45 @@ final class Library {
 
     /** The key of an array's clone, which arrays alone select (`JarRust.arraySelects`). */
     static final String ARRAY_CLONE = "[.clone()Ljava/lang/Object;";
+
+    /** The natives that read Unicode's tables (`unicode.rs`, which build.sh writes from the JDK that builds the tool). */
+    static final java.util.Set<String> UNICODE_NATIVES = java.util.Set.of("jnative_char_type", "jnative_char_lower", "jnative_char_upper", "jnative_char_property",
+            "jnative_char_digit", "jnative_char_lower_text", "jnative_char_upper_text");
+
+    /** The tables, and how the natives look things up in them. */
+    static String unicodeText() {
+        try (java.io.InputStream in = Library.class.getResourceAsStream("unicode.rs")) {
+            if (in == null) throw new IllegalStateException("the tool was built without its Unicode tables (build.sh writes them)");
+            return new String(in.readAllBytes(), java.nio.charset.StandardCharsets.UTF_8) + """
+
+                    /// A code point's entry in a sorted table of (code point, value); the code point itself when none.
+                    #[allow(dead_code)]
+                    fn juni_map(t: &[(u32, u32)], cp: i32) -> i32 {
+                        match t.binary_search_by_key(&(cp as u32), |e| e.0) {
+                            Ok(i) => t[i].1 as i32,
+                            Err(_) => cp,
+                        }
+                    }
+
+                    /// The value of the run a code point (0 to 0x10FFFF) is in, in a table of the runs' first code points.
+                    #[allow(dead_code)]
+                    fn juni_run(t: &[(u32, u8)], cp: i32) -> i32 {
+                        let i = t.partition_point(|e| e.0 <= cp as u32);
+                        t[i - 1].1 as i32
+                    }
+
+                    #[allow(dead_code)]
+                    fn juni_text(t: &[(u32, &[u16])], cp: i32) -> Ref {
+                        match t.binary_search_by_key(&(cp as u32), |e| e.0) {
+                            Ok(i) => jstring_of(t[i].1),
+                            Err(_) => None,
+                        }
+                    }
+                    """;
+        } catch (java.io.IOException e) {
+            throw new java.io.UncheckedIOException(e);
+        }
+    }
 
     static Native nativeOf(JarRust.Id id) {
         return NATIVES.get(id.owner() + "." + id.name() + id.descriptor());

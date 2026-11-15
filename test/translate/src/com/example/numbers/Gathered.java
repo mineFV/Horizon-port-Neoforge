@@ -946,4 +946,49 @@ public final class Gathered {
         }
         return b.toString();
     }
+
+    // ---- Unicode: case, properties, parsing, final sigma ----
+
+    static final String[] PIECES = {"\u0391", "\u03a3", "\u03c3", "a", "Z", "1", "\u0663", "'", "-", "_", ".", ":", ",", " ", "\u0301", "\u00ad", "\u4e2d", "\u30a2", "$", "%", "#",
+        "\u02b0", "\ud801\udc00", "\u0964", "\u2019", "\u200d", "\t", "\n", "\u203f", "\u2014", "\u00df", "\u0130", "\u01c5", "\u2160", "&", "\"", "\u0e01", "\r"};
+
+    public static String unicode(int n) {
+        StringBuilder b = new StringBuilder();
+        String[] texts = {"Hello WORLD " + n, "Stra\u00dfe \u00b5 \u00ff \u00c0\u00de", "\u039f\u0394\u03a5\u03a3\u03a3\u0395\u03a5\u03a3 \u03a3", "\u0130stanbul",
+            "\ud801\udc00\ud801\udc28", "\u01c4\u01c5\u01c6 \ufb13 \u0149", "lower only", "UPPER ONLY", "\ud83d\ude00x"};
+        for (String t : texts) {
+            String lo = t.toLowerCase(java.util.Locale.ROOT), up = t.toUpperCase(java.util.Locale.ROOT);
+            b.append(lo).append("|").append(up).append("|").append(lo == t).append(up == t).append(t.equalsIgnoreCase(up)).append(Integer.signum(t.compareToIgnoreCase(lo))).append(" ");
+        }
+        b.append("\ud801\udc00".equalsIgnoreCase("\ud801\udc28")).append("abc".regionMatches(true, 1, "XBC", 1, 2)).append("Ab".compareToIgnoreCase("aC")).append(" ");
+        for (int cp : new int[] {'A', 'z', '5', 0x663, 0xff15, ' ', 0xa0, 0x2007, '\t', 0x1c, 0x2028, 0x1c5, 0x2160, 0x10400, 0x1d7ce, 0xdf, 0x3a3, 0xe01, 0x300, 0x20ac, n * 4999}) {
+            b.append(Character.getType(cp)).append(Character.isLetter(cp) ? "L" : "").append(Character.isDigit(cp) ? "D" : "").append(Character.isWhitespace(cp) ? "W" : "")
+                    .append(Character.isUpperCase(cp) ? "U" : "").append(Character.isLowerCase(cp) ? "l" : "").append(Character.isAlphabetic(cp) ? "a" : "").append(Character.digit(cp, 36))
+                    .append(Character.toUpperCase(cp)).append(",").append(Character.toLowerCase(cp)).append(Character.isSpaceChar(cp) ? "S" : "").append(";");
+        }
+        b.append(Character.forDigit(n, 16)).append(Character.toChars(0x1f600).length).append(Character.toString(0x10400)).append(" ");
+        for (String num : new String[] {"+5", "-0", "\uff12\uff13", "\u0663\u0664", "2147483647", "2147483648", "-2147483648", "-2147483649", " 1", "", "+", "-", "1_0", "0x10"}) {
+            b.append(attempt(() -> Integer.parseInt(num))).append(";");
+        }
+        b.append(attempt(() -> Integer.parseInt("ff", 16))).append(attempt(() -> Integer.parseInt("zz", 36))).append(attempt(() -> Integer.parseInt("1", 37)))
+                .append(attempt(() -> Integer.parseInt(null))).append(attempt(() -> Long.parseLong("-9223372036854775808"))).append(attempt(() -> Long.parseLong("9223372036854775808")))
+                .append(attempt(() -> Long.valueOf("777", 8))).append(attempt(() -> Integer.valueOf("-" + n))).append(" ");
+        b.append("a.b.c".replace(".", "::")).append("abc".replace("", "-")).append("aaa".replace("aa", "b")).append("xyz".replace("q", "r") == "xyz").append(String.join("/", "a", null, "c" + n))
+                .append(String.join(",", List.of("x", "y"))).append("abcabc".lastIndexOf("bc")).append("abcabc".lastIndexOf("bc", 3)).append(" \t ".isBlank()).append(" x ".strip())
+                .append("y".strip() == "y").append("a\ud801\udc00b".codePointCount(0, 4)).append("a\ud801\udc00".codePointBefore(3)).append(" ");
+        // The final sigma, on texts made at random of the pieces above.
+        java.util.Random r = new java.util.Random(n * 7717L);
+        int finals = 0, hash = 0;
+        StringBuilder sample = new StringBuilder();
+        for (int k = 0; k < 400; k++) {
+            StringBuilder t = new StringBuilder();
+            for (int m = 1 + r.nextInt(7); m > 0; m--) t.append(PIECES[r.nextInt(PIECES.length)]);
+            String lo = t.toString().toLowerCase(java.util.Locale.ROOT);
+            for (int c = 0; c < lo.length(); c++) if (lo.charAt(c) == '\u03c2') finals++;
+            hash = hash * 31 + lo.hashCode();
+            if (k < 3) sample.append(lo).append("/");
+        }
+        b.append(finals).append(" ").append(hash).append(" ").append(sample);
+        return b.toString();
+    }
 }

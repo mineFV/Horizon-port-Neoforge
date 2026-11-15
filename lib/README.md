@@ -68,6 +68,15 @@ Executors' fixed pools (the single-thread one among them) start a thread for eac
 then queue, as the JDK's; their threads are named "pool-N-thread-M". A task that throws by execute ends its thread,
 and the next task gets a new one.
 
+Unicode's tables (case, categories, digits, what is cased) are the JDK's that builds the tool: build.sh runs
+`tools/UnicodeTables.java`, which writes them as Rust statics (data of its Unicode version, no code), and the
+tests compare with that same JDK. String's case conversions are the root locale's, the only rules the model's
+Locale has (it can't make a Turkish one): the same String back when nothing changes, ß raised to SS, İ lowered to
+i and a dot, and a capital sigma lowered to its final form as the JDK decides it, by word boundaries. Those are the
+JDK's BreakIterator's (its legacy rules) as its isBoundary answers them, quirks included: just after a pair of
+surrogates there is always one. On 600 000 texts made at random of Greek, Latin, digits, marks, punctuation,
+kana, Thai and a supplementary letter, every decision was the JDK's.
+
 Not modelled: toArray's runtime types beyond copying an array's own class, Class.getComponentType, limit, skip,
 takeWhile, dropWhile, iterate, generate, DoubleStream, list iterators, reversed views, the views of sorted maps
 and sets (headMap, subSet, descendingMap...), concurrent collections, interrupts, scheduled and cached thread pools,

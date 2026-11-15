@@ -1,6 +1,6 @@
 package java.lang;
 
-/** The model of java.lang.Integer: boxes (valueOf's cache from -128 to 127 included) and texts. parseInt isn't modelled yet. */
+/** The model of java.lang.Integer: boxes (valueOf's cache from -128 to 127 included) and texts. */
 public final class Integer extends Number implements Comparable<Integer> {
     @SuppressWarnings("unchecked")
     public static final Class<Integer> TYPE = (Class<Integer>) Class.jPrimitive('I');
@@ -136,5 +136,48 @@ public final class Integer extends Number implements Comparable<Integer> {
 
     public static int rotateRight(int i, int distance) {
         return (i >>> distance) | (i << -distance);
+    }
+
+    /**
+     * An optional sign, then digits as Character.digit reads them in the radix (other scripts' and full-width digits
+     * among them), within the type's range; else a NumberFormatException with the JDK's message.
+     */
+    public static int parseInt(String s, int radix) {
+        if (s == null) throw new NumberFormatException("Cannot parse null string");
+        NumberFormatException.checkRadix(radix);
+        int len = s.length();
+        if (len == 0) throw NumberFormatException.forInputString("", radix);
+        int i = 0;
+        char firstChar = s.charAt(0);
+        boolean negative = false;
+        if (firstChar == '-' || firstChar == '+') {
+            negative = firstChar == '-';
+            if (len == 1) throw NumberFormatException.forInputString(s, radix);
+            i = 1;
+        }
+        // Accumulated negatively, so that the minimum fits.
+        int limit = negative ? Integer.MIN_VALUE : -Integer.MAX_VALUE;
+        int multmin = limit / radix;
+        int result = 0;
+        while (i < len) {
+            int digit = Character.digit(s.charAt(i++), radix);
+            if (digit < 0 || result < multmin) throw NumberFormatException.forInputString(s, radix);
+            result *= radix;
+            if (result < limit + digit) throw NumberFormatException.forInputString(s, radix);
+            result -= digit;
+        }
+        return negative ? result : -result;
+    }
+
+    public static int parseInt(String s) {
+        return parseInt(s, 10);
+    }
+
+    public static Integer valueOf(String s, int radix) {
+        return Integer.valueOf(parseInt(s, radix));
+    }
+
+    public static Integer valueOf(String s) {
+        return Integer.valueOf(parseInt(s, 10));
     }
 }

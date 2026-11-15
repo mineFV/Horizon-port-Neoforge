@@ -110,6 +110,13 @@ public final class StringBuilder implements java.io.Serializable, Comparable<Str
         return append(b ? "true" : "false");
     }
 
+    public StringBuilder appendCodePoint(int codePoint) {
+        if (Character.isBmpCodePoint(codePoint)) return append((char) codePoint);
+        if (!Character.isValidCodePoint(codePoint)) throw new IllegalArgumentException("Not a valid Unicode code point: 0x".concat(Integer.toHexString(codePoint).toUpperCase(java.util.Locale.ROOT)));
+        append(Character.highSurrogate(codePoint));
+        return append(Character.lowSurrogate(codePoint));
+    }
+
     public StringBuilder append(char c) {
         ensure(count + 1);
         value[count++] = c;

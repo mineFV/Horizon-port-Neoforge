@@ -197,6 +197,13 @@ The tool's commands: `metadata`, `license`, `analyze`, `port`, `check`, `pack`, 
 - **A native can call the model back**: `Library.NATIVE_CALLS` names the methods a native's text calls
   (`{CALL0}`...), translated and reached with it; Thread.start's native runs `Thread.jRunThread` on a new thread
   of the system's.
+- **A final sigma depends on the JDK's word boundaries, as its isBoundary gives them**: the legacy rules of its
+  RuleBasedBreakIterator, read forwards, except that isBoundary backs up first, and from a pair of surrogates'
+  low half reads on as if the pair were cut (a boundary right after any pair but the first thing in the text).
+  `lib/java/lang/WordBreaks.java` was fitted on texts made at random until 600 000 of them gave the JDK's
+  decisions; the test keeps 5 200.
+- **Unicode's data comes from the JDK that builds the tool** (`tools/UnicodeTables.java`, run by build.sh): its
+  version is the one the tests compare with. A mod's own JVM may have another Unicode version.
 - **A final class has no subclass**: whether an object is an Integer (a cast the model's IntStream makes) has an
   answer even for an object of a class whose superclass is outside the jar.
 - **javac casts a generic array to its bound**: `T[] universe = c.getEnumConstants()` with `T extends Enum` is a
@@ -275,6 +282,7 @@ Say so rather than assume it works:
   with TreeMap and TreeSet: 9020 and 9037, type-checked;
   with threads (Thread, wait and notify, ThreadLocal): 9021 and 9038, type-checked;
   with Executors' fixed pools, Future and TimeUnit: 9024 and 9041, type-checked;
+  with Unicode's tables (case conversions, Character, parseInt): 9050 and 9067, type-checked;
 - our translator's output has been compiled and run on the test's made-up classes only. Mekanism's translation was
   type-checked by rustc (`--emit=metadata`): 4363 methods at the maintainer's request (2026-11-14), then 8154
   (and 7721 with `--server`) on 2026-11-15, while the maintainer was away and had left the decisions to the agent:
