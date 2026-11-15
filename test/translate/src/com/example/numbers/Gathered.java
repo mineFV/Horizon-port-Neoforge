@@ -691,4 +691,55 @@ public final class Gathered {
         }
         return b.toString();
     }
+
+    // ---- ArrayDeque, LinkedList ----
+
+    public static String queues(int n) {
+        StringBuilder b = new StringBuilder();
+        java.util.ArrayDeque<Integer> d = new java.util.ArrayDeque<>();
+        for (int k = 0; k < n + 20; k++) {
+            if (k % 3 == 0) d.addFirst(k);
+            else d.addLast(k);
+        }
+        b.append(d).append(d.size()).append(d.peekFirst()).append(d.peekLast()).append(d.pollFirst()).append(d.pollLast()).append(d.pop()).append(d.contains(n))
+                .append(d.removeFirstOccurrence(4)).append(d.removeLastOccurrence(n + 10)).append(d).append(" ");
+        java.util.ArrayDeque<Integer> e = new java.util.ArrayDeque<>(List.of(1, 2, 3, 4, 5, 6, 7));
+        for (java.util.Iterator<Integer> it = e.iterator(); it.hasNext(); ) {
+            int x = it.next();
+            if (x % 2 == n % 2) it.remove();
+        }
+        b.append(e).append(attempt(() -> {
+            java.util.ArrayDeque<Integer> f = new java.util.ArrayDeque<>(List.of(1, 2, 3));
+            StringBuilder seen = new StringBuilder();
+            for (int x : f) {
+                seen.append(x);
+                if (x == 1) f.addLast(9 + n);
+                if (x == 2 && n % 2 == 0) f.pollFirst();
+            }
+            return seen.toString() + f;
+        })).append(attempt(() -> new java.util.ArrayDeque<Integer>().pop())).append(attempt(() -> new java.util.ArrayDeque<Integer>().add(null)))
+                .append(new java.util.ArrayDeque<Integer>().poll()).append(" ");
+        java.util.Deque<Integer> desc = new java.util.ArrayDeque<>(List.of(1, 2, 3, 4, 5));
+        StringBuilder back = new StringBuilder();
+        for (java.util.Iterator<Integer> it = desc.descendingIterator(); it.hasNext(); ) {
+            int x = it.next();
+            back.append(x);
+            if (x == 4 - n % 3) it.remove();
+        }
+        b.append(back).append(desc).append(" ");
+        java.util.LinkedList<Integer> l = new java.util.LinkedList<>(List.of(5, 1, n));
+        l.addFirst(0);
+        l.add(2, 7);
+        l.push(-1);
+        b.append(l).append(l.get(3)).append(l.indexOf(n)).append(l.lastIndexOf(7)).append(l.removeLast()).append(l.pollFirst()).append(l.remove(Integer.valueOf(1))).append(l)
+                .append(l.equals(List.of(0, 5, 7))).append(l.hashCode()).append(attempt(() -> l.get(10))).append(attempt(() -> {
+                    for (int x : l) if (x == 5) l.add(1);
+                    return "no";
+                })).append(l.peekLast()).append(new java.util.LinkedList<>().peek());
+        java.util.Queue<String> q = new java.util.LinkedList<>();
+        q.add("a" + n);
+        q.offer("b");
+        b.append(q.poll()).append(q.peek()).append(q.size());
+        return b.toString();
+    }
 }

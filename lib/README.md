@@ -42,6 +42,10 @@ phantom) is never cleared by the collector (its object stays alive as long as it
 a ReferenceQueue; randomUUID's bits come from Rust's random keys (the JDK's from a SecureRandom); nanoTime counts
 from the first time it is asked. The atomics hold the object's lock through each read-modify-write.
 
+An ArrayDeque is laid out as the JDK's (17 slots at first, its growth, removal moving the shorter side), since its
+iterators show it: they visit as many elements as there were when they started, and a null slot is a
+ConcurrentModificationException.
+
 Not modelled: toArray's runtime types beyond copying an array's own class, Class.getComponentType, limit, skip,
 takeWhile, dropWhile, iterate, generate, DoubleStream, list iterators, reversed views, TreeMap, ArrayDeque,
 concurrent collections.

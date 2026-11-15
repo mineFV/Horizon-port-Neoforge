@@ -260,6 +260,7 @@ Say so rather than assume it works:
   with UUID, the atomics, references, System's clock and Math's exact operations: 8999 and 9016, type-checked;
   with pattern switches (typeSwitch on types): 9002 and 9019, type-checked;
   with monitors (synchronized methods and blocks): 9008 and 9025, type-checked;
+  with ArrayDeque and LinkedList: 9017 and 9034, type-checked;
 - our translator's output has been compiled and run on the test's made-up classes only. Mekanism's translation was
   type-checked by rustc (`--emit=metadata`): 4363 methods at the maintainer's request (2026-11-14), then 8154
   (and 7721 with `--server`) on 2026-11-15, while the maintainer was away and had left the decisions to the agent:
