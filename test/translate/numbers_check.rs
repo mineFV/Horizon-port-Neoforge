@@ -171,6 +171,7 @@ fn main() {
         p("queues", n.to_string(), text(gathered__queues(n)));
         p("bytes", n.to_string(), text(gathered__bytes(n)));
         p("randoms", n.to_string(), text(gathered__randoms(n)));
+        p("trees", n.to_string(), text(gathered__trees(n)));
     }
     for d0 in doubles() {
         p("doubleText", d(d0), text(texts__double_text(d0)));

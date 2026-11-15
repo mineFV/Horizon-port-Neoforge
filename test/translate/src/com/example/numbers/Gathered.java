@@ -788,4 +788,39 @@ public final class Gathered {
         b.append(same.equals(ids)).append(same.hashCode() == ids.hashCode()).append(new HashMap<>(Map.of("x", 1)).equals(new java.util.IdentityHashMap<>(Map.of("x", 1))));
         return b.toString();
     }
+
+    // ---- TreeMap, TreeSet ----
+
+    public static String trees(int n) {
+        StringBuilder b = new StringBuilder();
+        int[] calls = {0};
+        Comparator<Integer> counting = (x, y) -> {
+            calls[0]++;
+            return Integer.compare(x, y);
+        };
+        java.util.TreeMap<Integer, String> t = new java.util.TreeMap<>(counting);
+        for (int k = 0; k < 30 + n; k++) t.put((k * 37 + n * 11) % 53, "v" + k);
+        for (int k = 0; k < 20; k += 3) t.remove((k * 41 + n) % 53);
+        b.append(t).append(" ").append(calls[0]).append(" ").append(t.size()).append(t.firstKey()).append(t.lastKey()).append(t.floorKey(n + 10)).append(t.ceilingKey(n + 10))
+                .append(t.higherKey(52)).append(t.lowerKey(0)).append(t.firstEntry()).append(t.pollLastEntry()).append(t.pollFirstEntry()).append(t.putIfAbsent(n % 53, "new"))
+                .append(t.containsValue("v3")).append(t.get(-1)).append(" ").append(calls[0]).append(" ");
+        for (Iterator<Map.Entry<Integer, String>> it = t.entrySet().iterator(); it.hasNext(); ) {
+            Map.Entry<Integer, String> e = it.next();
+            if (e.getKey() % 3 == 0) it.remove();
+            else if (e.getKey() % 3 == 1) e.setValue(e.getValue() + "!");
+        }
+        b.append(t).append(t.keySet().remove(n + 1)).append(t.values().size()).append(attempt(() -> {
+            for (Integer k : t.keySet()) if (k > 20) t.put(1000, "x");
+            return "no";
+        })).append(" ");
+        java.util.TreeMap<String, Integer> natural = new java.util.TreeMap<>();
+        b.append(attempt(() -> natural.put(null, 1))).append(attempt(() -> natural.firstKey())).append(natural.put("b", 2)).append(natural.put("a", 1)).append(natural.put("b", 3))
+                .append(natural).append(natural.equals(Map.of("a", 1, "b", 3))).append(natural.hashCode()).append(attempt(() -> ((Map) natural).put(1, 1))).append(" ");
+        java.util.TreeSet<String> set = new java.util.TreeSet<>(Comparator.reverseOrder());
+        set.addAll(List.of("m", "a", "z" + n, "q", "a"));
+        b.append(set).append(set.first()).append(set.last()).append(set.floor("n")).append(set.ceiling("n")).append(set.pollFirst()).append(set.contains("q")).append(set.remove("q"))
+                .append(set.stream().sorted().toList()).append(new java.util.TreeSet<>(List.of(3, 1, n)).stream().sorted().toList())
+                .append(new java.util.TreeSet<>(List.of(5, n, 2)).stream().distinct().count()).append(set.getFirst());
+        return b.toString();
+    }
 }

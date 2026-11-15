@@ -54,7 +54,12 @@ A seeded Random gives the JDK's numbers (its generator is the one its specificat
 the JDK's order with it. An IdentityHashMap iterates in an order of its own: the JDK's comes from identity hashes,
 which change from run to run.
 
+A TreeMap (and TreeSet) is CLR's red-black tree, as the JDK's: the same keys put and removed in the same order make
+the same tree, and the comparator is asked about the same pairs (the test counts them). A TreeMap made from a
+sorted map is built one put at a time here, where the JDK builds it balanced at once: the same map, other pairs
+compared.
+
 Not modelled: toArray's runtime types beyond copying an array's own class, Class.getComponentType, limit, skip,
-takeWhile, dropWhile, iterate, generate, DoubleStream, list iterators, reversed views, TreeMap, ArrayDeque,
-concurrent collections.
+takeWhile, dropWhile, iterate, generate, DoubleStream, list iterators, reversed views, the views of sorted maps
+and sets (headMap, subSet, descendingMap...), concurrent collections.
 
