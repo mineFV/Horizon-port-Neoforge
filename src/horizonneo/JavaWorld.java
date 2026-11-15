@@ -298,6 +298,9 @@ final class JavaWorld {
         String start = a.startsWith(LAMBDA) ? lambdaInterface(a) : a;
         if (start.equals(t)) return true;
         ClassData target = classes.get(t);
+        // A class of the library model that isn't public (a nested one of java.util's) has no subclass outside java.*,
+        // where only the JDK may put classes: none of the jar's or the game's is one.
+        if (target != null && (target.access & ClassData.PUBLIC) == 0 && t.startsWith("java/") && !a.startsWith("java/") && !a.startsWith("[")) return false;
         // A final class has no subclass: only itself is one (an array or a lambda's class never).
         if (target != null && (target.access & ClassData.FINAL) != 0 && (target.access & ClassData.INTERFACE) == 0) return false;
         if (target != null && (target.access & ClassData.INTERFACE) == 0) {

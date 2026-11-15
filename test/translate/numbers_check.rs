@@ -175,6 +175,7 @@ fn main() {
         p("threads", n.to_string(), text(gathered__threads(n)));
         p("executors", n.to_string(), text(gathered__executors(n)));
         p("unicode", n.to_string(), text(gathered__unicode(n)));
+        p("concurrentMaps", n.to_string(), text(gathered__concurrent_maps(n)));
     }
     for d0 in doubles() {
         p("doubleText", d(d0), text(texts__double_text(d0)));

@@ -127,6 +127,7 @@ public final class NumbersCheck {
             p("threads", n, () -> Gathered.threads(n));
             p("executors", n, () -> Gathered.executors(n));
             p("unicode", n, () -> Gathered.unicode(n));
+            p("concurrentMaps", n, () -> Gathered.concurrentMaps(n));
         }
         for (double d : DOUBLES) p("doubleText", d(d), () -> Texts.doubleText(d));
         for (float f : FLOATS) p("floatText", f(f), () -> Texts.floatText(f));

@@ -77,8 +77,14 @@ JDK's BreakIterator's (its legacy rules) as its isBoundary answers them, quirks 
 surrogates there is always one. On 600 000 texts made at random of Greek, Latin, digits, marks, punctuation,
 kana, Thai and a supplementary letter, every decision was the JDK's.
 
+A ConcurrentHashMap is laid out as the JDK's (the tests', 25): its table's sizes (a map's size for new
+ConcurrentHashMap(map), putAll one put after another), growing when the size reaches three quarters of the table,
+a resize that keeps each bin's tail and puts the nodes before it in front, reversed, a bin of eight in a small
+table growing it eight times, and iterators that never throw but follow a resize as the JDK's do (checked with two
+resizes while one iterates). One monitor guards it all. Bins the JDK makes trees stay lists (see HashMap).
+
 Not modelled: toArray's runtime types beyond copying an array's own class, Class.getComponentType, limit, skip,
 takeWhile, dropWhile, iterate, generate, DoubleStream, list iterators, reversed views, the views of sorted maps
-and sets (headMap, subSet, descendingMap...), concurrent collections, interrupts, scheduled and cached thread pools,
+and sets (headMap, subSet, descendingMap...), the other concurrent collections, interrupts, scheduled and cached thread pools,
 CompletableFuture.
 

@@ -204,6 +204,11 @@ The tool's commands: `metadata`, `license`, `analyze`, `port`, `check`, `pack`, 
   decisions; the test keeps 5 200.
 - **Unicode's data comes from the JDK that builds the tool** (`tools/UnicodeTables.java`, run by build.sh): its
   version is the one the tests compare with. A mod's own JVM may have another Unicode version.
+- **No class outside java.* extends a class of the model's that isn't public** (a nested one of java.util's): the
+  JVM puts none but the JDK's in java.*. Without it, a cast to ConcurrentHashMap's Node[] over an array of a game
+  class without `--server` dropped 1188 of Mekanism's methods.
+- **The JDK the tests run on is 25, and its ConcurrentHashMap isn't 21's** where it shows: a map's constructor
+  sizes the table for the map, putAll doesn't size it first. Probed with reflection on its table.
 - **A final class has no subclass**: whether an object is an Integer (a cast the model's IntStream makes) has an
   answer even for an object of a class whose superclass is outside the jar.
 - **javac casts a generic array to its bound**: `T[] universe = c.getEnumConstants()` with `T extends Enum` is a
@@ -283,6 +288,7 @@ Say so rather than assume it works:
   with threads (Thread, wait and notify, ThreadLocal): 9021 and 9038, type-checked;
   with Executors' fixed pools, Future and TimeUnit: 9024 and 9041, type-checked;
   with Unicode's tables (case conversions, Character, parseInt): 9050 and 9067, type-checked;
+  with ConcurrentHashMap and Collections' synchronized wrappers: the same, type-checked;
 - our translator's output has been compiled and run on the test's made-up classes only. Mekanism's translation was
   type-checked by rustc (`--emit=metadata`): 4363 methods at the maintainer's request (2026-11-14), then 8154
   (and 7721 with `--server`) on 2026-11-15, while the maintainer was away and had left the decisions to the agent:

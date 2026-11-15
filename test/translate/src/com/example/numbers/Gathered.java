@@ -991,4 +991,53 @@ public final class Gathered {
         b.append(finals).append(" ").append(hash).append(" ").append(sample);
         return b.toString();
     }
+
+    // ---- ConcurrentHashMap, synchronized wrappers ----
+
+    public static String concurrentMaps(int n) {
+        StringBuilder b = new StringBuilder();
+        java.util.concurrent.ConcurrentHashMap<Integer, String> m = new java.util.concurrent.ConcurrentHashMap<>();
+        for (int k = 0; k < 13 + n; k++) m.put((k * 37 + n) % 101, "v" + k);
+        b.append(m).append(" ");
+        java.util.concurrent.ConcurrentHashMap<Integer, Integer> bins = new java.util.concurrent.ConcurrentHashMap<>(n + 1);
+        for (int k = 0; k < 9 + n % 4; k++) bins.put(k * 16 + n % 3, k);
+        for (int k = 0; k < 6; k++) bins.put(k * 7, -k);
+        b.append(bins).append(" ").append(bins.keySet()).append(" ");
+        java.util.concurrent.ConcurrentHashMap<String, Integer> it = new java.util.concurrent.ConcurrentHashMap<>(Map.of("a", 1, "b", 2, "c", 3));
+        int seen = 0;
+        for (String k : it.keySet()) {
+            seen++;
+            if (seen == 1) for (int x = 0; x < 20 + n; x++) it.put("k" + x, x);
+            if (k.equals("b")) it.remove("c");
+        }
+        b.append(seen).append(it.size()).append(" ");
+        for (Iterator<Map.Entry<String, Integer>> e = it.entrySet().iterator(); e.hasNext(); ) {
+            Map.Entry<String, Integer> en = e.next();
+            if (en.getValue() % 2 == 0) e.remove();
+            else en.setValue(en.getValue() * 10);
+        }
+        b.append(it).append(" ");
+        java.util.concurrent.ConcurrentHashMap<Integer, Integer> rec = new java.util.concurrent.ConcurrentHashMap<>();
+        b.append(attempt(() -> rec.computeIfAbsent(1, k -> rec.computeIfAbsent(17, x -> 2)))).append(attempt(() -> rec.put(null, 1))).append(attempt(() -> rec.put(1, null)))
+                .append(rec.computeIfAbsent(5 + n, k -> k * 2)).append(rec.computeIfAbsent(5 + n, k -> -1)).append(rec.merge(5 + n, 3, Integer::sum)).append(rec.merge(n, 4, Integer::sum))
+                .append(rec.compute(n, (k, v) -> v == null ? 0 : v + 100)).append(rec.computeIfPresent(5 + n, (k, v) -> null)).append(rec.putIfAbsent(n, 9)).append(rec.replace(n, 104, 7))
+                .append(rec.remove(n, 8)).append(rec.getOrDefault(99, -9)).append(rec).append(attempt(() -> rec.get(null))).append(" ");
+        java.util.Set<String> keys = java.util.concurrent.ConcurrentHashMap.newKeySet();
+        keys.add("x" + n);
+        keys.add("y");
+        keys.add("x" + n);
+        b.append(keys).append(keys.size()).append(keys.contains("y")).append(" ");
+        java.util.concurrent.ConcurrentHashMap<String, Integer> eq = new java.util.concurrent.ConcurrentHashMap<>(new HashMap<>(Map.of("p", 1, "q", 2)));
+        b.append(eq.equals(Map.of("p", 1, "q", 2))).append(Map.of("p", 1, "q", 2).equals(eq)).append(eq.hashCode()).append(eq.containsValue(2)).append(eq.mappingCount());
+        eq.replaceAll((k, v) -> v * 3);
+        b.append(eq).append(" ");
+        List<Integer> synced = Collections.synchronizedList(new ArrayList<>(List.of(3, 1, n)));
+        synced.add(7);
+        synced.sort(null);
+        Map<String, Integer> sm = Collections.synchronizedMap(new LinkedHashMap<>());
+        sm.put("z", n);
+        sm.merge("z", 1, Integer::sum);
+        b.append(synced).append(synced.get(0)).append(synced.subList(1, 3)).append(sm).append(sm.keySet()).append(Collections.synchronizedSet(new java.util.TreeSet<>(List.of(2, 1))));
+        return b.toString();
+    }
 }
