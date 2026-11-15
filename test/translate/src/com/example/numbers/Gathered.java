@@ -6,6 +6,8 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.EnumMap;
+import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -334,6 +336,47 @@ public final class Gathered {
     static String checked(int n) {
         assert n < 0 : "never checked";
         return "unchecked";
+    }
+
+    /** More than 64 constants: a JumboEnumSet's. */
+    enum Many {
+        M0, M1, M2, M3, M4, M5, M6, M7, M8, M9, M10, M11, M12, M13, M14, M15, M16, M17, M18, M19, M20, M21, M22, M23, M24, M25, M26, M27, M28, M29, M30, M31, M32, M33, M34, M35, M36, M37, M38, M39, M40, M41, M42, M43, M44, M45, M46, M47, M48, M49, M50, M51, M52, M53, M54, M55, M56, M57, M58, M59, M60, M61, M62, M63, M64, M65, M66, M67, M68, M69
+    }
+
+    // ---- EnumMap, EnumSet ----
+
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    public static String enumCollections(int n) {
+        Boxes.Color[] colors = Boxes.Color.values();
+        EnumMap<Boxes.Color, Integer> m = new EnumMap<>(Boxes.Color.class);
+        m.put(colors[n % 3], n);
+        m.put(Boxes.Color.GREEN, null);
+        m.put(colors[(n + 2) % 3], n * 2);
+        String s = m + " " + m.size() + " " + m.get(Boxes.Color.GREEN) + " " + m.containsKey(Boxes.Color.GREEN) + " " + m.containsValue(null) + " " + m.get("RED") + " "
+                + m.keySet() + " " + m.values() + " " + m.equals(new HashMap<>(m)) + " " + new HashMap<>(m).equals(m) + " " + new EnumMap<>(m) + " "
+                + new EnumMap<>(new HashMap<>(Map.of(Boxes.Color.BLUE, 1))) + " " + m.remove(Boxes.Color.GREEN) + " " + m;
+        for (Map.Entry<Boxes.Color, Integer> e : m.entrySet()) e.setValue(e.getValue() == null ? -1 : e.getValue() + 100);
+        m.entrySet().removeIf(e -> e.getKey() == Boxes.Color.RED);
+        s += " " + m + " " + attempt(() -> ((Map) m).put("x", 1)) + " " + attempt(() -> m.put(null, 1)) + " " + attempt(() -> new EnumMap<Boxes.Color, Integer>(new HashMap<>()));
+        EnumSet<Boxes.Color> set = EnumSet.noneOf(Boxes.Color.class);
+        set.add(colors[n % 3]);
+        set.add(Boxes.Color.BLUE);
+        s += " | " + set + " " + set.size() + " " + set.contains(Boxes.Color.GREEN) + " " + EnumSet.allOf(Boxes.Color.class) + " " + EnumSet.complementOf(set) + " "
+                + EnumSet.of(Boxes.Color.BLUE, Boxes.Color.RED) + " " + EnumSet.range(Boxes.Color.GREEN, Boxes.Color.BLUE) + " " + EnumSet.copyOf(List.of(Boxes.Color.GREEN)) + " "
+                + set.getClass().getName() + " " + set.equals(Set.of(Boxes.Color.BLUE, colors[n % 3])) + " " + attempt(() -> EnumSet.range(Boxes.Color.BLUE, Boxes.Color.RED)) + " "
+                + attempt(() -> EnumSet.copyOf(new ArrayList<Boxes.Color>())) + " " + attempt(() -> ((Set) set).add("x")) + " " + attempt(() -> EnumSet.noneOf((Class) String.class));
+        Iterator<Boxes.Color> it = set.iterator();
+        it.next();
+        it.remove();
+        s += " " + set + " " + attempt(() -> {
+            it.remove();
+            return "removed";
+        });
+        EnumSet<Many> many = EnumSet.range(Many.values()[n], Many.M69);
+        many.remove(Many.M68);
+        many.add(Many.M1);
+        s += " | " + many.size() + " " + many.contains(Many.M69) + " " + many.getClass().getName() + " " + EnumSet.complementOf(many) + " " + EnumSet.allOf(Many.class).size();
+        return s;
     }
 
     static <T> String collect(Collection<T> from, Collection<T> into) {

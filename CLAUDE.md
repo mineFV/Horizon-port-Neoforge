@@ -30,7 +30,7 @@ its machines (block entities, menus, screens) and its logic, not only its wiring
    java.util.function, the collections (ArrayList, HashMap and LinkedHashMap in the JDK's order, the sets, List.of
    and kin, Collections, Arrays, Comparator), Optional, StringBuilder, and Class objects (one for each type, class
    constants, getClass, isInstance, names, getEnumConstants, Enum.valueOf); lambdas box, unbox and widen as
-   LambdaMetafactory does. Left in (c): EnumMap and EnumSet, streams. Then (d) the game's API; then its
+   LambdaMetafactory does; EnumMap and EnumSet. Left in (c): streams. Then (d) the game's API; then its
    output goes into `port`'s bundle, and its flow is rebuilt as loops and `if`s.
 
 It is separate code that **calls** other programs and never contains theirs:
@@ -216,8 +216,7 @@ Say so rather than assume it works:
   82 with energy, 16 with tanks, no menu NeoForge could be asked for. The tests run `Machines` on a made-up
   machines file; the exporter itself only compiles and runs against a real server;
 - the machine helpers passed `check` (by reading) on Mekanism's bundle, never cargo nor the game;
-- the library model leaves out primitive types' class objects (int.class), reflection on members, EnumMap and
-  EnumSet, parsing numbers (Character's Unicode tables), streams: a method that uses them isn't translated. Where its
+- the library model leaves out primitive types' class objects (int.class), reflection on members, parsing numbers (Character's Unicode tables), streams: a method that uses them isn't translated. Where its
   collections differ from the JDK's is in `lib/README.md` (a HashMap bin the JDK makes a tree, Set.of's order);
 - Mekanism (2026-11-15): 6414 of 24149 methods with the collections; then 8154 without `--server` and 7721 with
   it (NeoForge 21.1.266's libraries). Fewer with it: the objects of classes implementing NeoForge's interfaces can

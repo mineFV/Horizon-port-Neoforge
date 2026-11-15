@@ -105,6 +105,32 @@ public final class Long extends Number implements Comparable<Long> {
         return new String(buf, at, buf.length - at);
     }
 
+    public static int bitCount(long i) {
+        int n = 0;
+        for (int k = 0; k < 64; k++) n += (int) ((i >>> k) & 1);
+        return n;
+    }
+
+    public static int numberOfLeadingZeros(long i) {
+        if (i == 0) return 64;
+        int n = 0;
+        while ((i & 0x8000000000000000L) == 0) {
+            n++;
+            i <<= 1;
+        }
+        return n;
+    }
+
+    public static int numberOfTrailingZeros(long i) {
+        if (i == 0) return 64;
+        int n = 0;
+        while ((i & 1) == 0) {
+            n++;
+            i >>>= 1;
+        }
+        return n;
+    }
+
     public static long sum(long a, long b) {
         return a + b;
     }
