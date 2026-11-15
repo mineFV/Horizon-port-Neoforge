@@ -34,6 +34,28 @@ its machines (block entities, menus, screens) and its logic, not only its wiring
    run as the JDK runs a sequential one. Step (c) is done but for what `lib/README.md` lists. Then (d) the game's API; then its
    output goes into `port`'s bundle. Its flow is rebuilt as loops and labelled blocks.
 
+### Step (d), the game's API: the maintainer's decisions (2026-11-16)
+
+Nothing of the game's own code (Mojang's, NeoForge's) is translated or copied into the bundle: its classes become
+stand-ins of our own, each behaviour certain (rule 4) or left out with a `TODO`.
+
+1. **An object of the game is an `Obj` of a stand-in class in `lib/`** (ItemStack, FluidStack...), converted from
+   and to Horizon's own type at a hook point. Horizon's are values it copies, so what the mod changed in place is
+   written back when the hook point returns. Type tests and dispatch stay as they are.
+2. **Value classes first** (Direction, BlockPos, ResourceLocation, Mth's constants, ItemStack's and FluidStack's
+   plain accessors): their behaviour is taken from Horizon's own code (MIT) and public documentation, never from
+   Mojang's bytecode. What isn't certain stays out.
+3. **A mod's config** (`ModConfigSpec`): its defaults as `dump` reads them in NeoForge, then the player's values in
+   Horizon's settings store (`horizon-hooks`' `settings.rs`, a file `horizon-<modid>.txt`).
+4. **The mod's block entities are made by the translation**: at the `block_entity` hook point, its translated
+   constructor runs, and the game's part is a stand-in `BlockEntity` in `lib/` (level, position, state), so the
+   object is in the closed world. Screens come later.
+5. **Libraries shipped with the game**: stand-ins in `lib/`, from their public API, for the classes the mod uses
+   (Guava's HashBasedTable, fastutil's maps and sets), an iteration order exactly theirs or the class stays out;
+   slf4j's Logger writes to Horizon's output.
+6. **The translation stays out of the bundle for now.** First, one translated method wired on
+   `block_entity_tick`: its first run in the game, built by the maintainer (rule 2).
+
 It is separate code that **calls** other programs and never contains theirs:
 
 - `horizon-port.jar` (Horizon-Translator): licence check, decompiling, Mixin matching, Java to Rust (until ours), `hooks`, `check`;
