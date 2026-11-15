@@ -274,6 +274,7 @@ Say so rather than assume it works:
   with charsets, Random, shuffle and IdentityHashMap: 9019 and 9036, type-checked;
   with TreeMap and TreeSet: 9020 and 9037, type-checked;
   with threads (Thread, wait and notify, ThreadLocal): 9021 and 9038, type-checked;
+  with Executors' fixed pools, Future and TimeUnit: 9024 and 9041, type-checked;
 - our translator's output has been compiled and run on the test's made-up classes only. Mekanism's translation was
   type-checked by rustc (`--emit=metadata`): 4363 methods at the maintainer's request (2026-11-14), then 8154
   (and 7721 with `--server`) on 2026-11-15, while the maintainer was away and had left the decisions to the agent:

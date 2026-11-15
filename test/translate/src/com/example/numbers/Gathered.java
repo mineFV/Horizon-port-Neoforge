@@ -894,4 +894,56 @@ public final class Gathered {
         }
         return b.toString();
     }
+
+    // ---- executors ----
+
+    public static String executors(int n) {
+        StringBuilder b = new StringBuilder();
+        java.util.concurrent.ExecutorService pool = java.util.concurrent.Executors.newFixedThreadPool(2);
+        java.util.concurrent.ExecutorService single = java.util.concurrent.Executors.newSingleThreadExecutor();
+        try {
+            List<java.util.concurrent.Future<Integer>> futures = new ArrayList<>();
+            for (int k = 0; k < 6; k++) {
+                int x = k;
+                futures.add(pool.submit(() -> x * x + n));
+            }
+            int total = 0;
+            for (java.util.concurrent.Future<Integer> f : futures) total += f.get();
+            b.append(total).append(" ");
+            java.util.concurrent.Future<Integer> failing = single.submit(() -> {
+                if (n >= 0) throw new IllegalStateException("bad" + n);
+                return 1;
+            });
+            try {
+                failing.get();
+            } catch (java.util.concurrent.ExecutionException e) {
+                b.append(e.getCause()).append(failing.isDone());
+            }
+            List<String> order = new ArrayList<>();
+            for (int k = 0; k < 4; k++) {
+                int x = k;
+                single.execute(() -> order.add("t" + x));
+            }
+            java.util.concurrent.Future<?> last = single.submit(() -> order.add("last"));
+            b.append(last.get()).append(order).append(" ");
+            java.util.concurrent.Future<String> done = single.submit(() -> {
+            }, "result" + n);
+            b.append(done.get(10, java.util.concurrent.TimeUnit.SECONDS)).append(" ");
+            single.shutdown();
+            try {
+                single.execute(() -> {
+                });
+            } catch (java.util.concurrent.RejectedExecutionException e) {
+                b.append("rejected");
+            }
+            b.append(single.awaitTermination(10, java.util.concurrent.TimeUnit.SECONDS)).append(single.isTerminated()).append(single.isShutdown());
+            pool.shutdown();
+            b.append(pool.awaitTermination(10, java.util.concurrent.TimeUnit.SECONDS)).append(" ");
+            b.append(java.util.concurrent.TimeUnit.SECONDS.toMillis(n)).append(java.util.concurrent.TimeUnit.MILLISECONDS.toSeconds(n * 1500L))
+                    .append(java.util.concurrent.TimeUnit.DAYS.toNanos(Long.MAX_VALUE / 2)).append(java.util.concurrent.TimeUnit.HOURS.convert(n * 120L, java.util.concurrent.TimeUnit.MINUTES));
+        } catch (InterruptedException | java.util.concurrent.ExecutionException | java.util.concurrent.TimeoutException e) {
+            b.append("failed ").append(e);
+        }
+        return b.toString();
+    }
 }

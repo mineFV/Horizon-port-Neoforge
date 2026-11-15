@@ -64,7 +64,12 @@ by the monitors' table (notify wakes every waiter: for all but one, a wake-up of
 thread the translation didn't start gets its Thread object the first time it asks, named as the system names it.
 Thread ids count from 1 for the first thread asked about (a JVM's own threads take ids of their own).
 
+Executors' fixed pools (the single-thread one among them) start a thread for each task until they have their size,
+then queue, as the JDK's; their threads are named "pool-N-thread-M". A task that throws by execute ends its thread,
+and the next task gets a new one.
+
 Not modelled: toArray's runtime types beyond copying an array's own class, Class.getComponentType, limit, skip,
 takeWhile, dropWhile, iterate, generate, DoubleStream, list iterators, reversed views, the views of sorted maps
-and sets (headMap, subSet, descendingMap...), concurrent collections, interrupts, executors.
+and sets (headMap, subSet, descendingMap...), concurrent collections, interrupts, scheduled and cached thread pools,
+CompletableFuture.
 
