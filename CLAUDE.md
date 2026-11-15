@@ -111,6 +111,7 @@ The tool's commands: `metadata`, `license`, `analyze`, `port`, `check`, `pack`, 
 | `Machines` | The block entities in the machines file, on Horizon's block-entity hook points; `report/machines.md` |
 | `exporter/` (not in `src/`) | The NeoForge mod `dump` compiles at run time: places each block with a block entity and writes `<facts>.machines.json` |
 | `lib/` (not in `src/`), `Library` | The translator's model of Java's library: our own Java, from the API specification, compiled by `build.sh` with `--patch-module java.base=lib` into the jar's `model/`; its `native` methods in Rust |
+| `tools/UnicodeTables.java` (not in `src/`) | Run by `build.sh`: Unicode's tables from the JDK that builds the tool, as Rust statics (`unicode.rs` in the jar) that the model's Character and String read |
 | `Bytecode`, `MethodRust`, `JarRust`, `JavaWorld` | `translate`, our own translator: every opcode decoded; a method's bytecode as a Rust function (its blocks as labelled loops and blocks, or as arms of a `match` in a `loop` when the flow is irreducible) and what it needs; the classes as the JVM resolves them (field slots, call selection, subtypes, class ids); the jar's methods, kept until what each needs is translated, as one module with the object model's runtime, dispatchers, type tests, class initializers and lambda classes, and why for the rest |
 | `Pack` | `pack`: the bundle as a `.hnmod`, written as Horizon's `docs/api/mod-files.md` says |
 | `Report` | `report.md` and `report.json` |
@@ -273,31 +274,18 @@ Say so rather than assume it works:
 - the library model leaves out reflection on members, parsing numbers (Character's Unicode tables), case
   mapping (toUpperCase), limit and skip: a method that uses them isn't translated. Where its
   collections differ from the JDK's is in `lib/README.md` (a HashMap bin the JDK makes a tree, Set.of's order);
-- Mekanism (2026-11-15): 6414 of 24149 methods with the collections; then 8154 without `--server` and 7721 with
-  it (NeoForge 21.1.266's libraries). Fewer with it: the objects of classes implementing NeoForge's interfaces can
-  then be made, and calls that may reach their methods that use the game aren't translated. Both are sound in the
-  closed world. With class objects and static methods that initialize their class: 7302 (2026-11-15), type-checked;
-  with `revive` and the enum constants as `Enum<?>[]`: 7668 (2026-11-15, no `--server`), type-checked, about 35 s;
-  with streams: 7594 (fewer: Stream.iterator's adapter lets every Iterator.hasNext reach every Consumer there is);
-  where a virtual call may reach a class of the mod whose method isn't translated, dropping the methods that make
-  its objects rather than the callers: 8967 without `--server`, 7870 with it (2026-11-15), both type-checked;
-  and where the call can't be told (a default method outside the jar, a supertype unknown): 8967 and 8984;
-  with UUID, the atomics, references, System's clock and Math's exact operations: 8999 and 9016, type-checked;
-  with pattern switches (typeSwitch on types): 9002 and 9019, type-checked;
-  with monitors (synchronized methods and blocks): 9008 and 9025, type-checked;
-  with ArrayDeque and LinkedList: 9017 and 9034, type-checked;
-  with the flow rebuilt as loops and labelled blocks (3 methods left as a match on the block): the same counts,
-  type-checked;
-  with charsets, Random, shuffle and IdentityHashMap: 9019 and 9036, type-checked;
-  with TreeMap and TreeSet: 9020 and 9037, type-checked;
-  with threads (Thread, wait and notify, ThreadLocal): 9021 and 9038, type-checked;
-  with Executors' fixed pools, Future and TimeUnit: 9024 and 9041, type-checked;
-  with Unicode's tables (case conversions, Character, parseInt): 9050 and 9067, type-checked;
-  with ConcurrentHashMap and Collections' synchronized wrappers: the same, type-checked;
+- Mekanism (2026-11-15, afternoon): 9050 of 24149 methods without `--server`, 9067 with it (NeoForge 21.1.266's
+  libraries), in about 35 s and 1 GB, the same output run after run. The steps, each type-checked: 6414 (the
+  collections), 8154 (no object whose supertypes aren't all known), 7302 (class objects; static methods initializing
+  their class, which rightly dropped those whose initializer isn't translated), 7668 (`revive`), 8967 (the makers of
+  an object a call can't run on drop, not the callers), 9067 (the rest of the library model: streams, UUID, atomics,
+  threads and executors, Unicode, TreeMap, ConcurrentHashMap...). With `--server` there were fewer for a while:
+  objects of classes implementing NeoForge's interfaces can then be made, and calls that may reach them must be
+  certain. The game holds the rest back: `essais/mekanism/phase-d-notes.md` measures what each part of it is worth;
 - our translator's output has been compiled and run on the test's made-up classes only. Mekanism's translation was
-  type-checked by rustc (`--emit=metadata`): 4363 methods at the maintainer's request (2026-11-14), then 8154
-  (and 7721 with `--server`) on 2026-11-15, while the maintainer was away and had left the decisions to the agent:
-  no error, no warning. Never run. Nothing calls them yet: the world of
+  type-checked by rustc (`--emit=metadata`): 4363 methods at the maintainer's request (2026-11-14), then every
+  version up to 9067 on 2026-11-15, while the maintainer was away and had left the decisions to the agent: no
+  error, no warning. Never run. Nothing calls them yet: the world of
   objects is closed, and a translated method called from the game with an object of the game's would break that;
 - the facts read blocks without a level: what a block decides from its neighbours or its block entity (a cable's
   connections, in Mekanism) isn't in them.
