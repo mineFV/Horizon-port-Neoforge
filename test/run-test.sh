@@ -955,6 +955,9 @@ says "$TR/gamey-out/translation.md" '`com.example.gamey.Tagged.size(I)I`: it mak
 # A method dropped while something it needs may hold, back once what dropped it is gone.
 says "$TR/gamey-out/translation.md" '- `com.example.gamey.Tagged.pick(Ljava/lang/String;)I` as `tagged__pick`'
 says "$TR/gamey-out/translation.md" '`com.example.gamey.Tagged$Stuck.valueOf(Ljava/lang/String;)Lcom/example/gamey/Tagged$Stuck;`: it initializes com.example.gamey.Tagged$Stuck'
+# A class of the mod that a virtual call may reach, whose method isn't translated: its makers drop, not the callers.
+says "$TR/gamey-out/translation.md" '- `com.example.gamey.Tagged.total(Ljava/util/List;)I` as `tagged__total`'
+says "$TR/gamey-out/translation.md" '`com.example.gamey.Tagged.lit()Ljava/lang/Object;`: it makes an object of com.example.gamey.Tagged$Lit that a virtual call may reach, and it calls java.util.function.Consumer.accept'
 exits 0 tool translate "$B/jars/gamey.jar" --server "$TR/server" --out "$TR/gamey-out"
 says "$OUT" "Read: the supertypes of 2 classes of the game, NeoForge and their libraries, from 1 jars in"
 says "$TR/gamey-out/translation.md" '- `com.example.gamey.Tagged.size(I)I` as `tagged__size`'

@@ -304,6 +304,9 @@ final class JarRust {
         for (boolean changed = true; changed; ) {
             changed = false;
             Instances inst = frozen != null ? frozen : objectsAside ? null : instances(world, needs);
+            // With the objects free to shrink: a class of the mod a virtual call may reach, whose method isn't
+            // translated, loses its makers rather than the callers (see POISON).
+            Map<String, String> poison = frozen == null && !objectsAside ? new TreeMap<>() : null;
             for (Id id : List.copyOf(needs.keySet())) {
                 for (Need n : needs.get(id)) {
                     if (objectsAside && OVER_OBJECTS.contains(n.kind())) continue;
@@ -313,7 +316,7 @@ final class JarRust {
                         changed = true;
                         break;
                     }
-                    String reason = unmet(n, world, needs, why, inst);
+                    String reason = unmet(n, world, needs, why, inst, poison);
                     if (reason == null) continue;
                     why.put(id, reason);
                     needs.remove(id);
@@ -321,7 +324,29 @@ final class JarRust {
                     break;
                 }
             }
+            if (poison == null || poison.isEmpty()) continue;
+            for (Id id : List.copyOf(needs.keySet())) {
+                for (Need n : needs.get(id)) {
+                    if (!(n.kind().equals("new") || n.kind().equals("lambda")) || !poison.containsKey(n.type())) continue;
+                    String made = n.kind().equals("new") ? "an object of " + n.type().replace('/', '.') : "a lambda of " + world.lambdaInterface(n.type()).replace('/', '.');
+                    why.put(id, "it makes " + made + " that a virtual call may reach, and " + poison.get(n.type()));
+                    needs.remove(id);
+                    changed = true;
+                    break;
+                }
+            }
         }
+    }
+
+    /**
+     * When a virtual call may reach a class of the mod (or a lambda of the mod's) whose method isn't translated, the
+     * methods that make its objects drop out, not the callers: one class made in one place, reached through Consumer
+     * or Iterator, otherwise kept every method that iterates out. Both keep each method left with what it needs. On
+     * Mekanism: 7594 methods without, 8871 for calls on types outside the jar alone, 8967 for every call.
+     */
+    private static boolean poisonable(JavaWorld world, String instance) {
+        String owner = instance.startsWith(JavaWorld.LAMBDA) ? instance.substring(JavaWorld.LAMBDA.length(), instance.indexOf('#')) : instance;
+        return world.jar.contains(owner);
     }
 
     /**
@@ -359,6 +384,11 @@ final class JarRust {
 
     /** Why a need isn't met by what is translated; null when it is. */
     static String unmet(Need n, JavaWorld world, Map<Id, List<Need>> needs, Map<Id, String> why, Instances inst) {
+        return unmet(n, world, needs, why, inst, null);
+    }
+
+    /** poison: where a class (or lambda) of the mod a virtual call may reach is put, with why, instead of failing. */
+    static String unmet(Need n, JavaWorld world, Map<Id, List<Need>> needs, Map<Id, String> why, Instances inst, Map<String, String> poison) {
         switch (n.kind()) {
             case "call" -> {
                 return untranslated("it calls ", n.id(), needs, why);
@@ -389,6 +419,10 @@ final class JarRust {
                     JavaWorld.Selected s = world.select(c, n.name(), n.descriptor());
                     if (s.why() != null) return "a virtual call isn't certain: " + n.type().replace('/', '.') + "." + n.name() + " " + s.why();
                     String r = untranslated("it calls " + n.type().replace('/', '.') + "." + n.name() + ", which may run ", s.id(), needs, why);
+                    if (r != null && poison != null && poisonable(world, c)) {
+                        poison.putIfAbsent(c, r);
+                        continue;
+                    }
                     if (r != null) return r;
                 }
                 for (String key : inst.lambdas()) {
@@ -400,6 +434,10 @@ final class JarRust {
                     JavaWorld.Selected s = world.selectOnLambda(key, n.name(), n.descriptor());
                     if (s.why() != null) return "a virtual call isn't certain: on a lambda, " + n.type().replace('/', '.') + "." + n.name() + " " + s.why();
                     String r = untranslated("it calls " + n.name() + " on a lambda, which may run ", s.id(), needs, why);
+                    if (r != null && poison != null && poisonable(world, key)) {
+                        poison.putIfAbsent(key, r);
+                        continue;
+                    }
                     if (r != null) return r;
                 }
                 return null;
@@ -1541,7 +1579,7 @@ final class JarRust {
         StringBuilder b = new StringBuilder("# What horizon-port-neoforge's own translator translated\n\n");
         b.append(r.translated().size()).append(" of ").append(r.methods()).append(" methods with a body, from their bytecode");
         if (horizonPort >= 0) b.append(" (horizon-port, from decompiled Java: ").append(horizonPort).append(")");
-        b.append(". Objects, arrays, fields, inheritance, lambdas, exceptions and the library model (texts, boxes, collections, Class objects...) are translated; streams and the game come next.\n\n");
+        b.append(". Objects, arrays, fields, inheritance, lambdas, exceptions and the library model (texts, boxes, collections, Class objects, streams...) are translated; the game comes next.\n\n");
         b.append("| Why the others aren't | Methods |\n|---|---|\n");
         r.reasons().forEach((w, n) -> b.append("| ").append(w.replace("|", "\\|")).append(" | ").append(n).append(" |\n"));
         b.append("\n## Translated\n\n");

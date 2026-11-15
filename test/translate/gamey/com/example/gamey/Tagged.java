@@ -44,4 +44,23 @@ public final class Tagged {
     public static int pick(String name) {
         return Enum.valueOf(Shade.class, name).ordinal();
     }
+
+    /** A Consumer of the mod's that calls the game: Iterable.forEach may reach it. */
+    static final class Lit implements java.util.function.Consumer<Object> {
+        @Override
+        public void accept(Object o) {
+            Light.level();
+        }
+    }
+
+    /** Makes a Lit: it drops out, so that the methods that iterate don't. */
+    public static Object lit() {
+        return new Lit();
+    }
+
+    public static int total(List<Integer> xs) {
+        int[] t = {0};
+        xs.forEach(x -> t[0] += x);
+        return t[0];
+    }
 }

@@ -177,6 +177,12 @@ The tool's commands: `metadata`, `license`, `analyze`, `port`, `check`, `pack`, 
   they cover it, brought fewer back (7497): the objects some methods make cost many others.
 - **javac compiles an enum's `values()` with System.arraycopy when Object has no `clone`** (the patched java.base
   of `lib/`): the model's Object declares `clone`, so that values() clones `$VALUES` as against the JDK.
+- **Dropping the callers of a method that can't be translated is one choice; dropping the makers of its objects
+  is another**, and both leave each method with what it needs. A virtual call (Consumer.accept from
+  Iterable.forEach) may reach every object of its type there is: one class of the mod, made in one place, whose
+  method calls the game, kept every method that iterates out. Where a virtual call may reach a class (or a lambda)
+  of the mod whose method isn't translated, its makers drop instead (`poisonable`): on Mekanism, 8967 methods
+  against 7594; 8871 when it was done for calls on types outside the jar alone.
 - **A final class has no subclass**: whether an object is an Integer (a cast the model's IntStream makes) has an
   answer even for an object of a class whose superclass is outside the jar.
 - **javac casts a generic array to its bound**: `T[] universe = c.getEnumConstants()` with `T extends Enum` is a
@@ -242,6 +248,8 @@ Say so rather than assume it works:
   closed world. With class objects and static methods that initialize their class: 7302 (2026-11-15), type-checked;
   with `revive` and the enum constants as `Enum<?>[]`: 7668 (2026-11-15, no `--server`), type-checked, about 35 s;
   with streams: 7594 (fewer: Stream.iterator's adapter lets every Iterator.hasNext reach every Consumer there is);
+  where a virtual call may reach a class of the mod whose method isn't translated, dropping the methods that make
+  its objects rather than the callers: 8967 without `--server`, 7870 with it (2026-11-15), both type-checked;
 - our translator's output has been compiled and run on the test's made-up classes only. Mekanism's translation was
   type-checked by rustc (`--emit=metadata`): 4363 methods at the maintainer's request (2026-11-14), then 8154
   (and 7721 with `--server`) on 2026-11-15, while the maintainer was away and had left the decisions to the agent:
