@@ -188,4 +188,81 @@ public abstract class AbstractList<E> extends AbstractCollection<E> implements L
             if (root.modCount != this.modCount) throw new ConcurrentModificationException();
         }
     }
+
+    /**
+     * A list's spliterator by index: its size and modCount are taken when the traversal starts, an index gone out of
+     * bounds is a ConcurrentModificationException, and modCount is checked after each element (tryAdvance) or after
+     * them all (forEachRemaining).
+     */
+    static final class RandomAccessSpliterator<E> implements Spliterator<E> {
+        private final List<E> list;
+        private int index;
+        private int fence;
+        private final AbstractList<E> alist;
+        private int expectedModCount;
+
+        RandomAccessSpliterator(List<E> list) {
+            this.list = list;
+            this.index = 0;
+            this.fence = -1;
+            this.alist = list instanceof AbstractList ? (AbstractList<E>) list : null;
+            this.expectedModCount = alist != null ? alist.modCount : 0;
+        }
+
+        private int getFence() {
+            int hi;
+            List<E> lst = list;
+            if ((hi = fence) < 0) {
+                if (alist != null) expectedModCount = alist.modCount;
+                hi = fence = lst.size();
+            }
+            return hi;
+        }
+
+        public Spliterator<E> trySplit() {
+            return null;
+        }
+
+        public boolean tryAdvance(java.util.function.Consumer<? super E> action) {
+            if (action == null) throw new NullPointerException();
+            int hi = getFence(), i = index;
+            if (i < hi) {
+                index = i + 1;
+                action.accept(get(list, i));
+                checkAbstractListModCount(alist, expectedModCount);
+                return true;
+            }
+            return false;
+        }
+
+        public void forEachRemaining(java.util.function.Consumer<? super E> action) {
+            Objects.requireNonNull(action);
+            List<E> lst = list;
+            int hi = getFence();
+            int i = index;
+            index = hi;
+            for (; i < hi; i++) action.accept(get(lst, i));
+            checkAbstractListModCount(alist, expectedModCount);
+        }
+
+        public long estimateSize() {
+            return getFence() - index;
+        }
+
+        public int characteristics() {
+            return Spliterator.ORDERED | Spliterator.SIZED | Spliterator.SUBSIZED;
+        }
+
+        private static <E> E get(List<E> list, int i) {
+            try {
+                return list.get(i);
+            } catch (IndexOutOfBoundsException ex) {
+                throw new ConcurrentModificationException();
+            }
+        }
+
+        static void checkAbstractListModCount(AbstractList<?> alist, int expectedModCount) {
+            if (alist != null && alist.modCount != expectedModCount) throw new ConcurrentModificationException();
+        }
+    }
 }

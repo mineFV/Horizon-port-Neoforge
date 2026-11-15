@@ -24,6 +24,20 @@ and why:
 - a sublist of List.of is a copy (the JDK's is a view; neither can change), and the views Collections'
   unmodifiable maps give of their entries are new objects each time they are iterated.
 
-Not modelled: toArray's runtime types beyond copying an array's own class, Class.getComponentType, streams,
-spliterators, list iterators, reversed views, TreeMap, ArrayDeque, concurrent collections.
+Streams run as the JDK runs a sequential one, where a program can see it: each element goes through every stage
+before the next comes in, sorted takes them all in first, a short-circuiting operation (anyMatch, findFirst...)
+stops asking for more; count and toArray of a stream whose size is known without running its stages don't run
+them (a peek isn't called) or ask the generator for the array first; a collection is read when the terminal
+operation starts, and ArrayList's and HashMap's spliterators check modCount where the JDK's do (after each
+element for tryAdvance, after all for forEachRemaining). What differs, and why:
+
+- a parallel stream runs one element after another: one of the runs a parallel stream allows;
+- the spliterators don't split (trySplit gives null, which the API allows), and an IntStream's or LongStream's
+  iterator and spliterator are of boxes (PrimitiveIterator and Spliterator.OfInt aren't modelled);
+- a stream's stages have classes of the model's (getClass names them differently);
+- Collectors.toUnmodifiableSet keeps Set.of's order (see above).
+
+Not modelled: toArray's runtime types beyond copying an array's own class, Class.getComponentType, limit, skip,
+takeWhile, dropWhile, iterate, generate, DoubleStream, list iterators, reversed views, TreeMap, ArrayDeque,
+concurrent collections.
 

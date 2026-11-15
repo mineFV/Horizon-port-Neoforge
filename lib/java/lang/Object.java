@@ -2,7 +2,8 @@ package java.lang;
 
 /**
  * The model of java.lang.Object. hashCode is the object's identity, as the JVM's is (its value differs from a JVM's,
- * which differs from run to run anyway). clone isn't modelled yet.
+ * which differs from run to run anyway). clone is declared, so that javac clones the enums' values() as it does
+ * against the JDK (without it, it copies them with System.arraycopy), but only an array's is translated.
  */
 public class Object {
     public Object() {}
@@ -11,6 +12,8 @@ public class Object {
 
     /** The object's class: one object for each type, the same as its class constant. */
     public final native Class<?> getClass();
+
+    protected native Object clone() throws CloneNotSupportedException;
 
     public boolean equals(Object obj) {
         return this == obj;

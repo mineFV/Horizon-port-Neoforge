@@ -68,4 +68,10 @@ public class HashSet<E> extends AbstractSet<E> implements Set<E>, Cloneable, jav
     public <T> T[] toArray(T[] a) {
         return map.keySet().toArray(a);
     }
+
+    /** The map's keys' spliterator: over the table for a HashSet, by the iterator for a LinkedHashSet. */
+    @Override
+    public Spliterator<E> spliterator() {
+        return map.keySet().spliterator();
+    }
 }

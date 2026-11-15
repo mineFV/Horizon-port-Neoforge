@@ -21,7 +21,7 @@ import java.util.TreeSet;
  * known only as that flat list of steps.
  */
 final class ClassData {
-    static final int STATIC = 0x0008, PUBLIC = 0x0001, SYNTHETIC = 0x1000, INTERFACE = 0x0200, ABSTRACT = 0x0400;
+    static final int STATIC = 0x0008, PUBLIC = 0x0001, SYNTHETIC = 0x1000, INTERFACE = 0x0200, ABSTRACT = 0x0400, FINAL = 0x0010;
 
     /**
      * An annotation: its type as a descriptor (`Lnet/neoforged/fml/common/Mod;`) and its values by name.

@@ -90,4 +90,9 @@ public interface Set<E> extends Collection<E> {
         if (coll instanceof ImmutableCollections.AbstractImmutableSet) return (Set<E>) coll;
         return ImmutableCollections.setOf(new HashSet<>(coll).toArray());
     }
+
+    @Override
+    default Spliterator<E> spliterator() {
+        return Spliterators.spliterator(this, Spliterator.DISTINCT);
+    }
 }

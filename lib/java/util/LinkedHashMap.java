@@ -214,4 +214,10 @@ public class LinkedHashMap<K, V> extends HashMap<K, V> implements SequencedMap<K
             return nextNode();
         }
     }
+
+    /** As the JDK's: its views' spliterators go by their iterators, in the map's order. */
+    @Override
+    <X> Spliterator<X> viewSpliterator(Collection<X> view, int kind) {
+        return Spliterators.spliterator(view, Spliterator.SIZED | Spliterator.ORDERED | (kind == VALUES ? 0 : Spliterator.DISTINCT));
+    }
 }

@@ -3,7 +3,7 @@ package java.util;
 import java.util.function.UnaryOperator;
 
 /**
- * The model of java.util.List. listIterator, reversed and spliterator aren't modelled. replaceAll and sort go by index
+ * The model of java.util.List. listIterator and reversed aren't modelled. replaceAll and sort go by index
  * where the JDK's defaults go through a list iterator: the same result, for a list whose get and set agree.
  */
 public interface List<E> extends SequencedCollection<E> {
@@ -145,5 +145,11 @@ public interface List<E> extends SequencedCollection<E> {
 
     static <E> List<E> copyOf(Collection<? extends E> coll) {
         return ImmutableCollections.listCopy(coll);
+    }
+
+    @Override
+    default Spliterator<E> spliterator() {
+        if (this instanceof RandomAccess) return new AbstractList.RandomAccessSpliterator<>(this);
+        return Spliterators.spliterator(this, Spliterator.ORDERED);
     }
 }

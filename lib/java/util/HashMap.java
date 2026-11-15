@@ -332,6 +332,10 @@ public class HashMap<K, V> extends AbstractMap<K, V> implements Map<K, V>, Clone
             return newKeyIterator();
         }
 
+        public final Spliterator<K> spliterator() {
+            return viewSpliterator(this, KEYS);
+        }
+
         public final boolean contains(Object o) {
             return containsKey(o);
         }
@@ -363,6 +367,10 @@ public class HashMap<K, V> extends AbstractMap<K, V> implements Map<K, V>, Clone
             return newValueIterator();
         }
 
+        public final Spliterator<V> spliterator() {
+            return viewSpliterator(this, VALUES);
+        }
+
         public final boolean contains(Object o) {
             return containsValue(o);
         }
@@ -384,6 +392,10 @@ public class HashMap<K, V> extends AbstractMap<K, V> implements Map<K, V>, Clone
 
         public final Iterator<Map.Entry<K, V>> iterator() {
             return newEntryIterator();
+        }
+
+        public final Spliterator<Map.Entry<K, V>> spliterator() {
+            return viewSpliterator(this, ENTRIES);
         }
 
         public final boolean contains(Object o) {
@@ -425,6 +437,111 @@ public class HashMap<K, V> extends AbstractMap<K, V> implements Map<K, V>, Clone
 
     Iterator<Map.Entry<K, V>> newEntryIterator() {
         return new EntryIterator();
+    }
+
+    static final int KEYS = 0, VALUES = 1, ENTRIES = 2;
+
+    /** A view's spliterator: over the table, in its order; LinkedHashMap's go by its iterators. */
+    <X> Spliterator<X> viewSpliterator(Collection<X> view, int kind) {
+        return new HashMapSpliterator<>(this, kind);
+    }
+
+    /**
+     * Over the table, bin after bin. It binds to the table's length, the size and modCount when the traversal starts;
+     * forEachRemaining walks the table it had then and checks modCount once all is done; tryAdvance reads the map's
+     * table each time and checks modCount after each element.
+     */
+    static final class HashMapSpliterator<K, V, X> implements Spliterator<X> {
+        private final HashMap<K, V> map;
+        private final int kind;
+        private Node<K, V> current;
+        private int index;
+        private int fence;
+        private int est;
+        private int expectedModCount;
+
+        HashMapSpliterator(HashMap<K, V> map, int kind) {
+            this.map = map;
+            this.kind = kind;
+            this.index = 0;
+            this.fence = -1;
+        }
+
+        private int getFence() {
+            int hi;
+            if ((hi = fence) < 0) {
+                HashMap<K, V> m = map;
+                est = m.size;
+                expectedModCount = m.modCount;
+                Node<K, V>[] tab = m.table;
+                hi = fence = (tab == null) ? 0 : tab.length;
+            }
+            return hi;
+        }
+
+        @SuppressWarnings("unchecked")
+        private X of(Node<K, V> p) {
+            return kind == KEYS ? (X) p.key : kind == VALUES ? (X) p.value : (X) p;
+        }
+
+        public Spliterator<X> trySplit() {
+            return null;
+        }
+
+        public void forEachRemaining(java.util.function.Consumer<? super X> action) {
+            int i, hi, mc;
+            if (action == null) throw new NullPointerException();
+            HashMap<K, V> m = map;
+            Node<K, V>[] tab = m.table;
+            if ((hi = fence) < 0) {
+                mc = expectedModCount = m.modCount;
+                hi = fence = (tab == null) ? 0 : tab.length;
+            } else {
+                mc = expectedModCount;
+            }
+            if (tab != null && tab.length >= hi && (i = index) >= 0 && (i < (index = hi) || current != null)) {
+                Node<K, V> p = current;
+                current = null;
+                do {
+                    if (p == null) {
+                        p = tab[i++];
+                    } else {
+                        action.accept(of(p));
+                        p = p.next;
+                    }
+                } while (p != null || i < hi);
+                if (m.modCount != mc) throw new ConcurrentModificationException();
+            }
+        }
+
+        public boolean tryAdvance(java.util.function.Consumer<? super X> action) {
+            int hi;
+            if (action == null) throw new NullPointerException();
+            Node<K, V>[] tab = map.table;
+            if (tab != null && tab.length >= (hi = getFence()) && index >= 0) {
+                while (current != null || index < hi) {
+                    if (current == null) {
+                        current = tab[index++];
+                    } else {
+                        X x = of(current);
+                        current = current.next;
+                        action.accept(x);
+                        if (map.modCount != expectedModCount) throw new ConcurrentModificationException();
+                        return true;
+                    }
+                }
+            }
+            return false;
+        }
+
+        public long estimateSize() {
+            getFence();
+            return est;
+        }
+
+        public int characteristics() {
+            return (fence < 0 || est == map.size ? Spliterator.SIZED : 0) | (kind == VALUES ? 0 : Spliterator.DISTINCT);
+        }
     }
 
     // ---- Map's defaults, as the JDK's HashMap overrides them ----

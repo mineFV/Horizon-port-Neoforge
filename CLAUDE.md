@@ -30,7 +30,8 @@ its machines (block entities, menus, screens) and its logic, not only its wiring
    java.util.function, the collections (ArrayList, HashMap and LinkedHashMap in the JDK's order, the sets, List.of
    and kin, Collections, Arrays, Comparator), Optional, StringBuilder, and Class objects (one for each type, class
    constants, getClass, isInstance, names, getEnumConstants, Enum.valueOf, Integer.TYPE and kin); lambdas box, unbox and widen as
-   LambdaMetafactory does; EnumMap and EnumSet. Left in (c): streams. Then (d) the game's API; then its
+   LambdaMetafactory does; EnumMap and EnumSet; streams (Stream, IntStream, LongStream, Collectors, spliterators),
+   run as the JDK runs a sequential one. Step (c) is done but for what `lib/README.md` lists. Then (d) the game's API; then its
    output goes into `port`'s bundle, and its flow is rebuilt as loops and `if`s.
 
 It is separate code that **calls** other programs and never contains theirs:
@@ -174,6 +175,10 @@ The tool's commands: `metadata`, `license`, `analyze`, `port`, `check`, `pack`, 
   whatever the objects are (a call, an initializer), or not; neither is always the larger (on Mekanism, not first:
   7668 against 7572; the test's `Tagged.pick` needs it first). Letting the objects grow with what comes back, until
   they cover it, brought fewer back (7497): the objects some methods make cost many others.
+- **javac compiles an enum's `values()` with System.arraycopy when Object has no `clone`** (the patched java.base
+  of `lib/`): the model's Object declares `clone`, so that values() clones `$VALUES` as against the JDK.
+- **A final class has no subclass**: whether an object is an Integer (a cast the model's IntStream makes) has an
+  answer even for an object of a class whose superclass is outside the jar.
 - **javac casts a generic array to its bound**: `T[] universe = c.getEnumConstants()` with `T extends Enum` is a
   checkcast to `Enum[]`, a type test over every array there may be, which an array of a class whose superclass is
   outside the jar leaves without an answer. The model's Enum.valueOf, EnumMap and EnumSet take the constants as
@@ -228,13 +233,15 @@ Say so rather than assume it works:
   82 with energy, 16 with tanks, no menu NeoForge could be asked for. The tests run `Machines` on a made-up
   machines file; the exporter itself only compiles and runs against a real server;
 - the machine helpers passed `check` (by reading) on Mekanism's bundle, never cargo nor the game;
-- the library model leaves out reflection on members, parsing numbers (Character's Unicode tables), streams: a method that uses them isn't translated. Where its
+- the library model leaves out reflection on members, parsing numbers (Character's Unicode tables), case
+  mapping (toUpperCase), limit and skip: a method that uses them isn't translated. Where its
   collections differ from the JDK's is in `lib/README.md` (a HashMap bin the JDK makes a tree, Set.of's order);
 - Mekanism (2026-11-15): 6414 of 24149 methods with the collections; then 8154 without `--server` and 7721 with
   it (NeoForge 21.1.266's libraries). Fewer with it: the objects of classes implementing NeoForge's interfaces can
   then be made, and calls that may reach their methods that use the game aren't translated. Both are sound in the
   closed world. With class objects and static methods that initialize their class: 7302 (2026-11-15), type-checked;
   with `revive` and the enum constants as `Enum<?>[]`: 7668 (2026-11-15, no `--server`), type-checked, about 35 s;
+  with streams: 7594 (fewer: Stream.iterator's adapter lets every Iterator.hasNext reach every Consumer there is);
 - our translator's output has been compiled and run on the test's made-up classes only. Mekanism's translation was
   type-checked by rustc (`--emit=metadata`): 4363 methods at the maintainer's request (2026-11-14), then 8154
   (and 7721 with `--server`) on 2026-11-15, while the maintainer was away and had left the decisions to the agent:

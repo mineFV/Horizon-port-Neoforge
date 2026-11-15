@@ -383,4 +383,83 @@ public class ArrayList<E> extends AbstractList<E> implements List<E>, RandomAcce
             if (modCount != expectedModCount) throw new ConcurrentModificationException();
         }
     }
+
+    @Override
+    public Spliterator<E> spliterator() {
+        return new ArrayListSpliterator(0, -1, 0);
+    }
+
+    /**
+     * Binds to the size and modCount when the traversal starts; forEachRemaining reads the array it had then, and
+     * checks modCount once all is done; tryAdvance checks it after each element.
+     */
+    final class ArrayListSpliterator implements Spliterator<E> {
+        private int index;
+        private int fence;
+        private int expectedModCount;
+
+        ArrayListSpliterator(int origin, int fence, int expectedModCount) {
+            this.index = origin;
+            this.fence = fence;
+            this.expectedModCount = expectedModCount;
+        }
+
+        private int getFence() {
+            int hi;
+            if ((hi = fence) < 0) {
+                expectedModCount = modCount;
+                hi = fence = size;
+            }
+            return hi;
+        }
+
+        public Spliterator<E> trySplit() {
+            return null;
+        }
+
+        @SuppressWarnings("unchecked")
+        public boolean tryAdvance(Consumer<? super E> action) {
+            if (action == null) throw new NullPointerException();
+            int hi = getFence(), i = index;
+            if (i < hi) {
+                index = i + 1;
+                E e = (E) elementData[i];
+                action.accept(e);
+                if (modCount != expectedModCount) throw new ConcurrentModificationException();
+                return true;
+            }
+            return false;
+        }
+
+        @SuppressWarnings("unchecked")
+        public void forEachRemaining(Consumer<? super E> action) {
+            int i, hi, mc;
+            Object[] a;
+            if (action == null) throw new NullPointerException();
+            if ((a = elementData) != null) {
+                if ((hi = fence) < 0) {
+                    mc = modCount;
+                    hi = size;
+                } else {
+                    mc = expectedModCount;
+                }
+                if ((i = index) >= 0 && (index = hi) <= a.length) {
+                    for (; i < hi; ++i) {
+                        E e = (E) a[i];
+                        action.accept(e);
+                    }
+                    if (modCount == mc) return;
+                }
+            }
+            throw new ConcurrentModificationException();
+        }
+
+        public long estimateSize() {
+            return getFence() - index;
+        }
+
+        public int characteristics() {
+            return Spliterator.ORDERED | Spliterator.SIZED | Spliterator.SUBSIZED;
+        }
+    }
 }

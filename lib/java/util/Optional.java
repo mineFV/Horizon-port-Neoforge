@@ -5,7 +5,7 @@ import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 
-/** The model of java.util.Optional. stream isn't modelled. */
+/** The model of java.util.Optional. */
 public final class Optional<T> {
     private static final Optional<?> EMPTY = new Optional<>(null);
 
@@ -108,5 +108,10 @@ public final class Optional<T> {
 
     public String toString() {
         return value != null ? "Optional[".concat(value.toString()).concat("]") : "Optional.empty";
+    }
+
+    public java.util.stream.Stream<T> stream() {
+        if (!isPresent()) return java.util.stream.Stream.empty();
+        return java.util.stream.Stream.of(value);
     }
 }

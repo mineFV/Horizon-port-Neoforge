@@ -298,6 +298,8 @@ final class JavaWorld {
         String start = a.startsWith(LAMBDA) ? lambdaInterface(a) : a;
         if (start.equals(t)) return true;
         ClassData target = classes.get(t);
+        // A final class has no subclass: only itself is one (an array or a lambda's class never).
+        if (target != null && (target.access & ClassData.FINAL) != 0 && (target.access & ClassData.INTERFACE) == 0) return false;
         if (target != null && (target.access & ClassData.INTERFACE) == 0) {
             // A class: only the superclasses lead to it (a lambda's class has Object's alone).
             if (a.startsWith(LAMBDA)) return false;

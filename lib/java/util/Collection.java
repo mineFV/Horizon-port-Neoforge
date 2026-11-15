@@ -3,7 +3,7 @@ package java.util;
 import java.util.function.IntFunction;
 import java.util.function.Predicate;
 
-/** The model of java.util.Collection. Streams and spliterators aren't modelled. */
+/** The model of java.util.Collection. parallelStream gives a stream run one element after another. */
 public interface Collection<E> extends Iterable<E> {
     int size();
 
@@ -51,4 +51,17 @@ public interface Collection<E> extends Iterable<E> {
     boolean equals(Object o);
 
     int hashCode();
+
+    @Override
+    default Spliterator<E> spliterator() {
+        return Spliterators.spliterator(this, 0);
+    }
+
+    default java.util.stream.Stream<E> stream() {
+        return java.util.stream.StreamSupport.stream(spliterator(), false);
+    }
+
+    default java.util.stream.Stream<E> parallelStream() {
+        return java.util.stream.StreamSupport.stream(spliterator(), true);
+    }
 }

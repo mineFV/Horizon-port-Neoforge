@@ -431,6 +431,21 @@ public class Collections {
         public void forEach(java.util.function.Consumer<? super E> action) {
             ((Collection<E>) c).forEach(action);
         }
+
+        @SuppressWarnings("unchecked")
+        public Spliterator<E> spliterator() {
+            return (Spliterator<E>) c.spliterator();
+        }
+
+        @SuppressWarnings("unchecked")
+        public java.util.stream.Stream<E> stream() {
+            return (java.util.stream.Stream<E>) c.stream();
+        }
+
+        @SuppressWarnings("unchecked")
+        public java.util.stream.Stream<E> parallelStream() {
+            return (java.util.stream.Stream<E>) c.parallelStream();
+        }
     }
 
     static class UnmodifiableSet<E> extends UnmodifiableCollection<E> implements Set<E> {
@@ -862,5 +877,13 @@ public class Collections {
         public Comparator<T> reversed() {
             return cmp;
         }
+    }
+
+    /**
+     * Stream.toList's list, for java.util.stream (the JDK reaches it through its shared secrets). Not the JDK's API:
+     * a mod, built against the JDK, can't call it.
+     */
+    public static <E> List<E> jListFromTrustedArrayNullsAllowed(Object[] input) {
+        return ImmutableCollections.listFromTrustedArrayNullsAllowed(input);
     }
 }

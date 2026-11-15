@@ -18,6 +18,10 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.SequencedMap;
 import java.util.Set;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
+import java.util.stream.LongStream;
+import java.util.stream.Stream;
 
 /**
  * Made up for the translator's tests: collections and Optional, the library model's third part. Each public static
@@ -389,5 +393,170 @@ public final class Gathered {
         into.addAll(from);
         into.forEach(x -> {});
         return into.toString() + into.containsAll(from);
+    }
+
+    // ---- streams ----
+
+    /** A key that counts how often it is hashed: distinct over a Set doesn't hash again. */
+    static final class Counted {
+        static int hashes;
+        final int k;
+
+        Counted(int k) {
+            this.k = k;
+        }
+
+        @Override
+        public int hashCode() {
+            hashes++;
+            return k;
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            return o instanceof Counted c && c.k == k;
+        }
+    }
+
+    public static String streams(int n) {
+        StringBuilder b = new StringBuilder();
+        // One element after another through the stages; a short-circuit stops; sorted takes all in first.
+        Stream.of(1, 2, 3, n).map(x -> {
+            b.append("m").append(x);
+            return x + 1;
+        }).filter(x -> {
+            b.append("f").append(x);
+            return x % 2 == 0;
+        }).forEach(x -> b.append("e").append(x));
+        boolean any = Stream.of(3, 1, n, 2).peek(x -> b.append("p").append(x)).sorted().peek(x -> b.append("q").append(x)).anyMatch(x -> x == 2);
+        b.append(" ").append(any).append(" ");
+        // A size known without running the stages: count doesn't run them, toArray asks the generator first.
+        long c1 = List.of(1, 2, n).stream().peek(x -> b.append("c").append(x)).count();
+        long c2 = List.of(1, 2, n).stream().filter(x -> x > 1).peek(x -> b.append("d").append(x)).count();
+        String[] a1 = Stream.of("a", "b").map(x -> {
+            b.append("g").append(x);
+            return x;
+        }).toArray(k -> {
+            b.append("<").append(k).append(">");
+            return new String[k];
+        });
+        String[] a2 = Stream.of("a", "b", "c").filter(x -> !x.equals("b")).toArray(k -> {
+            b.append("[").append(k).append("]");
+            return new String[k];
+        });
+        b.append(" ").append(c1).append(c2).append(Arrays.toString(a1)).append(Arrays.toString(a2)).append(" ");
+        b.append(attempt(() -> Arrays.toString(Stream.of("a", "b").toArray(Integer[]::new)))).append(" ");
+        b.append(attempt(() -> Arrays.toString(Stream.of("a", "b").filter(x -> true).toArray(Integer[]::new)))).append(" ");
+        b.append(attempt(() -> Arrays.toString(Stream.of("a", "b").filter(x -> true).toArray(k -> new String[1])))).append(" ");
+        b.append(attempt(() -> Arrays.toString(Stream.of("a", "b").toArray(k -> new String[k + 1])))).append(" ");
+        // The source is read when the terminal operation runs; a change while it runs is caught.
+        List<Integer> late = new ArrayList<>(List.of(1));
+        Stream<Integer> lateStream = late.stream();
+        late.add(n);
+        b.append(lateStream.toList()).append(" ");
+        List<Integer> changing = new ArrayList<>(List.of(1, 2, 3));
+        b.append(attempt(() -> {
+            changing.stream().forEach(x -> {
+                b.append(x);
+                if (x == 1) changing.add(9);
+            });
+            return "ran";
+        })).append(" ");
+        List<Integer> changing2 = new ArrayList<>(List.of(1, 2, 3));
+        b.append(attempt(() -> changing2.stream().anyMatch(x -> {
+            b.append(x);
+            if (x == 1) changing2.add(9);
+            return false;
+        }))).append(" ");
+        Map<Integer, Integer> hm = new HashMap<>(Map.of(1, 1, 2, 2));
+        b.append(attempt(() -> {
+            hm.keySet().stream().forEach(k -> {
+                b.append(k);
+                if (k == 1) hm.put(3 + n, 3);
+            });
+            return "ran";
+        })).append(" ");
+        // Used twice, closed: the JDK's messages.
+        Stream<Integer> once = Stream.of(1);
+        once.count();
+        b.append(attempt(() -> once.count())).append(" ");
+        Stream<Integer> linked = Stream.of(1);
+        linked.map(x -> x);
+        b.append(attempt(() -> linked.map(x -> x))).append(" ");
+        Stream<Integer> closed = Stream.of(1);
+        Stream<Integer> after = closed.map(x -> x + n);
+        closed.close();
+        b.append(attempt(() -> after.toList())).append(" ").append(attempt(() -> Stream.of(1).map(null))).append(" ");
+        // toList: nulls allowed, can't change.
+        List<Integer> withNull = Stream.of(null, n).toList();
+        b.append(withNull).append(withNull.contains(null)).append(withNull.indexOf(null)).append(withNull.hashCode()).append(withNull.equals(Arrays.asList(null, n)))
+                .append(withNull.subList(0, 1).contains(null)).append(attempt(() -> List.copyOf(withNull))).append(attempt(() -> withNull.add(1))).append(" ");
+        // Collectors.
+        b.append(Stream.of(n, 3, 1, n).collect(Collectors.toList())).append(Stream.of(17, 5, n).collect(Collectors.toSet()))
+                .append(Stream.of("a", "bb", "cc", "d").collect(Collectors.groupingBy(String::length))).append(Stream.of("a", "b", "c").collect(Collectors.joining(", ", "[", "]")))
+                .append(Stream.of("x", "y").collect(Collectors.joining())).append(Stream.<String>empty().collect(Collectors.joining("-"))).append(" ");
+        b.append(attempt(() -> Stream.of(1, n, 1).collect(Collectors.toMap(x -> x, x -> "v" + x)))).append(" ");
+        b.append(attempt(() -> Stream.of(1).collect(Collectors.toMap(x -> x, x -> null)))).append(" ");
+        Map<Integer, Integer> merged = Stream.of(3, 1, 3, n).collect(Collectors.toMap(x -> x, x -> 1, Integer::sum, LinkedHashMap::new));
+        Map<Object, Integer> nullKey = Stream.of(n).collect(Collectors.toMap(x -> null, x -> 1));
+        b.append(merged).append(nullKey)
+                .append(Stream.of("a", "bb", "c").collect(Collectors.groupingBy(String::length, Collectors.counting())))
+                .append(Stream.of("a", "bb", "c").collect(Collectors.groupingBy(String::length, Collectors.mapping(x -> x + x, Collectors.toList()))))
+                .append(attempt(() -> Stream.of("a").collect(Collectors.groupingBy(x -> null)))).append(attempt(() -> Stream.of(1, null).collect(Collectors.toUnmodifiableList())))
+                .append((Object) Stream.of(4, n).collect(Collectors.toCollection(ArrayList<Integer>::new))).append(" ");
+        // The other operations.
+        b.append(Stream.of(List.of(1, 2), List.of(3, n)).flatMap(List::stream).anyMatch(x -> {
+            b.append("[").append(x).append("]");
+            return x == 2;
+        })).append(Stream.of(1, null, 1, null, n).distinct().toList()).append(Stream.of(3, 1, 3, n, 1).sorted().distinct().toList())
+                .append(Stream.of(3, 1, n).sorted(Comparator.reverseOrder()).toList()).append(attempt(() -> Stream.of(new Object(), new Object()).sorted().toList()))
+                .append(Stream.of(1, 2, 3).reduce(Integer::sum)).append(Stream.<Integer>empty().reduce(Integer::sum)).append(Stream.of(1, 2, n).reduce(10, (x, y) -> x + y, Integer::sum))
+                .append(Stream.of(1, 2).reduce(0, Integer::sum)).append(attempt(() -> Stream.of(1, 2).reduce((x, y) -> null))).append(attempt(() -> Stream.of((Object) null).findFirst()))
+                .append(Stream.of(4, n, 2).min(Comparator.naturalOrder())).append(Stream.of(4, n, 2).max(Comparator.naturalOrder())).append(Stream.of(n).findAny())
+                .append(Stream.of().allMatch(x -> false)).append(Stream.of().anyMatch(x -> true)).append(Stream.of(1, 2).noneMatch(x -> x == n)).append(" ");
+        b.append(Stream.concat(Stream.of(1), Stream.of(2, n)).toList()).append(Optional.of(n).stream().toList()).append(Optional.empty().stream().count())
+                .append(Arrays.asList(5, n).stream().map(x -> x * 2).toList()).append(Collections.unmodifiableList(new ArrayList<>(List.of(n, 1))).stream().toList())
+                .append(new LinkedHashSet<>(List.of(9, 1, n)).stream().toList()).append(new HashSet<>(List.of(17, 3, 5, n)).stream().toList())
+                .append(new LinkedHashMap<>(Map.of(n, "z")).entrySet().stream().map(Map.Entry::getValue).toList()).append(new HashMap<>(Map.of("k", n)).values().stream().toList())
+                .append(Arrays.stream(new Integer[] {3, n, 1}, 1, 3).toList()).append(" ");
+        Stream.Builder<Integer> builder = Stream.builder();
+        builder.add(1).add(n);
+        Stream<Integer> built = builder.build();
+        b.append(attempt(() -> builder.add(3))).append(built.toList()).append(" ");
+        Iterator<Integer> it = Stream.of(1, 2, n + 3).filter(x -> x != 2).map(x -> {
+            b.append("i").append(x);
+            return x * 10;
+        }).iterator();
+        b.append(it.next()).append(it.hasNext()).append(it.next()).append(it.hasNext()).append(" ");
+        Stream<Integer> withClose = Stream.of(1).onClose(() -> b.append("close1")).onClose(() -> b.append("close2"));
+        withClose.close();
+        withClose.close();
+        b.append(" ").append(attempt(() -> {
+            try (Stream<Integer> failing = Stream.of(1).onClose(() -> {
+                throw new IllegalStateException("first");
+            }).onClose(() -> {
+                throw new IllegalArgumentException("second");
+            })) {
+                return failing.count();
+            } catch (IllegalStateException e) {
+                return e.getMessage() + e.getSuppressed().length + e.getSuppressed()[0].getMessage();
+            }
+        })).append(" ");
+        Counted.hashes = 0;
+        Set<Counted> counted = new HashSet<>(List.of(new Counted(1), new Counted(2), new Counted(n + 3)));
+        int before = Counted.hashes;
+        long distinctCount = counted.stream().distinct().count();
+        long listDistinct = new ArrayList<>(counted).stream().distinct().count();
+        b.append(distinctCount).append(Counted.hashes - before).append(listDistinct).append(" ");
+        // Streams of ints and longs.
+        b.append(IntStream.range(0, 4).mapToObj(i -> "i" + i).toList()).append(IntStream.range(3, 1).sum()).append(IntStream.range(0, n + 5).filter(i -> i % 2 == 0).max())
+                .append(IntStream.range(0, 0).max()).append(IntStream.rangeClosed(1, 4).reduce(1, (x, y) -> x * y)).append(IntStream.of(3, n, 1).sorted().boxed().toList())
+                .append(Arrays.toString(IntStream.of(n, 2).map(x -> x * 3).toArray())).append(IntStream.of(5).average()).append(IntStream.empty().average())
+                .append(Stream.of("ab", "c").mapToInt(String::length).sum()).append(Stream.of("ab").mapToLong(String::length).sum()).append(" ");
+        b.append(LongStream.of(1, 5, n).sum()).append(LongStream.of(1, 5, n).max()).append(Arrays.toString(LongStream.of(4, 2, n).filter(x -> x > 2).toArray()))
+                .append(LongStream.of(7).boxed().toList()).append(LongStream.range(0, 3).count()).append(IntStream.range(0, 3).asLongStream().sum())
+                .append(IntStream.of(1, 2, n).anyMatch(x -> x == n)).append(IntStream.of(2, 4).allMatch(x -> x % 2 == 0)).append(IntStream.of(n).findFirst())
+                .append(Arrays.stream(new int[] {n, 1}).min()).append(Arrays.stream(new long[] {n, 1}).count());
+        return b.toString();
     }
 }

@@ -15,7 +15,7 @@ final class ImmutableCollections {
 
     static final Object EMPTY = new Object();
 
-    static final ListN<?> EMPTY_LIST = new ListN<>(new Object[0]);
+    static final ListN<?> EMPTY_LIST = new ListN<>(new Object[0], false);
     static final SetN<?> EMPTY_SET = new SetN<>(new Object[0]);
     static final MapN<?, ?> EMPTY_MAP = new MapN<>(new Object[0]);
 
@@ -35,13 +35,19 @@ final class ImmutableCollections {
             default:
                 Object[] copy = new Object[input.length];
                 for (int i = 0; i < input.length; i++) copy[i] = Objects.requireNonNull(input[i]);
-                return new ListN<>(copy);
+                return new ListN<>(copy, false);
         }
+    }
+
+    /** Stream.toList's list: the array itself, nulls allowed (contains(null) is false, not a NullPointerException). */
+    @SuppressWarnings("unchecked")
+    static <E> List<E> listFromTrustedArrayNullsAllowed(Object[] input) {
+        return new ListN<>(input, true);
     }
 
     @SuppressWarnings("unchecked")
     static <E> List<E> listCopy(Collection<? extends E> coll) {
-        if (coll instanceof List12 || coll instanceof ListN) return (List<E>) coll;
+        if (coll instanceof List12 || (coll instanceof ListN<?> c && !c.allowNulls)) return (List<E>) coll;
         return listOf(coll.toArray());
     }
 
@@ -143,7 +149,7 @@ final class ImmutableCollections {
             AbstractList.subListRangeCheck(fromIndex, toIndex, size);
             Object[] part = new Object[toIndex - fromIndex];
             for (int i = 0; i < part.length; i++) part[i] = get(fromIndex + i);
-            return new ListN<>(part);
+            return new ListN<>(part, allowNulls());
         }
 
         public Iterator<E> iterator() {
@@ -154,15 +160,20 @@ final class ImmutableCollections {
             return indexOf(o) >= 0;
         }
 
+        /** Only Stream.toList's lists hold nulls, and may be asked about them. */
+        boolean allowNulls() {
+            return false;
+        }
+
         public int indexOf(Object o) {
-            Objects.requireNonNull(o);
-            for (int i = 0, s = size(); i < s; i++) if (o.equals(get(i))) return i;
+            if (!allowNulls() && o == null) throw new NullPointerException();
+            for (int i = 0, s = size(); i < s; i++) if (Objects.equals(o, get(i))) return i;
             return -1;
         }
 
         public int lastIndexOf(Object o) {
-            Objects.requireNonNull(o);
-            for (int i = size() - 1; i >= 0; i--) if (o.equals(get(i))) return i;
+            if (!allowNulls() && o == null) throw new NullPointerException();
+            for (int i = size() - 1; i >= 0; i--) if (Objects.equals(o, get(i))) return i;
             return -1;
         }
 
@@ -171,14 +182,14 @@ final class ImmutableCollections {
             if (!(o instanceof List)) return false;
             Iterator<?> oit = ((List<?>) o).iterator();
             for (int i = 0, s = size(); i < s; i++) {
-                if (!oit.hasNext() || !get(i).equals(oit.next())) return false;
+                if (!oit.hasNext() || !Objects.equals(get(i), oit.next())) return false;
             }
             return !oit.hasNext();
         }
 
         public int hashCode() {
             int hash = 1;
-            for (int i = 0, s = size(); i < s; i++) hash = 31 * hash + get(i).hashCode();
+            for (int i = 0, s = size(); i < s; i++) hash = 31 * hash + Objects.hashCode(get(i));
             return hash;
         }
 
@@ -257,9 +268,15 @@ final class ImmutableCollections {
 
     static final class ListN<E> extends AbstractImmutableList<E> implements java.io.Serializable {
         private final Object[] elements;
+        final boolean allowNulls;
 
-        ListN(Object[] elements) {
+        ListN(Object[] elements, boolean allowNulls) {
             this.elements = elements;
+            this.allowNulls = allowNulls;
+        }
+
+        boolean allowNulls() {
+            return allowNulls;
         }
 
         public int size() {

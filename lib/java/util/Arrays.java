@@ -48,12 +48,40 @@ public final class Arrays {
         return new ArrayList<>(a);
     }
 
+    public static <T> Spliterator<T> spliterator(T[] array) {
+        return Spliterators.spliterator(array, Spliterator.ORDERED | Spliterator.IMMUTABLE);
+    }
+
+    public static <T> Spliterator<T> spliterator(T[] array, int startInclusive, int endExclusive) {
+        return Spliterators.spliterator(array, startInclusive, endExclusive, Spliterator.ORDERED | Spliterator.IMMUTABLE);
+    }
+
+    public static <T> java.util.stream.Stream<T> stream(T[] array) {
+        return stream(array, 0, array.length);
+    }
+
+    public static <T> java.util.stream.Stream<T> stream(T[] array, int startInclusive, int endExclusive) {
+        return java.util.stream.StreamSupport.stream(spliterator(array, startInclusive, endExclusive), false);
+    }
+
+    public static java.util.stream.IntStream stream(int[] array) {
+        return java.util.stream.IntStream.jOf(array, 0, array.length);
+    }
+
+    public static java.util.stream.LongStream stream(long[] array) {
+        return java.util.stream.LongStream.jOf(array, 0, array.length);
+    }
+
     /** The list asList gives: the array itself, whose size can't change. */
     private static class ArrayList<E> extends AbstractList<E> implements RandomAccess, java.io.Serializable {
         private final E[] a;
 
         ArrayList(E[] array) {
             a = Objects.requireNonNull(array);
+        }
+
+        public Spliterator<E> spliterator() {
+            return Spliterators.spliterator(a, Spliterator.ORDERED);
         }
 
         public int size() {
