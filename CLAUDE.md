@@ -250,6 +250,7 @@ Say so rather than assume it works:
   with streams: 7594 (fewer: Stream.iterator's adapter lets every Iterator.hasNext reach every Consumer there is);
   where a virtual call may reach a class of the mod whose method isn't translated, dropping the methods that make
   its objects rather than the callers: 8967 without `--server`, 7870 with it (2026-11-15), both type-checked;
+  and where the call can't be told (a default method outside the jar, a supertype unknown): 8967 and 8984;
 - our translator's output has been compiled and run on the test's made-up classes only. Mekanism's translation was
   type-checked by rustc (`--emit=metadata`): 4363 methods at the maintainer's request (2026-11-14), then 8154
   (and 7721 with `--server`) on 2026-11-15, while the maintainer was away and had left the decisions to the agent:

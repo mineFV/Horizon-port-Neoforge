@@ -961,7 +961,7 @@ says "$TR/gamey-out/translation.md" '`com.example.gamey.Tagged.lit()Ljava/lang/O
 exits 0 tool translate "$B/jars/gamey.jar" --server "$TR/server" --out "$TR/gamey-out"
 says "$OUT" "Read: the supertypes of 2 classes of the game, NeoForge and their libraries, from 1 jars in"
 says "$TR/gamey-out/translation.md" '- `com.example.gamey.Tagged.size(I)I` as `tagged__size`'
-says "$TR/gamey-out/translation.md" 'on com.example.gamey.Tagged$Tag it is a default method of net.minecraft.world.Named, outside the jar'
+says "$TR/gamey-out/translation.md" '`com.example.gamey.Tagged.weight()I`: it makes an object of com.example.gamey.Tagged$Badge that a virtual call may reach, and a virtual call isn'"'"'t certain: com.example.gamey.Tagged$Badge.weight on com.example.gamey.Tagged$Badge it is a default method of net.minecraft.world.Named, outside the jar'
 exits 2 tool translate "$B/jars/gamey.jar" --server "$TR/game"
 says "$ERR" "isn't a NeoForge server: it has no libraries/ folder"
 exits 2 tool translate "$B/jars/fabric.jar"

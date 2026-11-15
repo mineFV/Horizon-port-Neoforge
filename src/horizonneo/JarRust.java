@@ -339,8 +339,9 @@ final class JarRust {
     }
 
     /**
-     * When a virtual call may reach a class of the mod (or a lambda of the mod's) whose method isn't translated, the
-     * methods that make its objects drop out, not the callers: one class made in one place, reached through Consumer
+     * When a virtual call may reach a class of the mod (or a lambda of the mod's) whose method isn't translated (or
+     * can't be told: a default method outside the jar, a supertype unknown), the methods that make its objects drop
+     * out, not the callers: one class made in one place, reached through Consumer
      * or Iterator, otherwise kept every method that iterates out. Both keep each method left with what it needs. On
      * Mekanism: 7594 methods without, 8871 for calls on types outside the jar alone, 8967 for every call.
      */
@@ -414,11 +415,16 @@ final class JarRust {
                 }
                 for (String c : inst.classes()) {
                     Boolean sub = world.subtype(c, n.type());
-                    if (sub == null) return "a virtual call isn't certain: whether " + c.replace('/', '.') + " is a " + n.type().replace('/', '.') + " can't be told";
-                    if (!sub) continue;
-                    JavaWorld.Selected s = world.select(c, n.name(), n.descriptor());
-                    if (s.why() != null) return "a virtual call isn't certain: " + n.type().replace('/', '.') + "." + n.name() + " " + s.why();
-                    String r = untranslated("it calls " + n.type().replace('/', '.') + "." + n.name() + ", which may run ", s.id(), needs, why);
+                    String r;
+                    if (sub == null) {
+                        r = "a virtual call isn't certain: whether " + c.replace('/', '.') + " is a " + n.type().replace('/', '.') + " can't be told";
+                    } else if (!sub) {
+                        continue;
+                    } else {
+                        JavaWorld.Selected s = world.select(c, n.name(), n.descriptor());
+                        r = s.why() != null ? "a virtual call isn't certain: " + n.type().replace('/', '.') + "." + n.name() + " " + s.why()
+                                : untranslated("it calls " + n.type().replace('/', '.') + "." + n.name() + ", which may run ", s.id(), needs, why);
+                    }
                     if (r != null && poison != null && poisonable(world, c)) {
                         poison.putIfAbsent(c, r);
                         continue;
@@ -427,13 +433,18 @@ final class JarRust {
                 }
                 for (String key : inst.lambdas()) {
                     Boolean sub = world.subtype(key, n.type());
-                    if (sub == null) return "a virtual call isn't certain: whether a lambda of " + world.lambdaInterface(key).replace('/', '.') + " is a " + n.type().replace('/', '.') + " can't be told";
-                    if (!sub) continue;
-                    ClassData.LambdaSite site = world.lambdas.get(key);
-                    if (site.samName().equals(n.name()) && site.erased().equals(n.descriptor())) continue;
-                    JavaWorld.Selected s = world.selectOnLambda(key, n.name(), n.descriptor());
-                    if (s.why() != null) return "a virtual call isn't certain: on a lambda, " + n.type().replace('/', '.') + "." + n.name() + " " + s.why();
-                    String r = untranslated("it calls " + n.name() + " on a lambda, which may run ", s.id(), needs, why);
+                    String r;
+                    if (sub == null) {
+                        r = "a virtual call isn't certain: whether a lambda of " + world.lambdaInterface(key).replace('/', '.') + " is a " + n.type().replace('/', '.') + " can't be told";
+                    } else if (!sub) {
+                        continue;
+                    } else {
+                        ClassData.LambdaSite site = world.lambdas.get(key);
+                        if (site.samName().equals(n.name()) && site.erased().equals(n.descriptor())) continue;
+                        JavaWorld.Selected s = world.selectOnLambda(key, n.name(), n.descriptor());
+                        r = s.why() != null ? "a virtual call isn't certain: on a lambda, " + n.type().replace('/', '.') + "." + n.name() + " " + s.why()
+                                : untranslated("it calls " + n.name() + " on a lambda, which may run ", s.id(), needs, why);
+                    }
                     if (r != null && poison != null && poisonable(world, key)) {
                         poison.putIfAbsent(key, r);
                         continue;

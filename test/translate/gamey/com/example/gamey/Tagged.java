@@ -21,9 +21,16 @@ public final class Tagged {
         return o instanceof List<?> l ? l.size() : -1;
     }
 
-    /** Runs a default method of the game's interface. */
+    static final class Badge implements Named {
+        @Override
+        public String name() {
+            return "badge";
+        }
+    }
+
+    /** Runs a default method of the game's interface: Badge's makers drop (this one), not Tag's. */
     public static int weight() {
-        return new Tag().weight();
+        return new Badge().weight();
     }
 
     /** An enum whose initializer calls the game: its values() isn't translated, nor its valueOf. */
