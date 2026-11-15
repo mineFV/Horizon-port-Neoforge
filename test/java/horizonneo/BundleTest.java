@@ -53,6 +53,50 @@ final class BundleTest {
             c.same("an injection that isn't there", null, Bundle.turnOff(MANIFEST, "nope", List.of("why.")));
             c.same("one that is off already isn't found again", null, Bundle.turnOff(MANIFEST, "other", List.of("why.")));
 
+            // ---- a Random by value in horizon-port's runtime.rs ----
+            String runtime = """
+                    pub mod java {
+                        pub struct JRandom(u64);
+                        pub mod ore {
+                            use super::*;
+                            pub fn skip(random: JRandom, chance: f32) -> bool {
+                                if chance <= 0.0f32 {
+                                    return true;
+                                }
+                                random.next_float() >= chance
+                            }
+                            pub fn kept(random: &mut JRandom) -> f32 {
+                                random.next_float()
+                            }
+                            pub fn called(seed: i64, random: JRandom) -> bool {
+                                true
+                            }
+                            pub fn caller() -> bool {
+                                called(0, JRandom(0))
+                            }
+                        }
+                    }
+                    """;
+            List<String> randoms = new java.util.ArrayList<>();
+            String cut = Bundle.randomsByValue(runtime, randoms);
+            c.same("the function taking one by value, and only it", List.of("skip"), randoms);
+            c.yes("it is written out down to its brace, with why", cut.contains("""
+                            // skip: taken out by horizon-port-neoforge: it takes a `JRandom` by value, which Rust won't
+                            // draw from and Java would share. TODO: take `&mut JRandom`, or the generator it stands for.
+                            // pub fn skip(random: JRandom, chance: f32) -> bool {
+                            //     if chance <= 0.0f32 {
+                            //         return true;
+                            //     }
+                            //     random.next_float() >= chance
+                            // }
+                            pub fn kept(random: &mut JRandom) -> f32 {
+                    """));
+            c.yes("one that is called stays: taking it out would move the error", cut.contains("    pub fn called(seed: i64, random: JRandom) -> bool {"));
+            c.same("the rest is as it was", runtime.split("\n").length + 2, cut.split("\n").length);
+            List<String> none = new java.util.ArrayList<>();
+            c.same("a file without any is left alone", "fn f(r: &mut JRandom) {\n}\n", Bundle.randomsByValue("fn f(r: &mut JRandom) {\n}\n", none));
+            c.same("and names none", List.of(), none);
+
             // ---- targets that aren't in a Horizon source ----
             Path horizon = dir.resolve("horizon");
             Path game = Files.createDirectories(horizon.resolve("crates/horizon-client/src/game"));

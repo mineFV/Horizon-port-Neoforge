@@ -123,6 +123,19 @@ final class Bundle {
         List<String> hooksOff = new ArrayList<>(settings(dir, mod, analysis, changes, turnedOff));
         hooksOff.addAll(targets(dir, mod, horizonSrc, changes, turnedOff));
         reword(dir, mod, info);
+        Path runtime = mod.resolve("runtime.rs");
+        if (Files.isRegularFile(runtime)) {
+            List<String> randoms = new ArrayList<>();
+            String text = randomsByValue(read(runtime), randoms);
+            if (!randoms.isEmpty()) {
+                Files.writeString(runtime, text, StandardCharsets.UTF_8);
+                changes.add("In runtime.rs, " + String.join(", ", randoms.stream().map(n -> "`" + n + "`").toList())
+                        + (randoms.size() == 1 ? " was" : " were") + " written out as comments: horizon-port gave "
+                        + (randoms.size() == 1 ? "it" : "each") + " a `JRandom` by value, which Rust won't draw from"
+                        + " (`next_*` takes `&mut self`) and which Java shares; nothing in the bundle called "
+                        + (randoms.size() == 1 ? "it." : "them."));
+            }
+        }
         List<Wiring.Wired> listeners = table == null ? List.of() : Wiring.apply(mod, id, analysis, table, approximate);
         Machines.Made made = table == null || machines == null ? null : Machines.apply(mod, id, machines, table);
 
@@ -388,6 +401,41 @@ final class Bundle {
         // The line horizon-port writes for a mod with no description of its own.
         Path runtime = mod.resolve("runtime.rs");
         if (Files.isRegularFile(runtime) && info.description().isBlank()) replace(runtime, ", ported from Fabric.\";", ", ported from NeoForge.\";");
+    }
+
+    // ---- what horizon-port translated wrong ----
+
+    /**
+     * runtime.rs with each function that takes a `JRandom` by value written out as comments, and the
+     * names of those functions added to `names`. horizon-port passes Java's Random as a copy: Rust
+     * refuses to draw from a parameter that isn't `mut` (Mekanism's whole build stopped on one), and a
+     * copy wouldn't be Java's shared generator anyway. Only a function nothing else in the file names
+     * is taken out: taking out one that is called would only move the error to its callers.
+     */
+    static String randomsByValue(String runtime, List<String> names) {
+        List<String> lines = new ArrayList<>(List.of(runtime.split("\n", -1)));
+        java.util.regex.Pattern fn = java.util.regex.Pattern.compile("^(\\s*)(?:pub(?:\\([a-z]+\\))? )?fn ([a-z_0-9]+)\\((.*)$");
+        java.util.regex.Pattern byValue = java.util.regex.Pattern.compile("(?:^|[(,]\\s*)(?:mut )?[a-z_0-9]+: JRandom\\s*[,)]");
+        for (int i = 0; i < lines.size(); i++) {
+            java.util.regex.Matcher m = fn.matcher(lines.get(i));
+            if (!m.matches() || !byValue.matcher("(" + m.group(3)).find()) continue;
+            String indent = m.group(1), name = m.group(2);
+            int end = i;
+            while (end < lines.size() && !lines.get(end).equals(indent + "}")) end++;
+            if (end == lines.size()) continue;
+            int uses = 0;
+            for (String line : lines) if (java.util.regex.Pattern.compile("\\b" + name + "\\b").matcher(line).find()) uses++;
+            if (uses > 1) continue;
+            List<String> out = new ArrayList<>(lines.subList(0, i));
+            out.add(indent + "// " + name + ": taken out by horizon-port-neoforge: it takes a `JRandom` by value, which Rust won't");
+            out.add(indent + "// draw from and Java would share. TODO: take `&mut JRandom`, or the generator it stands for.");
+            for (int j = i; j <= end; j++) out.add(lines.get(j).isEmpty() ? "//" : indent + "// " + lines.get(j).substring(Math.min(indent.length(), lines.get(j).length())));
+            out.addAll(lines.subList(end + 1, lines.size()));
+            lines = out;
+            names.add(name);
+            i = end + 2;
+        }
+        return String.join("\n", lines);
     }
 
     private static void replace(Path file, String from, String to) throws IOException {
