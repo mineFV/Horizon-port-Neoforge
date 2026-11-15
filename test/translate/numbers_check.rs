@@ -172,6 +172,7 @@ fn main() {
         p("bytes", n.to_string(), text(gathered__bytes(n)));
         p("randoms", n.to_string(), text(gathered__randoms(n)));
         p("trees", n.to_string(), text(gathered__trees(n)));
+        p("threads", n.to_string(), text(gathered__threads(n)));
     }
     for d0 in doubles() {
         p("doubleText", d(d0), text(texts__double_text(d0)));

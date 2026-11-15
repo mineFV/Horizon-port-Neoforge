@@ -194,7 +194,10 @@ final class JarRust {
             if (!needs.containsKey(id) || !out.add(id)) continue;
             for (Need n : needs.get(id)) {
                 switch (n.kind()) {
-                    case "call", "lambda" -> todo.add(n.id());
+                    case "call", "lambda" -> {
+                        todo.add(n.id());
+                        todo.addAll(Library.callsOf(n.id()));
+                    }
                     case "enums" -> {
                         for (String e : inst.enums(world)) todo.add(new Id(e, "values", "()[L" + e + ";"));
                     }
@@ -507,7 +510,14 @@ final class JarRust {
     }
 
     private static String untranslated(String said, Id id, Map<Id, List<Need>> needs, Map<Id, String> why) {
-        if (needs.containsKey(id) || Library.nativeOf(id) != null) return null;
+        if (Library.nativeOf(id) != null) {
+            for (Id c : Library.callsOf(id)) {
+                String r = untranslated(said, c, needs, why);
+                if (r != null) return r;
+            }
+            return null;
+        }
+        if (needs.containsKey(id)) return null;
         return said + id.display() + ", which isn't translated (" + (why.containsKey(id) ? why.get(id) : "it has no body in the jar") + ")";
     }
 
@@ -639,7 +649,14 @@ final class JarRust {
             StringBuilder literalText = new StringBuilder();
             literals.forEach((text, name) -> literalText.append(literal(name, text)));
             StringBuilder nativeText = new StringBuilder();
-            for (Library.Native n : Library.NATIVES.values()) if (natives.contains(n.name())) nativeText.append('\n').append(n.rust());
+            for (Map.Entry<String, Library.Native> e : Library.NATIVES.entrySet()) {
+                Library.Native n = e.getValue();
+                if (!natives.contains(n.name())) continue;
+                String text = n.rust();
+                List<Id> calls = Library.NATIVE_CALLS.getOrDefault(n.name(), List.of());
+                for (int k = 0; k < calls.size(); k++) text = text.replace("{CALL" + k + "}", function(calls.get(k)));
+                nativeText.append('\n').append(text);
+            }
             if (natives.contains("jnative_float_text") || natives.contains("jnative_double_text")) nativeText.append(Library.NUMBER_TEXT);
 
             parts.append("// The mod's methods translated from their bytecode by horizon-port-neoforge's own translator, with Java's\n");
@@ -1387,10 +1404,23 @@ final class JarRust {
                 }
             }
 
-            /// Java's monitors: by object, the thread that holds it and how many times (they are reentrant).
+            /// Java's monitors: by object, the thread that holds it and how many times (they are reentrant), and how
+            /// many notifies it had (for wait).
             #[allow(dead_code)]
-            static JMONITORS: LazyLock<(Mutex<std::collections::HashMap<usize, (std::thread::ThreadId, u32)>>, Condvar)> =
-                LazyLock::new(|| (Mutex::new(std::collections::HashMap::new()), Condvar::new()));
+            struct JMonitors {
+                held: std::collections::HashMap<usize, (std::thread::ThreadId, u32)>,
+                notified: std::collections::HashMap<usize, u64>,
+            }
+
+            #[allow(dead_code)]
+            static JMONITORS: LazyLock<(Mutex<JMonitors>, Condvar)> =
+                LazyLock::new(|| (Mutex::new(JMonitors { held: std::collections::HashMap::new(), notified: std::collections::HashMap::new() }), Condvar::new()));
+
+            thread_local! {
+                /// The current thread's Thread object, once asked for or started.
+                #[allow(dead_code)]
+                static JCURRENT: std::cell::RefCell<Ref> = const { std::cell::RefCell::new(None) };
+            }
 
             /// monitorenter: waits while another thread holds the object's monitor.
             #[allow(dead_code)]
@@ -1398,18 +1428,18 @@ final class JarRust {
                 let key = Arc::as_ptr(jobj(r)?) as usize;
                 let me = std::thread::current().id();
                 let (lock, released) = &*JMONITORS;
-                let mut held = jlock(lock);
+                let mut m = jlock(lock);
                 loop {
-                    match held.get_mut(&key) {
+                    match m.held.get_mut(&key) {
                         None => {
-                            held.insert(key, (me, 1));
+                            m.held.insert(key, (me, 1));
                             return Ok(());
                         }
                         Some((owner, count)) if *owner == me => {
                             *count += 1;
                             return Ok(());
                         }
-                        _ => held = released.wait(held).unwrap_or_else(|e| e.into_inner()),
+                        _ => m = released.wait(m).unwrap_or_else(|e| e.into_inner()),
                     }
                 }
             }
@@ -1420,12 +1450,12 @@ final class JarRust {
                 let key = Arc::as_ptr(jobj(r)?) as usize;
                 let me = std::thread::current().id();
                 let (lock, released) = &*JMONITORS;
-                let mut held = jlock(lock);
-                match held.get_mut(&key) {
+                let mut m = jlock(lock);
+                match m.held.get_mut(&key) {
                     Some((owner, count)) if *owner == me => {
                         *count -= 1;
                         if *count == 0 {
-                            held.remove(&key);
+                            m.held.remove(&key);
                             released.notify_all();
                         }
                         Ok(())

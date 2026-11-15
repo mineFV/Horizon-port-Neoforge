@@ -194,6 +194,9 @@ The tool's commands: `metadata`, `license`, `analyze`, `port`, `check`, `pack`, 
   follows a `'bN: { ... }` they break out of, any other is written inside its one predecessor's branch. A block in
   a try range still runs in its closure, which sets where it went. A loop entered at two places (an irreducible
   flow) keeps the `loop { match block ... }`.
+- **A native can call the model back**: `Library.NATIVE_CALLS` names the methods a native's text calls
+  (`{CALL0}`...), translated and reached with it; Thread.start's native runs `Thread.jRunThread` on a new thread
+  of the system's.
 - **A final class has no subclass**: whether an object is an Integer (a cast the model's IntStream makes) has an
   answer even for an object of a class whose superclass is outside the jar.
 - **javac casts a generic array to its bound**: `T[] universe = c.getEnumConstants()` with `T extends Enum` is a
@@ -270,6 +273,7 @@ Say so rather than assume it works:
   type-checked;
   with charsets, Random, shuffle and IdentityHashMap: 9019 and 9036, type-checked;
   with TreeMap and TreeSet: 9020 and 9037, type-checked;
+  with threads (Thread, wait and notify, ThreadLocal): 9021 and 9038, type-checked;
 - our translator's output has been compiled and run on the test's made-up classes only. Mekanism's translation was
   type-checked by rustc (`--emit=metadata`): 4363 methods at the maintainer's request (2026-11-14), then 8154
   (and 7721 with `--server`) on 2026-11-15, while the maintainer was away and had left the decisions to the agent:

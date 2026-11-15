@@ -15,6 +15,27 @@ public class Object {
 
     protected native Object clone() throws CloneNotSupportedException;
 
+    public final void wait() throws InterruptedException {
+        jWait(0L);
+    }
+
+    public final void wait(long timeoutMillis) throws InterruptedException {
+        if (timeoutMillis < 0) throw new IllegalArgumentException("timeout value is negative");
+        jWait(timeoutMillis);
+    }
+
+    public final void notify() {
+        jNotify();
+    }
+
+    public final void notifyAll() {
+        jNotify();
+    }
+
+    private native void jWait(long timeoutMillis);
+
+    private native void jNotify();
+
     public boolean equals(Object obj) {
         return this == obj;
     }

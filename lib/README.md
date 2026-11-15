@@ -59,7 +59,12 @@ the same tree, and the comparator is asked about the same pairs (the test counts
 sorted map is built one put at a time here, where the JDK builds it balanced at once: the same map, other pairs
 compared.
 
+A started Thread is a thread of the system's, which runs run() as its current thread; Object.wait and notify go
+by the monitors' table (notify wakes every waiter: for all but one, a wake-up of their own, which Java allows). A
+thread the translation didn't start gets its Thread object the first time it asks, named as the system names it.
+Thread ids count from 1 for the first thread asked about (a JVM's own threads take ids of their own).
+
 Not modelled: toArray's runtime types beyond copying an array's own class, Class.getComponentType, limit, skip,
 takeWhile, dropWhile, iterate, generate, DoubleStream, list iterators, reversed views, the views of sorted maps
-and sets (headMap, subSet, descendingMap...), concurrent collections.
+and sets (headMap, subSet, descendingMap...), concurrent collections, interrupts, executors.
 

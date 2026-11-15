@@ -337,6 +337,108 @@ final class Library {
                         Ok(true)
                     }
                     """)),
+            Map.entry("java/lang/Object.jWait(J)V", new Native("jnative_object_wait", """
+                    /// Object.wait: lets the monitor go, waits for a notify on the object (or the time, or a wake-up
+                    /// of its own, which Java allows), then takes the monitor back as many times as it was held.
+                    #[allow(dead_code)]
+                    fn jnative_object_wait(this: Ref, millis: i64) -> JR<()> {
+                        let key = Arc::as_ptr(jobj(&this)?) as usize;
+                        let me = std::thread::current().id();
+                        let (lock, changed) = &*JMONITORS;
+                        let mut m = jlock(lock);
+                        let count = match m.held.get(&key) {
+                            Some((owner, count)) if *owner == me => *count,
+                            _ => return Err(jexception(JID_ILLEGAL_MONITOR, Some("current thread is not owner"))),
+                        };
+                        m.held.remove(&key);
+                        changed.notify_all();
+                        let seen = *m.notified.get(&key).unwrap_or(&0);
+                        let until = if millis > 0 { Some(std::time::Instant::now() + std::time::Duration::from_millis(millis as u64)) } else { None };
+                        while *m.notified.get(&key).unwrap_or(&0) == seen {
+                            match until {
+                                None => m = changed.wait(m).unwrap_or_else(|e| e.into_inner()),
+                                Some(t) => {
+                                    let now = std::time::Instant::now();
+                                    if now >= t {
+                                        break;
+                                    }
+                                    m = changed.wait_timeout(m, t - now).unwrap_or_else(|e| e.into_inner()).0;
+                                }
+                            }
+                        }
+                        while m.held.contains_key(&key) {
+                            m = changed.wait(m).unwrap_or_else(|e| e.into_inner());
+                        }
+                        m.held.insert(key, (me, count));
+                        Ok(())
+                    }
+                    """)),
+            Map.entry("java/lang/Object.jNotify()V", new Native("jnative_object_notify", """
+                    /// Object.notify and notifyAll: every waiter wakes (for notify, the others' is a wake-up of their own).
+                    #[allow(dead_code)]
+                    fn jnative_object_notify(this: Ref) -> JR<()> {
+                        let key = Arc::as_ptr(jobj(&this)?) as usize;
+                        let me = std::thread::current().id();
+                        let (lock, changed) = &*JMONITORS;
+                        let mut m = jlock(lock);
+                        match m.held.get(&key) {
+                            Some((owner, _)) if *owner == me => {}
+                            _ => return Err(jexception(JID_ILLEGAL_MONITOR, Some("current thread is not owner"))),
+                        }
+                        *m.notified.entry(key).or_insert(0) += 1;
+                        changed.notify_all();
+                        Ok(())
+                    }
+                    """)),
+            Map.entry("java/lang/Thread.jStart()V", new Native("jnative_thread_start", """
+                    /// Thread.start: a thread of the system's, which runs the thread's run as its current thread.
+                    #[allow(dead_code)]
+                    fn jnative_thread_start(this: Ref) -> JR<()> {
+                        let t = this.clone();
+                        std::thread::Builder::new()
+                            .spawn(move || {
+                                JCURRENT.with(|c| *c.borrow_mut() = t.clone());
+                                let _ = {CALL0}(t);
+                            })
+                            .expect("the system can't start a thread");
+                        Ok(())
+                    }
+                    """)),
+            Map.entry("java/lang/Thread.currentThread()Ljava/lang/Thread;", new Native("jnative_thread_current", """
+                    /// Thread.currentThread: the thread's object; one made the first time for a thread the translation didn't start.
+                    #[allow(dead_code)]
+                    fn jnative_thread_current() -> JR<Ref> {
+                        let current = JCURRENT.with(|c| c.borrow().clone());
+                        if current.is_some() {
+                            return Ok(current);
+                        }
+                        let t = {CALL0}()?;
+                        JCURRENT.with(|c| *c.borrow_mut() = t.clone());
+                        Ok(t)
+                    }
+                    """)),
+            Map.entry("java/lang/Thread.jSystemName()Ljava/lang/String;", new Native("jnative_thread_system_name", """
+                    /// The system's name for the current thread ("main" for the first), for a thread the translation didn't start.
+                    #[allow(dead_code)]
+                    fn jnative_thread_system_name() -> JR<Ref> {
+                        Ok(jstring(std::thread::current().name().unwrap_or("main")))
+                    }
+                    """)),
+            Map.entry("java/lang/Thread.jSleep(J)V", new Native("jnative_thread_sleep", """
+                    #[allow(dead_code)]
+                    fn jnative_thread_sleep(millis: i64) -> JR<()> {
+                        std::thread::sleep(std::time::Duration::from_millis(millis as u64));
+                        Ok(())
+                    }
+                    """)),
+            Map.entry("java/lang/Thread.jPrintError(Ljava/lang/String;)V", new Native("jnative_thread_print_error", """
+                    /// What a thread's uncaught exception prints, to the standard error.
+                    #[allow(dead_code)]
+                    fn jnative_thread_print_error(text: Ref) -> JR<()> {
+                        eprintln!("{}", String::from_utf16_lossy(&jstring_units(&text)?));
+                        Ok(())
+                    }
+                    """)),
             Map.entry("java/util/Arrays.newArrayLike([Ljava/lang/Object;I)[Ljava/lang/Object;", new Native("jnative_array_like", """
                     /// A new array of a's class (a String[] for a String[]), of this length, all null; the length isn't negative.
                     #[allow(dead_code)]
@@ -351,6 +453,19 @@ final class Library {
 
     static Native nativeOf(JarRust.Id id) {
         return NATIVES.get(id.owner() + "." + id.name() + id.descriptor());
+    }
+
+    /**
+     * The model's methods a native calls back (`{CALL0}`, `{CALL1}` in its text, each the function translated from
+     * it): Thread.start's native runs the new thread's run through one.
+     */
+    static final Map<String, List<JarRust.Id>> NATIVE_CALLS = Map.of(
+            "jnative_thread_start", List.of(new JarRust.Id("java/lang/Thread", "jRunThread", "(Ljava/lang/Thread;)V")),
+            "jnative_thread_current", List.of(new JarRust.Id("java/lang/Thread", "jForeign", "()Ljava/lang/Thread;")));
+
+    static List<JarRust.Id> callsOf(JarRust.Id id) {
+        Native n = nativeOf(id);
+        return n == null ? List.of() : NATIVE_CALLS.getOrDefault(n.name(), List.of());
     }
 
     /** The exceptions the runtime throws itself, by the name of the constant that holds each one's class id. */

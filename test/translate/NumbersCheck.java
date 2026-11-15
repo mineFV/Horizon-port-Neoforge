@@ -124,6 +124,7 @@ public final class NumbersCheck {
             p("bytes", n, () -> Gathered.bytes(n));
             p("randoms", n, () -> Gathered.randoms(n));
             p("trees", n, () -> Gathered.trees(n));
+            p("threads", n, () -> Gathered.threads(n));
         }
         for (double d : DOUBLES) p("doubleText", d(d), () -> Texts.doubleText(d));
         for (float f : FLOATS) p("floatText", f(f), () -> Texts.floatText(f));

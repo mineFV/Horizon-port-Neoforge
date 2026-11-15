@@ -823,4 +823,75 @@ public final class Gathered {
                 .append(new java.util.TreeSet<>(List.of(5, n, 2)).stream().distinct().count()).append(set.getFirst());
         return b.toString();
     }
+
+    // ---- threads ----
+
+    public static String threads(int n) {
+        StringBuilder b = new StringBuilder();
+        try {
+            long[] sum = {0};
+            Thread t = new Thread(() -> {
+                for (int k = 0; k <= n * 100; k++) sum[0] += k;
+            }, "worker" + n);
+            b.append(t.getName()).append(t.isAlive());
+            t.start();
+            t.join();
+            b.append(sum[0]).append(t.isAlive()).append(" ");
+            Object lock = new Object();
+            List<Integer> box = new ArrayList<>();
+            int items = 5 + n;
+            Thread producer = new Thread(() -> {
+                try {
+                    for (int k = 0; k < items; k++) {
+                        synchronized (lock) {
+                            while (box.size() >= 2) lock.wait();
+                            box.add(k * k);
+                            lock.notifyAll();
+                        }
+                    }
+                } catch (InterruptedException e) {
+                    throw new IllegalStateException(e);
+                }
+            }, "producer");
+            producer.start();
+            int total = 0;
+            for (int k = 0; k < items; k++) {
+                synchronized (lock) {
+                    while (box.isEmpty()) lock.wait();
+                    total += box.remove(0);
+                    lock.notifyAll();
+                }
+            }
+            producer.join();
+            b.append(total).append(" ");
+            ThreadLocal<Integer> local = ThreadLocal.withInitial(() -> n * 3);
+            local.set(n + 1);
+            int[] seen = {0};
+            Thread other = new Thread(() -> {
+                seen[0] = local.get();
+                local.set(-1);
+            });
+            other.setDaemon(true);
+            other.start();
+            other.join(10_000);
+            b.append(local.get()).append(seen[0]).append(other.isDaemon()).append(" ");
+            b.append(attempt(() -> {
+                t.start();
+                return "again";
+            })).append(attempt(() -> {
+                lock.notify();
+                return "x";
+            })).append(attempt(() -> {
+                t.setDaemon(true);
+                return "set";
+            })).append(Thread.currentThread() == Thread.currentThread()).append(Thread.currentThread().getName()).append(Thread.currentThread().isDaemon());
+            Thread.sleep(n % 3);
+            synchronized (lock) {
+                lock.wait(1);
+            }
+        } catch (InterruptedException e) {
+            b.append("interrupted");
+        }
+        return b.toString();
+    }
 }
