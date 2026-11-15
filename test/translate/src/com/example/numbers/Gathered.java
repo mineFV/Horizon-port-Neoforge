@@ -1260,4 +1260,17 @@ public final class Gathered {
         }));
         return b.toString();
     }
+
+    // ---- split by a plain separator ----
+
+    public static String splits(int n) {
+        String text = "a,b,,c" + ",".repeat(n % 3) + "d" + n + ",,";
+        int limit = n % 4;
+        StringBuilder b = new StringBuilder();
+        b.append(Arrays.toString(text.split(","))).append(Arrays.toString(text.split(",", 2))).append(Arrays.toString(text.split(",", -1)))
+                .append(Arrays.toString(text.split(",", limit))).append(Arrays.toString("x:y:z".split(":"))).append(Arrays.toString("p.q".split("\\.")))
+                .append(Arrays.toString("none".split(";"))).append("none".split(";")[0] == "none").append(Arrays.toString("".split(","))).append(Arrays.toString(",,,".split(",")))
+                .append(Arrays.toString("a b  c".split(" "))).append(Arrays.toString("1|2".split("\\|")));
+        return b.toString();
+    }
 }

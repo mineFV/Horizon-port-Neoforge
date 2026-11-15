@@ -70,4 +70,9 @@ public final class Tagged {
         xs.forEach(x -> t[0] += x);
         return t[0];
     }
+
+    /** A separator that is a regular expression: String.split isn't translated for it. */
+    public static int words(String s) {
+        return s.split("\\s+").length;
+    }
 }

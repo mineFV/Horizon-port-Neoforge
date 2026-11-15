@@ -537,4 +537,49 @@ public final class String implements java.io.Serializable, Comparable<String>, C
     public CharSequence subSequence(int beginIndex, int endIndex) {
         return substring(beginIndex, endIndex);
     }
+
+    // ---- split: the JDK's fast path alone (the translator lets a call in only with such a separator) ----
+
+    public String[] split(String regex) {
+        return split(regex, 0);
+    }
+
+    /**
+     * By a separator of one plain character (or a backslash and one that isn't a letter nor a digit), as the JDK
+     * splits without a regular expression: no separator gives this String alone; a limit of 0 drops the trailing
+     * empty parts. Any other separator is a regular expression, which the model hasn't.
+     */
+    public String[] split(String regex, int limit) {
+        char ch;
+        if (regex.length() == 1) ch = regex.charAt(0);
+        else if (regex.length() == 2 && regex.charAt(0) == '\\') ch = regex.charAt(1);
+        else throw new AssertionError("a regular expression: not modelled (the translator lets no call in with one)");
+        int matchCount = 0;
+        int off = 0;
+        int next;
+        boolean limited = limit > 0;
+        java.util.ArrayList<String> list = new java.util.ArrayList<>();
+        while ((next = indexOf(ch, off)) != -1) {
+            if (!limited || matchCount < limit - 1) {
+                list.add(substring(off, next));
+                off = next + 1;
+                ++matchCount;
+            } else {
+                int last = length();
+                list.add(substring(off, last));
+                off = last;
+                ++matchCount;
+                break;
+            }
+        }
+        if (off == 0) return new String[] {this};
+        if (!limited || matchCount < limit) list.add(substring(off, length()));
+        int resultSize = list.size();
+        if (limit == 0) {
+            while (resultSize > 0 && list.get(resultSize - 1).isEmpty()) resultSize--;
+        }
+        String[] result = new String[resultSize];
+        for (int k = 0; k < resultSize; k++) result[k] = list.get(k);
+        return result;
+    }
 }

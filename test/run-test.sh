@@ -908,7 +908,7 @@ javac --release 21 -cp "$TR/classes" -d "$TR/classes" test/translate/NumbersChec
 printf 'modLoader = "javafml"\nloaderVersion = "[4,)"\nlicense = "MIT"\n[[mods]]\nmodId = "numbers"\nversion = "1.0"\ndisplayName = "Numbers"\n' > "$TR/jar/META-INF/neoforge.mods.toml"
 jar --create --file "$B/jars/numbers.jar" -C "$TR/jar" . -C "$TR/classes" com
 exits 0 tool translate "$B/jars/numbers.jar" --out "$TR/out"
-says "$OUT" "numbers.jar: 473 of 473 methods translated from their bytecode"
+says "$OUT" "numbers.jar: 474 of 474 methods translated from their bytecode"
 # Class objects: an enum's valueOf (Enum.valueOf with a class constant), and their tables.
 says "$TR/out/translation.md" '- `com.example.numbers.Boxes$Color.valueOf(Ljava/lang/String;)Lcom/example/numbers/Boxes$Color;` as'
 says "$TR/out/translated.rs" 'fn jinstance_of(t: u32, a: u32) -> bool {'
@@ -958,6 +958,8 @@ says "$TR/gamey-out/translation.md" '`com.example.gamey.Tagged.size(I)I`: it mak
 # A method dropped while something it needs may hold, back once what dropped it is gone.
 says "$TR/gamey-out/translation.md" '- `com.example.gamey.Tagged.pick(Ljava/lang/String;)I` as `tagged__pick`'
 says "$TR/gamey-out/translation.md" '`com.example.gamey.Tagged$Stuck.valueOf(Ljava/lang/String;)Lcom/example/gamey/Tagged$Stuck;`: it initializes com.example.gamey.Tagged$Stuck'
+# String.split with a regular expression for separator isn't translated (only the JDK's fast path is modelled).
+says "$TR/gamey-out/translation.md" '`com.example.gamey.Tagged.words(Ljava/lang/String;)I`: it splits a text by a regular expression'
 # A class of the mod that a virtual call may reach, whose method isn't translated: its makers drop, not the callers.
 says "$TR/gamey-out/translation.md" '- `com.example.gamey.Tagged.total(Ljava/util/List;)I` as `tagged__total`'
 says "$TR/gamey-out/translation.md" '`com.example.gamey.Tagged.lit()Ljava/lang/Object;`: it makes an object of com.example.gamey.Tagged$Lit that a virtual call may reach, and it calls java.util.function.Consumer.accept'

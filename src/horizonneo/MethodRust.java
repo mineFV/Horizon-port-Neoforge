@@ -97,11 +97,56 @@ final class MethodRust {
         } catch (Bytecode.Invalid e) {
             return new Check("its bytecode doesn't decode: " + e.getMessage(), needs);
         }
+        // The model's split(String) hands its own (checked) separator on to split(String, int).
+        String split = owner.equals(STRING) ? null : splitWhy(code, m.body().handlers(), pool);
+        if (split != null) return new Check(split, needs);
         for (Insn i : code) {
             String why = need(owner, i, pool, world, needs);
             if (why != null) return new Check(why, needs);
         }
         return new Check(null, needs);
+    }
+
+    /**
+     * String.split is the model's only for the JDK's fast path: a separator that is one character no regular
+     * expression gives a meaning to (or a backslash and one that isn't a letter nor a digit). So each call must take
+     * a constant like that, loaded just before it (with the limit, if any, pushed between), with no jump onto it.
+     */
+    private static String splitWhy(List<Insn> code, List<ClassData.Handler> handlers, ClassData.Pool pool) {
+        Set<Integer> targets = new java.util.HashSet<>();
+        for (Insn i : code) for (int t : i.targets()) targets.add(t);
+        for (ClassData.Handler h : handlers) targets.add(h.handler());
+        for (int k = 0; k < code.size(); k++) {
+            Insn i = code.get(k);
+            if (i.op() != INVOKEVIRTUAL) continue;
+            String[] t = pool.member(i.index());
+            if (!t[0].equals(STRING) || !t[1].equals("split")) continue;
+            boolean limited = t[2].equals("(Ljava/lang/String;I)[Ljava/lang/String;");
+            int at = k - (limited ? 2 : 1);
+            boolean ok = at >= 0 && !targets.contains(i.pc());
+            if (ok && limited) {
+                Insn limit = code.get(k - 1);
+                int op = limit.op();
+                ok = !targets.contains(limit.pc()) && ((op >= ICONST_M1 && op <= ICONST_5) || op == BIPUSH || op == SIPUSH || (op >= ILOAD && op <= ILOAD + 0) || op == 0x1a
+                        || op == 0x1b || op == 0x1c || op == 0x1d);
+            }
+            if (ok) {
+                Insn load = code.get(at);
+                Object c = (load.op() == LDC || load.op() == LDC_W) ? pool.constant(load.index()) : null;
+                ok = c instanceof String sep && fastSplit(sep);
+            }
+            if (!ok) return "it splits a text by a regular expression (only a constant separator of one plain character is translated)";
+        }
+        return null;
+    }
+
+    /** Whether String.split takes the JDK's fast path for this separator (no regular expression). */
+    static boolean fastSplit(String regex) {
+        char ch = 0;
+        boolean single = regex.length() == 1 && ".$|()[{^?*+\\".indexOf(ch = regex.charAt(0)) == -1;
+        boolean escaped = regex.length() == 2 && regex.charAt(0) == '\\' && (((ch = regex.charAt(1)) - '0') | ('9' - ch)) < 0 && ((ch - 'a') | ('z' - ch)) < 0
+                && ((ch - 'A') | ('Z' - ch)) < 0;
+        return (single || escaped) && (ch < Character.MIN_HIGH_SURROGATE || ch > Character.MAX_LOW_SURROGATE);
     }
 
     /** What one instruction needs, added to needs; why it can't be translated, else null. */
@@ -418,6 +463,7 @@ final class MethodRust {
 
     /** Why a lambda site can't be translated: its values would need boxing, or another adaptation. */
     private static String lambdaWhy(ClassData.LambdaSite site, JavaWorld world, List<Need> needs) {
+        if (site.owner().equals(STRING) && site.name().equals("split")) return "it makes a lambda of String.split, whose separator can't be checked";
         String iface = JavaWorld.type(ClassData.returns(site.site()));
         String hidden = world.unknownSupertype(iface);
         if (hidden != null) return unknownWhy("a lambda of " + iface, hidden);

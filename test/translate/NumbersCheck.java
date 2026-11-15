@@ -130,6 +130,7 @@ public final class NumbersCheck {
             p("concurrentMaps", n, () -> Gathered.concurrentMaps(n));
             p("futures", n, () -> Gathered.futures(n));
             p("extras", n, () -> Gathered.extras(n));
+            p("splits", n, () -> Gathered.splits(n));
         }
         for (double d : DOUBLES) p("doubleText", d(d), () -> Texts.doubleText(d));
         for (float f : FLOATS) p("floatText", f(f), () -> Texts.floatText(f));

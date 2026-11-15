@@ -178,6 +178,7 @@ fn main() {
         p("concurrentMaps", n.to_string(), text(gathered__concurrent_maps(n)));
         p("futures", n.to_string(), text(gathered__futures(n)));
         p("extras", n.to_string(), text(gathered__extras(n)));
+        p("splits", n.to_string(), text(gathered__splits(n)));
     }
     for d0 in doubles() {
         p("doubleText", d(d0), text(texts__double_text(d0)));

@@ -88,6 +88,10 @@ dependent that completes in turn, before the stage's remaining ones, the first a
 CompletionException where the JDK's does, and reports them as its join and get do. Async tasks run each on a thread
 of their own: what the JDK does when its common pool has no parallelism.
 
+String.split is the JDK's fast path alone (a separator of one plain character, or a backslash and one that isn't a
+letter nor a digit): the translator lets a call in only when its separator is such a constant, loaded just before
+the call. Regular expressions aren't modelled.
+
 Not modelled: toArray's runtime types beyond copying an array's own class, Class.getComponentType, limit, skip,
 takeWhile, dropWhile, iterate, generate, DoubleStream, list iterators, reversed views, the views of sorted maps
 and sets (headMap, subSet, descendingMap...), the other concurrent collections, interrupts, scheduled and cached thread pools,
