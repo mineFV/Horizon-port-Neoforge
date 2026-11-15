@@ -1387,6 +1387,53 @@ final class JarRust {
                 }
             }
 
+            /// Java's monitors: by object, the thread that holds it and how many times (they are reentrant).
+            #[allow(dead_code)]
+            static JMONITORS: LazyLock<(Mutex<std::collections::HashMap<usize, (std::thread::ThreadId, u32)>>, Condvar)> =
+                LazyLock::new(|| (Mutex::new(std::collections::HashMap::new()), Condvar::new()));
+
+            /// monitorenter: waits while another thread holds the object's monitor.
+            #[allow(dead_code)]
+            fn jmonitor_enter(r: &Ref) -> JR<()> {
+                let key = Arc::as_ptr(jobj(r)?) as usize;
+                let me = std::thread::current().id();
+                let (lock, released) = &*JMONITORS;
+                let mut held = jlock(lock);
+                loop {
+                    match held.get_mut(&key) {
+                        None => {
+                            held.insert(key, (me, 1));
+                            return Ok(());
+                        }
+                        Some((owner, count)) if *owner == me => {
+                            *count += 1;
+                            return Ok(());
+                        }
+                        _ => held = released.wait(held).unwrap_or_else(|e| e.into_inner()),
+                    }
+                }
+            }
+
+            /// monitorexit: an IllegalMonitorStateException unless this thread holds the monitor.
+            #[allow(dead_code)]
+            fn jmonitor_exit(r: &Ref) -> JR<()> {
+                let key = Arc::as_ptr(jobj(r)?) as usize;
+                let me = std::thread::current().id();
+                let (lock, released) = &*JMONITORS;
+                let mut held = jlock(lock);
+                match held.get_mut(&key) {
+                    Some((owner, count)) if *owner == me => {
+                        *count -= 1;
+                        if *count == 0 {
+                            held.remove(&key);
+                            released.notify_all();
+                        }
+                        Ok(())
+                    }
+                    _ => Err(jexception(JID_ILLEGAL_MONITOR, None)),
+                }
+            }
+
             /// athrow: the exception, or a NullPointerException for null.
             #[allow(dead_code)]
             fn jthrow(e: Ref) -> Ref {

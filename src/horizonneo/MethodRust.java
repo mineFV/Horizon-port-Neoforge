@@ -84,8 +84,13 @@ final class MethodRust {
             if (where(h.type(), world) != null) return new Check("it catches an exception of " + where(h.type(), world) + ": " + h.type().replace('/', '.'), needs);
             needs.add(new Need("test", null, h.type(), null, null));
         }
-        if ((m.access() & 0x0020) != 0) return new Check("it is synchronized: monitors aren't translated yet", needs);
         if (initsOnEntry(owner, m, world)) needs.add(new Need("init", null, owner, null, null));
+        if ((m.access() & SYNCHRONIZED) != 0 && m.isStatic()) {
+            // A static synchronized method holds its class object's monitor.
+            if (!world.concrete(CLASS)) return new Check("it is synchronized on its class: the library model has no Class", needs);
+            needs.add(new Need("new", null, CLASS, null, null));
+            needs.add(new Need("class", null, owner, null, null));
+        }
         List<Insn> code;
         try {
             code = Bytecode.decode(m.body().code());
@@ -257,7 +262,7 @@ final class MethodRust {
                 return world.cls("java/lang/Throwable") == null ? "it throws an exception: the library model has no Throwable" : null;
             }
             case MONITORENTER, MONITOREXIT -> {
-                return "it has a synchronized block: monitors aren't translated yet";
+                return null;
             }
             case JSR, JSR_W, RET -> {
                 return "it uses a subroutine (class files before Java 7): not translated";
@@ -299,6 +304,8 @@ final class MethodRust {
     static final JarRust.Id CONCAT = new JarRust.Id(STRING, "jconcat", "([Ljava/lang/String;)Ljava/lang/String;");
 
     static final String SWITCH_BOOTSTRAPS = "java/lang/runtime/SwitchBootstraps";
+
+    static final int SYNCHRONIZED = 0x0020;
 
     /**
      * A pattern switch's typeSwitch: of a null, -1; else the first label from the restart index on that the object is
@@ -788,6 +795,15 @@ final class MethodRust {
                 }
             }
             stackVars.forEach((name, t) -> out.append("    let mut ").append(name).append(": ").append(kindType(t)).append(" = ").append(zero(t)).append(";\n"));
+            // A synchronized method holds its object's (its class object's) monitor while it runs: its body in a
+            // closure, the monitor let go however it ends.
+            boolean synced = (m.access() & SYNCHRONIZED) != 0;
+            if (synced) {
+                String monitor = m.isStatic() ? "jclass_object(" + names.id(owner) + ")" : locals.get(0).get('A') + ".clone()";
+                out.append("    let jmonitor: Ref = ").append(monitor).append(";\n    jmonitor_enter(&jmonitor)?;\n");
+                String type = "JR<" + (r.equals("V") ? "()" : rust(r)) + ">";
+                out.append("    let jresult: ").append(type).append(" = (|| -> ").append(type).append(" {\n");
+            }
             if (!flows) {
                 for (String line : bodies.get(0)) out.append("    ").append(line).append('\n');
             } else {
@@ -799,6 +815,7 @@ final class MethodRust {
                 });
                 out.append("            _ => unreachable!(),\n        }\n    }\n");
             }
+            if (synced) out.append("    })();\n    jmonitor_exit(&jmonitor)?;\n    jresult\n");
             out.append("}\n");
             return new Done(out.toString(), helpers);
         }
@@ -1010,6 +1027,10 @@ final class MethodRust {
                     pushTemp('I', e.toString());
                 } else if (op == INVOKEDYNAMIC && pool.lambdaSite(i.index()) == null) {
                     concat(i);
+                } else if (op == MONITORENTER || op == MONITOREXIT) {
+                    V v = stack.removeLast();
+                    settle();
+                    lines.add((op == MONITORENTER ? "jmonitor_enter(" : "jmonitor_exit(") + ref(v) + ")?;");
                 } else if (op == ATHROW) {
                     V v = stack.removeLast();
                     lines.add("return Err(jthrow(" + val(v) + "));");

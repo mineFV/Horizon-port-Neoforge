@@ -167,6 +167,7 @@ fn main() {
         p("streams", n.to_string(), text(gathered__streams(n)));
         p("misc", n.to_string(), text(gathered__misc(n)));
         p("patterns", n.to_string(), text(gathered__patterns(n)));
+        p("monitors", n.to_string(), text(gathered__monitors(n)));
     }
     for d0 in doubles() {
         p("doubleText", d(d0), text(texts__double_text(d0)));

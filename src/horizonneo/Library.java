@@ -362,7 +362,8 @@ final class Library {
             "JID_ARRAY_STORE", "java/lang/ArrayStoreException",
             "JID_CLASS_CAST", "java/lang/ClassCastException",
             "JID_INITIALIZER", "java/lang/ExceptionInInitializerError",
-            "JID_NO_CLASS", "java/lang/NoClassDefFoundError"));
+            "JID_NO_CLASS", "java/lang/NoClassDefFoundError",
+            "JID_ILLEGAL_MONITOR", "java/lang/IllegalMonitorStateException"));
 
     /** Java's Double.toString and Float.toString, from Rust's shortest digits (the same digits: the shortest that read back, the closest of those). */
     static final String NUMBER_TEXT = """

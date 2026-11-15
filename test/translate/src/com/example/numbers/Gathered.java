@@ -655,4 +655,40 @@ public final class Gathered {
         }));
         return b.toString();
     }
+
+    // ---- monitors ----
+
+    static final class Counter {
+        private int count;
+
+        synchronized int bump(int by) {
+            count += by;
+            return by > 0 ? bump(by - 1) : count;
+        }
+
+        static synchronized String name(int n) {
+            return "counter" + n;
+        }
+    }
+
+    public static String monitors(int n) {
+        Counter c = new Counter();
+        StringBuilder b = new StringBuilder();
+        b.append(c.bump(n)).append(Counter.name(n));
+        synchronized (c) {
+            synchronized (c) {
+                b.append(c.bump(1));
+            }
+        }
+        b.append(attempt(() -> {
+            synchronized (c) {
+                if (n % 2 == 0) throw new IllegalStateException("inside" + n);
+                return "out";
+            }
+        }));
+        synchronized (c) {
+            b.append(c.bump(0));
+        }
+        return b.toString();
+    }
 }
