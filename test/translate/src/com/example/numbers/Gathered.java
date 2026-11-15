@@ -1068,4 +1068,110 @@ public final class Gathered {
         b.append(synced).append(synced.get(0)).append(synced.subList(1, 3)).append(sm).append(sm.keySet()).append(Collections.synchronizedSet(new java.util.TreeSet<>(List.of(2, 1))));
         return b.toString();
     }
+
+    // ---- CompletableFuture ----
+
+    static String failure(Throwable t) {
+        return t == null ? "-" : t.getClass().getSimpleName() + "(" + (t.getCause() == null ? t.getMessage() : t.getCause().getClass().getSimpleName() + ":" + t.getCause().getMessage()) + ")";
+    }
+
+    public static String futures(int n) {
+        StringBuilder b = new StringBuilder();
+        java.util.concurrent.CompletableFuture<Integer> src = new java.util.concurrent.CompletableFuture<>();
+        java.util.concurrent.CompletableFuture<Integer> first = src.thenApply(x -> {
+            b.append("A").append(x);
+            return x + 1;
+        });
+        src.thenAccept(x -> b.append("B").append(x));
+        first.thenRun(() -> b.append("C"));
+        first.thenRun(() -> b.append("D"));
+        java.util.concurrent.CompletableFuture<Integer> second = first.thenApply(x -> {
+            b.append("E").append(x);
+            return x * 2;
+        });
+        second.thenAccept(x -> b.append("F").append(x));
+        src.thenRun(() -> b.append("G"));
+        b.append(src.complete(n)).append(src.complete(99)).append(" ").append(second.join()).append(" ");
+        java.util.concurrent.CompletableFuture<Integer> bad = new java.util.concurrent.CompletableFuture<>();
+        java.util.concurrent.CompletableFuture<Integer> after = bad.thenApply(x -> x + 1);
+        java.util.concurrent.CompletableFuture<Integer> recovered = after.exceptionally(t -> {
+            b.append(failure(t));
+            return -1;
+        });
+        java.util.concurrent.CompletableFuture<String> handled = bad.handle((v, t) -> v + "/" + failure(t));
+        java.util.concurrent.CompletableFuture<Integer> watched = after.whenComplete((v, t) -> {
+            throw new IllegalStateException("watcher" + n);
+        });
+        bad.completeExceptionally(new IllegalArgumentException("bad" + n));
+        b.append(" ").append(recovered.join()).append(handled.join()).append(" ");
+        try {
+            after.join();
+        } catch (java.util.concurrent.CompletionException e) {
+            b.append(failure(e));
+        }
+        try {
+            bad.get();
+        } catch (InterruptedException | java.util.concurrent.ExecutionException e) {
+            b.append(failure(e));
+        }
+        try {
+            watched.join();
+        } catch (java.util.concurrent.CompletionException e) {
+            b.append(failure(e)).append(e.getCause().getSuppressed().length);
+        }
+        try {
+            bad.join();
+        } catch (java.util.concurrent.CompletionException e) {
+            b.append(failure(e));
+        }
+        b.append(" ");
+        java.util.concurrent.CompletableFuture<Integer> inner = new java.util.concurrent.CompletableFuture<>();
+        java.util.concurrent.CompletableFuture<Integer> composed = java.util.concurrent.CompletableFuture.completedFuture(n).thenCompose(x -> inner.thenApply(y -> x * 100 + y));
+        java.util.concurrent.CompletableFuture<Integer> left = new java.util.concurrent.CompletableFuture<>();
+        java.util.concurrent.CompletableFuture<Integer> right = new java.util.concurrent.CompletableFuture<>();
+        java.util.concurrent.CompletableFuture<String> both = left.thenCombine(right, (x, y) -> x + "+" + y);
+        b.append(composed.isDone()).append(both.getNow("none"));
+        if (n % 2 == 0) {
+            left.complete(1);
+            right.complete(2);
+        } else {
+            right.complete(2);
+            left.complete(1);
+        }
+        inner.complete(7);
+        b.append(composed.join()).append(both.join()).append(" ");
+        java.util.concurrent.CompletableFuture<Integer> p = new java.util.concurrent.CompletableFuture<>();
+        java.util.concurrent.CompletableFuture<Integer> q = new java.util.concurrent.CompletableFuture<>();
+        java.util.concurrent.CompletableFuture<Void> all = java.util.concurrent.CompletableFuture.allOf(p, q, java.util.concurrent.CompletableFuture.completedFuture(3));
+        q.completeExceptionally(new IllegalStateException("q" + n));
+        b.append(all.isDone());
+        p.complete(1);
+        b.append(all.isCompletedExceptionally()).append(" ");
+        try {
+            all.join();
+        } catch (java.util.concurrent.CompletionException e) {
+            b.append(failure(e));
+        }
+        java.util.concurrent.CompletableFuture<Integer> async = java.util.concurrent.CompletableFuture.supplyAsync(() -> n * 3);
+        java.util.concurrent.CompletableFuture<Integer> asyncBad = java.util.concurrent.CompletableFuture.supplyAsync(() -> {
+            throw new IllegalStateException("async" + n);
+        });
+        java.util.concurrent.CompletableFuture<Integer> cancelled = new java.util.concurrent.CompletableFuture<>();
+        b.append(cancelled.cancel(true)).append(cancelled.isCancelled()).append(cancelled.isCompletedExceptionally()).append(" ");
+        try {
+            b.append(async.get(10, java.util.concurrent.TimeUnit.SECONDS));
+            asyncBad.join();
+        } catch (java.util.concurrent.CompletionException e) {
+            b.append(failure(e));
+        } catch (InterruptedException | java.util.concurrent.ExecutionException | java.util.concurrent.TimeoutException e) {
+            b.append("odd");
+        }
+        try {
+            cancelled.join();
+        } catch (java.util.concurrent.CancellationException e) {
+            b.append("cancelled");
+        }
+        b.append(attempt(() -> java.util.concurrent.CompletableFuture.failedFuture(new RuntimeException("x" + n)).getNow(5)));
+        return b.toString();
+    }
 }

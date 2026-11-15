@@ -83,8 +83,13 @@ a resize that keeps each bin's tail and puts the nodes before it in front, rever
 table growing it eight times, and iterators that never throw but follow a resize as the JDK's do (checked with two
 resizes while one iterates). One monitor guards it all. Bins the JDK makes trees stay lists (see HashMap).
 
+A CompletableFuture runs its dependents in the JDK's order (a stage's own, the last added first; those of a
+dependent that completes in turn, before the stage's remaining ones, the first added first), wraps exceptions in
+CompletionException where the JDK's does, and reports them as its join and get do. Async tasks run each on a thread
+of their own: what the JDK does when its common pool has no parallelism.
+
 Not modelled: toArray's runtime types beyond copying an array's own class, Class.getComponentType, limit, skip,
 takeWhile, dropWhile, iterate, generate, DoubleStream, list iterators, reversed views, the views of sorted maps
 and sets (headMap, subSet, descendingMap...), the other concurrent collections, interrupts, scheduled and cached thread pools,
-CompletableFuture.
+CompletableFuture's Async stages, timeouts and either stages.
 
