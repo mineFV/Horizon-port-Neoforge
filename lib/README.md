@@ -37,6 +37,11 @@ element for tryAdvance, after all for forEachRemaining). What differs, and why:
 - a stream's stages have classes of the model's (getClass names them differently);
 - Collectors.toUnmodifiableSet keeps Set.of's order (see above).
 
+Elsewhere, where the model makes one of the runs the JDK allows rather than the JDK's own: a WeakReference (soft,
+phantom) is never cleared by the collector (its object stays alive as long as it does), and nothing is ever put in
+a ReferenceQueue; randomUUID's bits come from Rust's random keys (the JDK's from a SecureRandom); nanoTime counts
+from the first time it is asked. The atomics hold the object's lock through each read-modify-write.
+
 Not modelled: toArray's runtime types beyond copying an array's own class, Class.getComponentType, limit, skip,
 takeWhile, dropWhile, iterate, generate, DoubleStream, list iterators, reversed views, TreeMap, ArrayDeque,
 concurrent collections.

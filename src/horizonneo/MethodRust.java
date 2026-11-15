@@ -551,6 +551,23 @@ final class MethodRust {
             case "floorDiv(JJ)J" -> "jfloor_div_i64($0, $1)?";
             case "floorMod(II)I" -> "jfloor_mod_i32($0, $1)?";
             case "floorMod(JJ)J" -> "jfloor_mod_i64($0, $1)?";
+            // The JDK's own: a product by its constant (the specification only says "approximately").
+            case "toRadians(D)D" -> "jto_radians($0)";
+            case "toDegrees(D)D" -> "jto_degrees($0)";
+            case "addExact(II)I" -> "jexact_i32($0.checked_add($1))?";
+            case "subtractExact(II)I" -> "jexact_i32($0.checked_sub($1))?";
+            case "multiplyExact(II)I" -> "jexact_i32($0.checked_mul($1))?";
+            case "incrementExact(I)I" -> "jexact_i32($0.checked_add(1))?";
+            case "decrementExact(I)I" -> "jexact_i32($0.checked_sub(1))?";
+            case "negateExact(I)I" -> "jexact_i32($0.checked_neg())?";
+            case "toIntExact(J)I" -> "jexact_i32(i32::try_from($0).ok())?";
+            case "addExact(JJ)J" -> "jexact_i64($0.checked_add($1))?";
+            case "subtractExact(JJ)J" -> "jexact_i64($0.checked_sub($1))?";
+            case "multiplyExact(JJ)J" -> "jexact_i64($0.checked_mul($1))?";
+            case "multiplyExact(JI)J" -> "jexact_i64($0.checked_mul($1 as i64))?";
+            case "incrementExact(J)J" -> "jexact_i64($0.checked_add(1))?";
+            case "decrementExact(J)J" -> "jexact_i64($0.checked_sub(1))?";
+            case "negateExact(J)J" -> "jexact_i64($0.checked_neg())?";
             default -> null;
         };
     }
@@ -574,6 +591,10 @@ final class MethodRust {
             Map.entry("jfloor_div_i32", "fn jfloor_div_i32(a: i32, b: i32) -> JR<i32> {\n    let q = jdiv_i32(a, b)?;\n    Ok(if (a.wrapping_rem(b) != 0) && ((a ^ b) < 0) { q - 1 } else { q })\n}"),
             Map.entry("jfloor_div_i64", "fn jfloor_div_i64(a: i64, b: i64) -> JR<i64> {\n    let q = jdiv_i64(a, b)?;\n    Ok(if (a.wrapping_rem(b) != 0) && ((a ^ b) < 0) { q - 1 } else { q })\n}"),
             Map.entry("jfloor_mod_i32", "fn jfloor_mod_i32(a: i32, b: i32) -> JR<i32> {\n    let m = jrem_i32(a, b)?;\n    Ok(if m != 0 && ((m ^ b) < 0) { m + b } else { m })\n}"),
+            Map.entry("jto_radians", "fn jto_radians(a: f64) -> f64 {\n    a * 0.017453292519943295\n}"),
+            Map.entry("jto_degrees", "fn jto_degrees(a: f64) -> f64 {\n    a * 57.29577951308232\n}"),
+            Map.entry("jexact_i32", "fn jexact_i32(r: Option<i32>) -> JR<i32> {\n    r.ok_or_else(|| jexception(JID_ARITHMETIC, Some(\"integer overflow\")))\n}"),
+            Map.entry("jexact_i64", "fn jexact_i64(r: Option<i64>) -> JR<i64> {\n    r.ok_or_else(|| jexception(JID_ARITHMETIC, Some(\"long overflow\")))\n}"),
             Map.entry("jfloor_mod_i64", "fn jfloor_mod_i64(a: i64, b: i64) -> JR<i64> {\n    let m = jrem_i64(a, b)?;\n    Ok(if m != 0 && ((m ^ b) < 0) { m + b } else { m })\n}")));
 
     // ---- writing it ----

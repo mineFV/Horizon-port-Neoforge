@@ -183,6 +183,9 @@ The tool's commands: `metadata`, `license`, `analyze`, `port`, `check`, `pack`, 
   method calls the game, kept every method that iterates out. Where a virtual call may reach a class (or a lambda)
   of the mod whose method isn't translated, its makers drop instead (`poisonable`): on Mekanism, 8967 methods
   against 7594; 8871 when it was done for calls on types outside the jar alone.
+- **The runtime makes the JVM's own exceptions without a constructor**: their fields are the class's layout
+  (`jthrown_layout`), not message and cause alone, or a field Throwable gained (the suppressed exceptions) would
+  be read past the object's slots.
 - **A final class has no subclass**: whether an object is an Integer (a cast the model's IntStream makes) has an
   answer even for an object of a class whose superclass is outside the jar.
 - **javac casts a generic array to its bound**: `T[] universe = c.getEnumConstants()` with `T extends Enum` is a
@@ -251,6 +254,7 @@ Say so rather than assume it works:
   where a virtual call may reach a class of the mod whose method isn't translated, dropping the methods that make
   its objects rather than the callers: 8967 without `--server`, 7870 with it (2026-11-15), both type-checked;
   and where the call can't be told (a default method outside the jar, a supertype unknown): 8967 and 8984;
+  with UUID, the atomics, references, System's clock and Math's exact operations: 8999 and 9016, type-checked;
 - our translator's output has been compiled and run on the test's made-up classes only. Mekanism's translation was
   type-checked by rustc (`--emit=metadata`): 4363 methods at the maintainer's request (2026-11-14), then 8154
   (and 7721 with `--server`) on 2026-11-15, while the maintainer was away and had left the decisions to the agent:

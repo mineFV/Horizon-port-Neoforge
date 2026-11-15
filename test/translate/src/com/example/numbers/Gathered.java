@@ -559,4 +559,58 @@ public final class Gathered {
                 .append(Arrays.stream(new int[] {n, 1}).min()).append(Arrays.stream(new long[] {n, 1}).count());
         return b.toString();
     }
+
+    // ---- UUID, atomics, references, System, Math's exact operations, exceptions ----
+
+    public static String misc(int n) {
+        StringBuilder b = new StringBuilder();
+        java.util.UUID u = new java.util.UUID(0x123456789abcdef0L * (n + 1), -0x0fedcba987654321L * n);
+        java.util.UUID v = new java.util.UUID(u.getMostSignificantBits(), u.getLeastSignificantBits());
+        java.util.UUID r = java.util.UUID.randomUUID();
+        b.append(u).append(" ").append(u.hashCode()).append(u.equals(v)).append(u.equals(r)).append(u.compareTo(new java.util.UUID(0, n))).append(u.version()).append(u.variant())
+                .append(r.version()).append(r.variant()).append(r.toString().length()).append(" ");
+        java.util.concurrent.atomic.AtomicInteger ai = new java.util.concurrent.atomic.AtomicInteger(n);
+        b.append(ai.incrementAndGet()).append(ai.getAndAdd(5)).append(ai.addAndGet(Integer.MAX_VALUE)).append(ai.compareAndSet(3, 4)).append(ai.compareAndSet(ai.get(), 7))
+                .append(ai.getAndSet(-1)).append(ai.updateAndGet(x -> x * 10)).append(ai.accumulateAndGet(n, (x, y) -> Math.max(x, y))).append(ai).append(ai.longValue()).append(" ");
+        java.util.concurrent.atomic.AtomicLong al = new java.util.concurrent.atomic.AtomicLong(Long.MAX_VALUE - n);
+        b.append(al.incrementAndGet()).append(al.getAndDecrement()).append(al.getAndUpdate(x -> x / 3)).append(al.compareAndSet(1, 2)).append(al).append(" ");
+        java.util.concurrent.atomic.AtomicBoolean ab = new java.util.concurrent.atomic.AtomicBoolean(n % 2 == 0);
+        b.append(ab.getAndSet(true)).append(ab.compareAndSet(false, true)).append(ab.compareAndSet(true, false)).append(ab).append(" ");
+        String first = "first" + n;
+        java.util.concurrent.atomic.AtomicReference<String> ar = new java.util.concurrent.atomic.AtomicReference<>(first);
+        b.append(ar.compareAndSet(new String(first), "no")).append(ar.compareAndSet(first, "yes")).append(ar.getAndSet(null)).append(ar.updateAndGet(x -> x + "!")).append(ar).append(" ");
+        Object held = new Object();
+        java.lang.ref.WeakReference<Object> weak = new java.lang.ref.WeakReference<>(held);
+        b.append(weak.get() == held).append(weak.refersTo(held)).append(weak.refersTo(null));
+        weak.clear();
+        b.append(weak.get()).append(weak.refersTo(null)).append(new java.lang.ref.SoftReference<>("s").get()).append(" ");
+        long t1 = System.nanoTime();
+        long t2 = System.nanoTime();
+        b.append(System.identityHashCode(null)).append(System.identityHashCode(held) == held.hashCode()).append(System.currentTimeMillis() > 1_700_000_000_000L).append(t2 >= t1).append(" ");
+        b.append(attempt(() -> Math.addExact(Integer.MAX_VALUE - 1, n))).append(attempt(() -> Math.multiplyExact(Long.MAX_VALUE / 2, (long) n))).append(attempt(() -> Math.toIntExact(1L << (n + 25))))
+                .append(attempt(() -> Math.negateExact(Integer.MIN_VALUE + n))).append(attempt(() -> Math.multiplyExact(3_000_000_000L, n))).append(Math.toRadians(30.0 * n)).append(Math.toDegrees(n / 7.0))
+                .append(attempt(() -> Math.subtractExact(-n, Long.MAX_VALUE))).append(attempt(() -> Math.incrementExact(Integer.MAX_VALUE - n % 2))).append(" ");
+        try {
+            if (n % 3 == 0) throw new java.io.IOException("io" + n);
+            if (n % 3 == 1) throw new java.io.UncheckedIOException("unchecked", new java.io.IOException("inner" + n));
+            throw new TypeNotPresentException("some.Type" + n, null);
+        } catch (java.io.IOException e) {
+            b.append("IOE ").append(e.getMessage());
+        } catch (java.io.UncheckedIOException e) {
+            b.append("UIOE ").append(e.getMessage()).append(e.getCause().getMessage());
+        } catch (RuntimeException e) {
+            b.append(e);
+        }
+        try {
+            Object nothing = n > 100 ? held : null;
+            b.append(nothing.hashCode());
+        } catch (NullPointerException e) {
+            e.addSuppressed(new IllegalStateException("later" + n));
+            b.append(" ").append(e.getSuppressed().length).append(e.getSuppressed()[0].getMessage()).append(attempt(() -> {
+                e.addSuppressed(e);
+                return "self";
+            }));
+        }
+        return b.toString();
+    }
 }

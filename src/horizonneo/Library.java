@@ -192,6 +192,151 @@ final class Library {
                         Ok(jclass_object(jclass_primitive(descriptor as i32)))
                     }
                     """)),
+            Map.entry("java/lang/System.currentTimeMillis()J", new Native("jnative_system_current_time_millis", """
+                    /// System.currentTimeMillis: the machine's clock, in milliseconds since 1970.
+                    #[allow(dead_code)]
+                    fn jnative_system_current_time_millis() -> JR<i64> {
+                        Ok(match std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH) {
+                            Ok(d) => d.as_millis() as i64,
+                            Err(e) => -(e.duration().as_millis() as i64),
+                        })
+                    }
+                    """)),
+            Map.entry("java/lang/System.nanoTime()J", new Native("jnative_system_nano_time", """
+                    /// System.nanoTime: nanoseconds from the first time it is asked (the JDK's origin is arbitrary too).
+                    #[allow(dead_code)]
+                    fn jnative_system_nano_time() -> JR<i64> {
+                        static START: LazyLock<std::time::Instant> = LazyLock::new(std::time::Instant::now);
+                        Ok(START.elapsed().as_nanos() as i64)
+                    }
+                    """)),
+            Map.entry("java/lang/System.jIdentity(Ljava/lang/Object;)I", new Native("jnative_system_identity", """
+                    /// System.identityHashCode of an object (not null): Object.hashCode's identity.
+                    #[allow(dead_code)]
+                    fn jnative_system_identity(x: Ref) -> JR<i32> {
+                        let o = jobj(&x)?;
+                        Ok(((Arc::as_ptr(o) as usize >> 3) as i32) & 0x7fffffff)
+                    }
+                    """)),
+            Map.entry("java/util/UUID.jRandom()J", new Native("jnative_uuid_random", """
+                    /// 64 random bits for randomUUID: SipHash under the keys Rust draws from the system's randomness.
+                    #[allow(dead_code)]
+                    fn jnative_uuid_random() -> JR<i64> {
+                        use std::hash::{BuildHasher, Hasher};
+                        static COUNT: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+                        let mut h = std::collections::hash_map::RandomState::new().build_hasher();
+                        h.write_u64(COUNT.fetch_add(1, std::sync::atomic::Ordering::Relaxed));
+                        Ok(h.finish() as i64)
+                    }
+                    """)),
+            Map.entry("java/util/concurrent/atomic/AtomicInteger.jGetAndSet(I)I", new Native("jnative_atomic_integer_get_and_set", """
+                    /// AtomicInteger.getAndSet: its value is its first slot, swapped under the object's lock.
+                    #[allow(dead_code)]
+                    fn jnative_atomic_integer_get_and_set(this: Ref, value: i32) -> JR<i32> {
+                        let mut slots = jlock(&jobj(&this)?.slots);
+                        let old = jgi(slots[0].clone());
+                        slots[0] = Value::I(value);
+                        Ok(old)
+                    }
+                    """)),
+            Map.entry("java/util/concurrent/atomic/AtomicInteger.jCompareAndSet(II)Z", new Native("jnative_atomic_integer_compare_and_set", """
+                    #[allow(dead_code)]
+                    fn jnative_atomic_integer_compare_and_set(this: Ref, expected: i32, value: i32) -> JR<bool> {
+                        let mut slots = jlock(&jobj(&this)?.slots);
+                        if jgi(slots[0].clone()) != expected {
+                            return Ok(false);
+                        }
+                        slots[0] = Value::I(value);
+                        Ok(true)
+                    }
+                    """)),
+            Map.entry("java/util/concurrent/atomic/AtomicInteger.jGetAndAdd(I)I", new Native("jnative_atomic_integer_get_and_add", """
+                    #[allow(dead_code)]
+                    fn jnative_atomic_integer_get_and_add(this: Ref, delta: i32) -> JR<i32> {
+                        let mut slots = jlock(&jobj(&this)?.slots);
+                        let old = jgi(slots[0].clone());
+                        slots[0] = Value::I(old.wrapping_add(delta));
+                        Ok(old)
+                    }
+                    """)),
+            Map.entry("java/util/concurrent/atomic/AtomicLong.jGetAndSet(J)J", new Native("jnative_atomic_long_get_and_set", """
+                    /// AtomicLong.getAndSet: its value is its first slot, swapped under the object's lock.
+                    #[allow(dead_code)]
+                    fn jnative_atomic_long_get_and_set(this: Ref, value: i64) -> JR<i64> {
+                        let mut slots = jlock(&jobj(&this)?.slots);
+                        let old = jgj(slots[0].clone());
+                        slots[0] = Value::J(value);
+                        Ok(old)
+                    }
+                    """)),
+            Map.entry("java/util/concurrent/atomic/AtomicLong.jCompareAndSet(JJ)Z", new Native("jnative_atomic_long_compare_and_set", """
+                    #[allow(dead_code)]
+                    fn jnative_atomic_long_compare_and_set(this: Ref, expected: i64, value: i64) -> JR<bool> {
+                        let mut slots = jlock(&jobj(&this)?.slots);
+                        if jgj(slots[0].clone()) != expected {
+                            return Ok(false);
+                        }
+                        slots[0] = Value::J(value);
+                        Ok(true)
+                    }
+                    """)),
+            Map.entry("java/util/concurrent/atomic/AtomicLong.jGetAndAdd(J)J", new Native("jnative_atomic_long_get_and_add", """
+                    #[allow(dead_code)]
+                    fn jnative_atomic_long_get_and_add(this: Ref, delta: i64) -> JR<i64> {
+                        let mut slots = jlock(&jobj(&this)?.slots);
+                        let old = jgj(slots[0].clone());
+                        slots[0] = Value::J(old.wrapping_add(delta));
+                        Ok(old)
+                    }
+                    """)),
+            Map.entry("java/util/concurrent/atomic/AtomicBoolean.jGetAndSet(I)I", new Native("jnative_atomic_boolean_get_and_set", """
+                    /// AtomicBoolean.getAndSet: its value (0 or 1) is its first slot, swapped under the object's lock.
+                    #[allow(dead_code)]
+                    fn jnative_atomic_boolean_get_and_set(this: Ref, value: i32) -> JR<i32> {
+                        let mut slots = jlock(&jobj(&this)?.slots);
+                        let old = jgi(slots[0].clone());
+                        slots[0] = Value::I(value);
+                        Ok(old)
+                    }
+                    """)),
+            Map.entry("java/util/concurrent/atomic/AtomicBoolean.jCompareAndSet(II)Z", new Native("jnative_atomic_boolean_compare_and_set", """
+                    #[allow(dead_code)]
+                    fn jnative_atomic_boolean_compare_and_set(this: Ref, expected: i32, value: i32) -> JR<bool> {
+                        let mut slots = jlock(&jobj(&this)?.slots);
+                        if jgi(slots[0].clone()) != expected {
+                            return Ok(false);
+                        }
+                        slots[0] = Value::I(value);
+                        Ok(true)
+                    }
+                    """)),
+            Map.entry("java/util/concurrent/atomic/AtomicReference.jGetAndSet(Ljava/lang/Object;)Ljava/lang/Object;", new Native("jnative_atomic_reference_get_and_set", """
+                    /// AtomicReference.getAndSet: its value is its first slot, swapped under the object's lock.
+                    #[allow(dead_code)]
+                    fn jnative_atomic_reference_get_and_set(this: Ref, value: Ref) -> JR<Ref> {
+                        let mut slots = jlock(&jobj(&this)?.slots);
+                        let old = jga(slots[0].clone());
+                        slots[0] = Value::A(value);
+                        Ok(old)
+                    }
+                    """)),
+            Map.entry("java/util/concurrent/atomic/AtomicReference.jCompareAndSet(Ljava/lang/Object;Ljava/lang/Object;)Z", new Native("jnative_atomic_reference_compare_and_set", """
+                    /// By identity, as the JDK's.
+                    #[allow(dead_code)]
+                    fn jnative_atomic_reference_compare_and_set(this: Ref, expected: Ref, value: Ref) -> JR<bool> {
+                        let mut slots = jlock(&jobj(&this)?.slots);
+                        let same = match (&jga(slots[0].clone()), &expected) {
+                            (Some(a), Some(b)) => Arc::ptr_eq(a, b),
+                            (None, None) => true,
+                            _ => false,
+                        };
+                        if !same {
+                            return Ok(false);
+                        }
+                        slots[0] = Value::A(value);
+                        Ok(true)
+                    }
+                    """)),
             Map.entry("java/util/Arrays.newArrayLike([Ljava/lang/Object;I)[Ljava/lang/Object;", new Native("jnative_array_like", """
                     /// A new array of a's class (a String[] for a String[]), of this length, all null; the length isn't negative.
                     #[allow(dead_code)]

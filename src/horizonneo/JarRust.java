@@ -888,9 +888,14 @@ final class JarRust {
             String classes = natives.stream().anyMatch(CLASS_NATIVES::contains) ? classTables() : "";
             StringBuilder b = new StringBuilder("\n// ---- the runtime's exceptions and texts, from the library model ----\n");
             b.append(classes);
+            StringBuilder layouts = new StringBuilder();
             for (Map.Entry<String, String> e : Library.THROWN.entrySet()) {
                 b.append("#[allow(dead_code)]\nconst ").append(e.getKey()).append(": u32 = ").append(world.concrete(e.getValue()) ? world.id(e.getValue()) : 0).append(";\n");
+                if (world.concrete(e.getValue())) layouts.append("        ").append(e.getKey()).append(" => b\"").append(world.layout(e.getValue())).append("\",\n");
             }
+            // Each exception the runtime makes has its class's fields (Throwable's suppressed ones among them).
+            b.append("\n/// The fields of an exception the runtime throws.\n#[allow(dead_code)]\nfn jthrown_layout(class: u32) -> &'static [u8] {\n    match class {\n")
+                    .append(layouts).append("        _ => b\"").append(world.layout("java/lang/Throwable")).append("\",\n    }\n}\n");
             String throwable = "java/lang/Throwable";
             JavaWorld.FieldAt message = world.field(throwable, "detailMessage", "Ljava/lang/String;", false);
             JavaWorld.FieldAt cause = world.field(throwable, "cause", "Ljava/lang/Throwable;", false);
@@ -958,8 +963,7 @@ final class JarRust {
                     /// An exception the runtime throws, as its constructor with a message would make it: its cause not yet given.
                     #[allow(dead_code)]
                     fn jexception(class: u32, message: Option<&str>) -> Ref {
-                        let layout = vec![b'A'; JMESSAGE.max(JCAUSE) + 1];
-                        let e = jnew(class, &layout);
+                        let e = jnew(class, jthrown_layout(class));
                         jset(&e, JMESSAGE, Value::A(message.map(jstring).unwrap_or(None)));
                         jset(&e, JCAUSE, Value::A(e.clone()));
                         e

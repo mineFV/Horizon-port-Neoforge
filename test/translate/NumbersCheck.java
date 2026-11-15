@@ -117,6 +117,7 @@ public final class NumbersCheck {
             p("classes", n, () -> Gathered.classes(n));
             p("enumCollections", n, () -> Gathered.enumCollections(n));
             p("streams", n, () -> Gathered.streams(n));
+            p("misc", n, () -> Gathered.misc(n));
         }
         for (double d : DOUBLES) p("doubleText", d(d), () -> Texts.doubleText(d));
         for (float f : FLOATS) p("floatText", f(f), () -> Texts.floatText(f));
