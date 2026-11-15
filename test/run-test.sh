@@ -908,7 +908,7 @@ javac --release 21 -cp "$TR/classes" -d "$TR/classes" test/translate/NumbersChec
 printf 'modLoader = "javafml"\nloaderVersion = "[4,)"\nlicense = "MIT"\n[[mods]]\nmodId = "numbers"\nversion = "1.0"\ndisplayName = "Numbers"\n' > "$TR/jar/META-INF/neoforge.mods.toml"
 jar --create --file "$B/jars/numbers.jar" -C "$TR/jar" . -C "$TR/classes" com
 exits 0 tool translate "$B/jars/numbers.jar" --out "$TR/out"
-says "$OUT" "numbers.jar: 221 of 222 methods translated from their bytecode"
+says "$OUT" "numbers.jar: 222 of 223 methods translated from their bytecode"
 says "$TR/out/translation.md" '`com.example.numbers.Boxes$Color.valueOf(Ljava/lang/String;)Lcom/example/numbers/Boxes$Color;`: it uses a class or another constant'
 says "$OUT" "Nothing was compiled or run"
 says "$TR/out/translated.rs" 'pub fn numbers__collatz(mut l0: i64) -> JR<i64> {'
@@ -928,6 +928,8 @@ lacks "$TR/out/translated.rs" '/// `java.lang.String.repeat'"'"'(Ljava'
 # Collections: the model's HashMap (the JDK's order), and Object's methods first on a lambda of Comparator.
 says "$TR/out/translated.rs" '/// `java.util.HashMap.putVal(ILjava/lang/Object;Ljava/lang/Object;ZZ)Ljava/lang/Object;`, translated from its bytecode.'
 says "$TR/out/translated.rs" 'fn jnative_array_like(a: Ref, length: i32) -> JR<Ref> {'
+# A negative constant of the class file, as a whole argument: no parentheses (rustc warns of them).
+says "$TR/out/translated.rs" 'Value::F(-2.5f32)'
 lacks "$TR/out/translation.md" 'nothing implements equals(Ljava/lang/Object;)Z on java.util.Comparator'
 lacks "$TR/out/translation.md" 'several default methods could be getFirst'
 # --server: the supertypes of the game's classes, read from a server's libraries (a stand-in here).

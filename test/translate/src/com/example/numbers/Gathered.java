@@ -25,6 +25,11 @@ import java.util.Set;
 public final class Gathered {
     private Gathered() {}
 
+    /** Constants of the class file (ConstantValue), negative ones among them. */
+    static final int LOW = -3;
+    static final float LOWER = -2.5f;
+    static int counted = LOW;
+
     interface Act {
         Object run();
     }
@@ -60,6 +65,7 @@ public final class Gathered {
 
     public static String lists(int n) {
         List<String> l = new ArrayList<>();
+        counted += LOW;
         for (int i = 0; i < n + 3; i++) l.add("e" + (i * 7 % 5));
         l.add(1, "first");
         String s = l + " " + l.size() + " " + l.indexOf("e2") + " " + l.lastIndexOf("e2") + " " + l.contains("e4") + " " + l.get(0) + " " + l.getLast();

@@ -213,9 +213,10 @@ Say so rather than assume it works:
   it (NeoForge 21.1.266's libraries). Fewer with it: the objects of classes implementing NeoForge's interfaces can
   then be made, and calls that may reach their methods that use the game aren't translated. Both are sound in the
   closed world;
-- our translator's output has been compiled and run on the test's made-up classes only. Mekanism's 4363 translated
-  methods (of 24149; horizon-port translates 350) were type-checked by rustc once, at the maintainer's request
-  (2026-11-14, `--emit=metadata`: no error, no warning), never run. Nothing calls them yet: the world of
+- our translator's output has been compiled and run on the test's made-up classes only. Mekanism's translation was
+  type-checked by rustc (`--emit=metadata`): 4363 methods at the maintainer's request (2026-11-14), then 8154
+  (and 7721 with `--server`) on 2026-11-15, while the maintainer was away and had left the decisions to the agent:
+  no error, no warning. Never run. Nothing calls them yet: the world of
   objects is closed, and a translated method called from the game with an object of the game's would break that;
 - the facts read blocks without a level: what a block decides from its neighbours or its block entity (a cable's
   connections, in Mekanism) isn't in them.

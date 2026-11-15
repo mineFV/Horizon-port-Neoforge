@@ -654,6 +654,11 @@ final class JarRust {
             return b.toString();
         }
 
+        /** A negative literal without the parentheses it has as an operand: a whole argument needs none. */
+        static String bare(String literal) {
+            return literal.startsWith("(-") && literal.endsWith(")") && literal.indexOf('(', 1) < 0 ? literal.substring(1, literal.length() - 1) : literal;
+        }
+
         String staticStore(String c) {
             StringBuilder b = new StringBuilder("\n/// The static fields of `" + c.replace('/', '.') + "`, as prepared before it initializes.\n");
             b.append("static JSTATICS_").append(index(c)).append(": LazyLock<Mutex<Vec<Value>>> = LazyLock::new(|| Mutex::new(vec![");
@@ -665,12 +670,12 @@ final class JarRust {
                     values.add("Value::A(" + literal(text) + "())");
                     continue;
                 }
-                values.add(constant instanceof Number n && k != 'A' ? MethodRust.wrap(k, switch (k) {
+                values.add(constant instanceof Number n && k != 'A' ? MethodRust.wrap(k, bare(switch (k) {
                     case 'J' -> MethodRust.literal(n.longValue());
                     case 'F' -> MethodRust.literal(n.floatValue());
                     case 'D' -> MethodRust.literal(n.doubleValue());
                     default -> MethodRust.literal(n.intValue());
-                }) : "jzero(b'" + k + "')");
+                })) : "jzero(b'" + k + "')");
             }
             b.append(String.join(", ", values)).append("]));\n");
             return b.toString();
