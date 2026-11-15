@@ -181,6 +181,7 @@ final class MethodRust {
                     ClassData.Bootstrap b = pool.bootstrap(i.index());
                     if (b.owner().equals("java/lang/invoke/StringConcatFactory")) return concatNeeds(i, pool, world, needs);
                     if (b.owner().equals("java/lang/runtime/ObjectMethods")) return objectMethodsNeeds(owner, i, pool, world, needs);
+                    if (b.owner().equals(SWITCH_BOOTSTRAPS) && b.name().equals("typeSwitch")) return typeSwitchNeeds(b, needs);
                     String[] d = pool.dynamic(i.index());
                     return "it uses an invokedynamic that isn't a plain lambda nor a text joined: " + b.owner().replace('/', '.') + "." + b.name() + " (" + d[0] + ")";
                 }
@@ -296,6 +297,21 @@ final class MethodRust {
     }
 
     static final JarRust.Id CONCAT = new JarRust.Id(STRING, "jconcat", "([Ljava/lang/String;)Ljava/lang/String;");
+
+    static final String SWITCH_BOOTSTRAPS = "java/lang/runtime/SwitchBootstraps";
+
+    /**
+     * A pattern switch's typeSwitch: of a null, -1; else the first label from the restart index on that the object is
+     * an instance of; else the number of labels. Its labels are type tests; a constant label (a text, a number, an enum
+     * constant) isn't translated yet.
+     */
+    private static String typeSwitchNeeds(ClassData.Bootstrap b, List<Need> needs) {
+        for (Object a : b.arguments()) {
+            if (!(a instanceof ClassData.TypeName t)) return "it switches on a pattern with a constant label (a text, a number, an enum constant): not translated yet";
+            needs.add(new Need("test", null, t.descriptor(), null, null));
+        }
+        return null;
+    }
 
     /** A text joined by StringConcatFactory: each value turned into text by the model, then joined. */
     private static String concatNeeds(Insn i, ClassData.Pool pool, JavaWorld world, List<Need> needs) {
@@ -979,6 +995,19 @@ final class MethodRust {
                     settle();
                     String r = ClassData.returns(pool.dynamic(i.index())[1]);
                     pushTemp(JavaWorld.kind(r), from(r, names.objectMethods(key) + "(" + String.join(", ", args) + ")?"));
+                } else if (op == INVOKEDYNAMIC && pool.lambdaSite(i.index()) == null && pool.bootstrap(i.index()).owner().equals(SWITCH_BOOTSTRAPS)) {
+                    V restart = stack.removeLast(), target = settled(stack.removeLast());
+                    settle();
+                    String r = temp("i32", restart.e());
+                    StringBuilder e = new StringBuilder("if " + target.e() + ".is_none() { -1 }");
+                    List<Object> labels = pool.bootstrap(i.index()).arguments();
+                    for (int k = 0; k < labels.size(); k++) {
+                        String type = ((ClassData.TypeName) labels.get(k)).descriptor();
+                        e.append(" else if ").append(r).append(" <= ").append(k).append(" && jinstanceof(&").append(target.e()).append(", ").append(names.typeTest(type))
+                                .append(") == 1 { ").append(k).append(" }");
+                    }
+                    e.append(" else { ").append(labels.size()).append(" }");
+                    pushTemp('I', e.toString());
                 } else if (op == INVOKEDYNAMIC && pool.lambdaSite(i.index()) == null) {
                     concat(i);
                 } else if (op == ATHROW) {

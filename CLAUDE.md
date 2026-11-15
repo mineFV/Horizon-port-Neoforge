@@ -255,6 +255,7 @@ Say so rather than assume it works:
   its objects rather than the callers: 8967 without `--server`, 7870 with it (2026-11-15), both type-checked;
   and where the call can't be told (a default method outside the jar, a supertype unknown): 8967 and 8984;
   with UUID, the atomics, references, System's clock and Math's exact operations: 8999 and 9016, type-checked;
+  with pattern switches (typeSwitch on types): 9002 and 9019, type-checked;
 - our translator's output has been compiled and run on the test's made-up classes only. Mekanism's translation was
   type-checked by rustc (`--emit=metadata`): 4363 methods at the maintainer's request (2026-11-14), then 8154
   (and 7721 with `--server`) on 2026-11-15, while the maintainer was away and had left the decisions to the agent:

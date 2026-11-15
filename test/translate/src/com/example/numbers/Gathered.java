@@ -613,4 +613,46 @@ public final class Gathered {
         }
         return b.toString();
     }
+
+    // ---- pattern switches ----
+
+    sealed interface Shape permits Circle, Square, Tri {}
+
+    record Circle(int r) implements Shape {}
+
+    record Square(int side) implements Shape {}
+
+    record Tri(int a) implements Shape {}
+
+    public static String patterns(int n) {
+        Object[] things = {new Circle(n), new Square(n), "text" + n, n, null, new Tri(n), List.of(n), new int[n], new Circle(n + 5)};
+        StringBuilder b = new StringBuilder();
+        for (Object o : things) {
+            String r = switch (o) {
+                case null -> "null";
+                case Circle c when c.r() > 5 -> "big circle";
+                case Circle c -> "circle " + c.r();
+                case Square(int side) -> "square " + side;
+                case String s when s.length() > 5 -> "long " + s;
+                case String s -> "short " + s;
+                case Integer k -> "int " + (k + 1);
+                case int[] arr -> "ints " + arr.length;
+                case List<?> l -> "list " + l.size();
+                default -> "other " + o.getClass().getSimpleName();
+            };
+            b.append(r).append("; ");
+        }
+        Shape shape = n % 3 == 0 ? new Circle(n) : n % 3 == 1 ? new Square(n) : new Tri(n);
+        b.append(switch (shape) {
+            case Circle c -> "C" + c.r();
+            case Square q -> "S" + q.side();
+            case Tri t -> "T" + t.a();
+        });
+        Object maybe = n % 2 == 0 ? null : "x";
+        b.append(" ").append(attempt(() -> switch (maybe) {
+            case String s -> s;
+            default -> "d";
+        }));
+        return b.toString();
+    }
 }
