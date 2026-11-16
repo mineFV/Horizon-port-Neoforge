@@ -26,7 +26,8 @@ import javax.tools.ToolProvider;
 final class StandIns {
     private StandIns() {}
 
-    static final String PROBE = "probe/horizonneo/probe/GameProbe.java";
+    /** The probe's files in this tool's jar; GameProbe's main runs the others. */
+    static final List<String> PROBES = List.of("probe/horizonneo/probe/GameProbe.java", "probe/horizonneo/probe/NbtProbe.java");
 
     /** A run of the probe: what it printed, or why it couldn't run. */
     record Run(List<String> lines, String problem) {}
@@ -98,17 +99,24 @@ final class StandIns {
 
     /** Compiles the probe against cp into dir, runs it with cp, and returns what it printed. */
     static Run probe(Path dir, String cp) throws IOException {
-        Path src = dir.resolve("src/GameProbe.java"), classes = dir.resolve("classes");
-        Files.createDirectories(src.getParent());
+        Path classes = dir.resolve("classes");
         Files.createDirectories(classes);
-        try (InputStream in = StandIns.class.getResourceAsStream("/" + PROBE)) {
-            if (in == null) return new Run(List.of(), "this tool's jar doesn't carry " + PROBE + " (build it with build.sh)");
-            Files.copy(in, src);
+        List<String> sources = new ArrayList<>();
+        for (String probe : PROBES) {
+            Path src = dir.resolve("src").resolve(probe.substring(probe.lastIndexOf('/') + 1));
+            Files.createDirectories(src.getParent());
+            try (InputStream in = StandIns.class.getResourceAsStream("/" + probe)) {
+                if (in == null) return new Run(List.of(), "this tool's jar doesn't carry " + probe + " (build it with build.sh)");
+                Files.copy(in, src);
+            }
+            sources.add(src.toString());
         }
         JavaCompiler javac = ToolProvider.getSystemJavaCompiler();
         if (javac == null) return new Run(List.of(), "this Java has no compiler (a JDK is needed, not a JRE)");
         ByteArrayOutputStream said = new ByteArrayOutputStream();
-        if (javac.run(null, said, said, "--release", "21", "-proc:none", "-nowarn", "-cp", cp, "-d", classes.toString(), src.toString()) != 0) {
+        List<String> args = new ArrayList<>(List.of("--release", "21", "-proc:none", "-nowarn", "-cp", cp, "-d", classes.toString()));
+        args.addAll(sources);
+        if (javac.run(null, said, said, args.toArray(String[]::new)) != 0) {
             return new Run(List.of(), "it doesn't compile: " + firstLine(said.toString(StandardCharsets.UTF_8)));
         }
         String jvm = ProcessHandle.current().info().command().orElse("java");

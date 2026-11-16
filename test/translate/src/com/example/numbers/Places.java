@@ -91,6 +91,35 @@ public final class Places {
         return s.toString();
     }
 
+    /** NBT: a compound written, copied, merged and read back, with its text (SNBT) and hash. */
+    public static String nbt(int n) {
+        net.minecraft.nbt.CompoundTag c = new net.minecraft.nbt.CompoundTag();
+        c.putInt("ticks", n * 7919);
+        c.putLong("energy", (long) n << 33);
+        c.putDouble("heat", n / 3.0);
+        c.putFloat("ratio", n * 0.1f);
+        c.putBoolean("active", n % 2 == 0);
+        c.putString(n % 3 == 0 ? "na me" : "name", "machine \"" + n + "'");
+        c.putUUID("owner", new java.util.UUID(n * 31L, -n));
+        c.put("at", net.minecraft.nbt.NbtUtils.writeBlockPos(new BlockPos(n, -n, 2 * n)));
+        net.minecraft.nbt.ListTag l = new net.minecraft.nbt.ListTag();
+        for (int i = 0; i < n % 4; i++) {
+            net.minecraft.nbt.CompoundTag slot = new net.minecraft.nbt.CompoundTag();
+            slot.putByte("Slot", (byte) i);
+            slot.putShort("count", (short) (i * 300));
+            l.add(slot);
+        }
+        c.put("slots", l);
+        for (int i = 0; i < n; i++) c.putInt("k" + (i * 13 % 17), i);
+        net.minecraft.nbt.CompoundTag d = c.copy();
+        net.minecraft.nbt.CompoundTag extra = new net.minecraft.nbt.CompoundTag();
+        extra.putIntArray("ticks", new int[] {n, n + 1});
+        d.merge(extra);
+        return c + " " + c.getAllKeys() + " " + c.hashCode() + " " + d.getInt("ticks") + " " + c.getInt("ticks") + " " + c.getUUID("owner")
+                + " " + net.minecraft.nbt.NbtUtils.readBlockPos(c, "at") + " " + c.getList("slots", 10).getCompound(1) + " " + c.getBoolean("active")
+                + " " + c.getFloat("heat") + " " + c.getLong("ratio") + " " + c.equals(d) + " " + d.get("ticks");
+    }
+
     public static int eastX(int x) {
         return new BlockPos(x, 0, 0).east().getX();
     }

@@ -1,0 +1,119 @@
+package net.minecraft.nbt;
+
+/**
+ * The stand-in for the game's IntArrayTag, observed (`standins`): it holds the array it was given (not a copy), its
+ * changes make a new array, and an index past the end throws as the game's does.
+ */
+public class IntArrayTag extends CollectionTag<IntTag> {
+    private int[] data;
+
+    public IntArrayTag(int[] data) {
+        this.data = data;
+    }
+
+    @Override
+    public byte getId() {
+        return 11;
+    }
+
+    @Override
+    public String toString() {
+        StringBuilder b = new StringBuilder("[I;");
+        for (int i = 0; i < data.length; i++) {
+            if (i > 0) b.append(',');
+            b.append(data[i]).append("");
+        }
+        return b.append(']').toString();
+    }
+
+    /** Observed: a copy of the array. */
+    @Override
+    public IntArrayTag copy() {
+        int[] copied = new int[data.length];
+        System.arraycopy(data, 0, copied, 0, data.length);
+        return new IntArrayTag(copied);
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        return o instanceof IntArrayTag other && java.util.Arrays.equals(data, other.data);
+    }
+
+    @Override
+    public int hashCode() {
+        return java.util.Arrays.hashCode(data);
+    }
+
+    public int[] getAsIntArray() {
+        return data;
+    }
+
+    @Override
+    public int size() {
+        return data.length;
+    }
+
+    @Override
+    public IntTag get(int i) {
+        return IntTag.valueOf(data[i]);
+    }
+
+    @Override
+    public IntTag set(int i, IntTag t) {
+        int old = data[i];
+        data[i] = t.getAsInt();
+        return IntTag.valueOf(old);
+    }
+
+    @Override
+    public void add(int i, IntTag t) {
+        insert(i, t.getAsInt());
+    }
+
+    /** Observed: past the end, an IndexOutOfBoundsException saying "Index: i, Length: n". */
+    private void insert(int i, int v) {
+        if (i < 0 || i > data.length) throw new IndexOutOfBoundsException("Index: " + i + ", Length: " + data.length);
+        int[] grown = new int[data.length + 1];
+        System.arraycopy(data, 0, grown, 0, i);
+        grown[i] = v;
+        System.arraycopy(data, i, grown, i + 1, data.length - i);
+        data = grown;
+    }
+
+    /** Observed: a number of any kind, as this kind; anything else isn't taken. */
+    @Override
+    public boolean setTag(int i, Tag t) {
+        if (!(t instanceof NumericTag n)) return false;
+        data[i] = n.getAsInt();
+        return true;
+    }
+
+    @Override
+    public boolean addTag(int i, Tag t) {
+        if (!(t instanceof NumericTag n)) return false;
+        insert(i, n.getAsInt());
+        return true;
+    }
+
+    /** Observed: an index past the end throws as reading the array does. */
+    @Override
+    public IntTag remove(int i) {
+        int old = data[i];
+        int[] shrunk = new int[data.length - 1];
+        System.arraycopy(data, 0, shrunk, 0, i);
+        System.arraycopy(data, i + 1, shrunk, i, data.length - i - 1);
+        data = shrunk;
+        return IntTag.valueOf(old);
+    }
+
+    @Override
+    public byte getElementType() {
+        return 3;
+    }
+
+    @Override
+    public void clear() {
+        data = new int[0];
+    }
+}

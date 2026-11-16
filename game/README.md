@@ -24,13 +24,18 @@ A stand-in declares the real class's superclass and interfaces, so that a type t
 `--server`, `translate` checks each stand-in against the real class (`Library.checkStandIns`) and leaves out one
 whose supertypes differ, or that would inherit a method the real class declares.
 
-What differs from the game, where a program can see it: nothing the probe asks (8582 answers on NeoForge
+What differs from the game, where a program can see it: nothing the probe asks (8956 answers on NeoForge
 21.1.266, 2026-11-16), which includes which object each method gives back (this one or a new one, of which
-class), the texts of a mod's own subclasses (named and anonymous), and the extremes where int arithmetic wraps.
+class), caches (which numbers' tags are the same object), the texts of a mod's own subclasses (named and
+anonymous), NBT's texts (SNBT) and orders, error messages, and the extremes where arithmetic wraps. A
+NullPointerException's message isn't compared: the JVM builds it from the bytecode (lib/README.md).
 
-What isn't here, and what it costs: the members of these classes a mod calls that no stand-in has (BlockPos's
-getCenter, betweenClosed and codecs, Direction's getRotation, Mutable's other setters...). A call to one isn't
-translated; and when a virtual call through a wider type (Object, Comparable...) may reach an object whose class
-lacks it, the methods that make such objects drop instead. A stand-in is worth as much as the API it covers:
-these cover what Mekanism calls of BlockPos, MutableBlockPos, Vec3i, Direction, Axis and AxisDirection, but for
-the members above.
+What is here: positions and directions (net/minecraft/core: Vec3i, BlockPos and its MutableBlockPos, Direction
+with Axis and AxisDirection) and NBT (net/minecraft/nbt: the tags of numbers, texts, lists, arrays and compounds,
+and NbtUtils' positions). They cover what Mekanism calls of them, but for the members below.
+
+What isn't here, and what it costs: BlockPos's getCenter, betweenClosed and codecs, Direction's getRotation and
+codecs, MutableBlockPos's other setters, NBT's codecs (NbtOps), its readers and writers (DataOutput, visitors),
+TagType. A call to one isn't translated; and when a virtual call through a wider type (Object, List...) may reach
+an object whose class lacks it, the methods that make such objects drop instead. A stand-in is worth as much as
+the API it covers.

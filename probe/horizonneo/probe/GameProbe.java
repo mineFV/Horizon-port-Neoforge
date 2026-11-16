@@ -37,6 +37,7 @@ public final class GameProbe {
         mutable(places);
         containing();
         subclasses();
+        NbtProbe.run();
     }
 
     static void directions() {
@@ -218,7 +219,9 @@ public final class GameProbe {
         try {
             shown = String.valueOf(call.get());
         } catch (RuntimeException | LinkageError e) {
-            shown = "throws " + e.getClass().getName() + ": " + e.getMessage();
+            // A NullPointerException's message is the JVM's, built from the bytecode (its variables' names): the
+            // stand-ins don't reproduce it (lib/README.md), so only its class is compared.
+            shown = "throws " + e.getClass().getName() + (e instanceof NullPointerException ? "" : ": " + e.getMessage());
         }
         System.out.println(key + " -> " + shown);
     }

@@ -54,7 +54,8 @@ final class Library {
                 continue;
             }
             for (ClassData.Method m : real.methods) {
-                if (m.isStatic() || (m.access() & 0x0002) != 0 || m.name().startsWith("<")) continue;
+                // A bridge (ACC_BRIDGE) only calls the method it stands for, with the same answer: not checked.
+                if (m.isStatic() || (m.access() & (0x0002 | 0x0040)) != 0 || m.name().startsWith("<")) continue;
                 if (declares(c, m.name(), m.descriptor())) continue;
                 for (String s = c.superName; s != null && model.containsKey(s); s = model.get(s).superName) {
                     ClassData up = model.get(s);
