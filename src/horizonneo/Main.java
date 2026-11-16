@@ -74,7 +74,7 @@ public final class Main {
                 return check(Line.read(args, Set.of("--horizon-src", "--translator", "--horizon-tools"), Set.of("--compile")), out, err);
             }
             case "translate" -> {
-                return translate(Line.read(args, Set.of("--out", "--server"), Set.of()), out, err);
+                return translate(Line.read(args, Set.of("--out", "--server", "--bridge"), Set.of()), out, err);
             }
             case "standins" -> {
                 Line line = Line.read(args, Set.of("--server"), Set.of());
@@ -141,6 +141,16 @@ public final class Main {
         for (var e : r.reasons().entrySet()) {
             if (shown++ == 8) break;
             out.println("  not translated: " + e.getValue() + ", " + e.getKey());
+        }
+        if (line.has("--bridge")) {
+            List<String> missing = new ArrayList<>();
+            Map<String, String> functions = BridgeRust.functions(r, missing);
+            if (functions == null) {
+                out.println("problem: no bridge: the translation lacks " + String.join(", ", missing));
+            } else {
+                java.nio.file.Files.writeString(dir.resolve("bridge.rs"), BridgeRust.module(line.options().get("--bridge"), id, functions), java.nio.charset.StandardCharsets.UTF_8);
+                out.println("Written: " + dir.resolve("bridge.rs") + ", Horizon's side of the bridge, which reaches the translation as " + line.options().get("--bridge") + ".");
+            }
         }
         out.println("Written: " + dir.resolve("translated.rs") + " and " + dir.resolve("translation.md") + ". Nothing was compiled or run.");
         return DONE;
@@ -489,7 +499,7 @@ public final class Main {
                   mod is run). The last line is `RESULT: ok`, `RESULT: ok, not compiled` or
                   `RESULT: failed (...)`; exit code 0 or 1.
 
-              translate <mod.jar> [--out DIR] [--server FOLDER]
+              translate <mod.jar> [--out DIR] [--server FOLDER] [--bridge PATH]
                   This tool's own translator, from the mod's bytecode to Rust (no decompiling):
                   numbers with Java's exact semantics (wrapping arithmetic, NaN, casts),
                   branches, loops and switches, Math's methods with an exact counterpart;
@@ -506,7 +516,10 @@ public final class Main {
                   classes in its libraries (the game's, NeoForge's, theirs) are read, so a
                   question such as "is this class of the mod a List?" can be answered
                   when the class implements one of the game's interfaces. Only the
-                  server's classes: the client's stay unknown.
+                  server's classes: the client's stay unknown. --bridge: also writes
+                  DIR/bridge.rs, Horizon's side of the bridge to the translation (which
+                  it reaches as PATH, a Rust path such as super::port_mymod_java): it
+                  keeps the mod's block entities and ticks them.
 
               standins --server FOLDER
                   The translator's stand-ins for the game (game/ in this tool's source) against

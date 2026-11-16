@@ -101,6 +101,12 @@ final class Bundle {
      */
     static Outcome finish(Path dir, Path decompiled, Path horizonSrc, ModInfo info, Analysis analysis, EventTable table, boolean approximate,
                           Carrier carrier, Map<String, Object> machines) throws IOException {
+        return finish(dir, decompiled, horizonSrc, info, analysis, table, approximate, carrier, machines, null);
+    }
+
+    /** java: this tool's own translation of the jar, which the machines' bridge runs (Machines.apply); null without. */
+    static Outcome finish(Path dir, Path decompiled, Path horizonSrc, ModInfo info, Analysis analysis, EventTable table, boolean approximate,
+                          Carrier carrier, Map<String, Object> machines, JarRust.Result java) throws IOException {
         Path mod = modFolder(dir);
         String id = mod.getFileName().toString();
         List<String> changes = new ArrayList<>();
@@ -137,7 +143,7 @@ final class Bundle {
             }
         }
         List<Wiring.Wired> listeners = table == null ? List.of() : Wiring.apply(mod, id, analysis, table, approximate);
-        Machines.Made made = table == null || machines == null ? null : Machines.apply(mod, id, machines, table);
+        Machines.Made made = table == null || machines == null ? null : Machines.apply(mod, id, machines, table, java);
 
         Map<String, Handler> theirs = mixinStatuses(dir.resolve("report").resolve("report.json"));
         Translation translation = translation(dir.resolve("report").resolve("translation.md"));

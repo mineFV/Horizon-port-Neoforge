@@ -42,9 +42,10 @@ final class JarRust {
 
     /**
      * What came out. methods: how many methods have a body. translated: the Rust name of each one translated.
-     * why: why each other one isn't. rust: the module's text.
+     * why: why each other one isn't. rust: the module's text. functions: every method written (the model's too), by
+     * its function's name in rust.
      */
-    record Result(int methods, Map<Id, String> translated, Map<Id, String> why, String rust) {
+    record Result(int methods, Map<Id, String> translated, Map<Id, String> why, String rust, Map<Id, String> functions) {
         /** How many methods each reason keeps out, the most first. */
         Map<String, Integer> reasons() {
             Map<String, Integer> counts = new HashMap<>();
@@ -137,6 +138,7 @@ final class JarRust {
         }
 
         Map<Id, String> translated = new TreeMap<>();
+        Map<Id, String> functionNames = Map.of();
         String rust;
         // Every method that checks, for revive: settle drops methods for good.
         Map<Id, List<Need>> pool = new TreeMap<>(needs);
@@ -161,6 +163,7 @@ final class JarRust {
             Map<Id, List<Need>> written = new TreeMap<>();
             for (Id id : reached) if (needs.containsKey(id)) written.put(id, needs.get(id));
             Map<Id, String> names = names(written.keySet());
+            functionNames = names;
             Writing w = new Writing(world, written, names);
             translated.clear();
             StringBuilder functions = new StringBuilder();
@@ -182,12 +185,43 @@ final class JarRust {
                 }
             }
             if (again) continue;
+            functions.append(exports(world, w, names));
             rust = w.module(translated.size(), methods, fromModel, helpers, functions.toString());
             break;
         }
         // The model's own methods aren't the mod's: only the mod's are reported.
         why.keySet().removeIf(id -> !world.jar.contains(id.owner()));
-        return new Result(methods, translated, why, rust);
+        return new Result(methods, translated, why, rust, functionNames);
+    }
+
+    static final String MOD = "Lnet/neoforged/fml/common/Mod;", BUS = "Lnet/neoforged/bus/api/IEventBus;";
+
+    /**
+     * What Horizon's side of the bridge (BridgeRust) calls that Java can't name: `jexport_mod`, which makes the mod's
+     * object as NeoForge does when it loads the mod (its class initialized, then its constructor run, given the mod's
+     * event bus). Written when the jar has one @Mod class whose constructor, taking the bus or nothing, is translated.
+     */
+    static String exports(JavaWorld world, Writing w, Map<Id, String> names) {
+        List<ClassData> mods = new ArrayList<>();
+        for (String c : world.jar) {
+            ClassData data = world.cls(c);
+            if (data.annotation(MOD) != null) mods.add(data);
+        }
+        if (mods.size() != 1) return "";
+        ClassData mod = mods.get(0);
+        for (String descriptor : List.of("(" + BUS + ")V", "()V")) {
+            String init = names.get(new Id(mod.name, "<init>", descriptor));
+            if (init == null || !world.concrete(mod.name)) continue;
+            boolean bus = descriptor.contains(BUS);
+            return "\n/// The mod's object (" + mod.name.replace('/', '.') + "), made as NeoForge makes it when it loads the mod: its class\n"
+                    + "/// initialized, then its constructor run" + (bus ? ", given the mod's event bus" : "") + ". What the bridge calls first.\n"
+                    + "#[allow(dead_code)]\npub fn jexport_mod(bus: Ref) -> JR<Ref> {\n"
+                    + (bus ? "" : "    let _ = bus;\n")
+                    + "    " + w.init(mod.name) + "()?;\n"
+                    + "    let o = jnew(" + w.id(mod.name) + ", b\"" + world.layout(mod.name) + "\");\n"
+                    + "    " + init + "(o.clone()" + (bus ? ", bus" : "") + ")?;\n    Ok(o)\n}\n";
+        }
+        return "";
     }
 
     /**
@@ -198,7 +232,8 @@ final class JarRust {
         Instances inst = instances(world, needs);
         Set<Id> out = new TreeSet<>();
         java.util.Deque<Id> todo = new java.util.ArrayDeque<>();
-        for (Id id : needs.keySet()) if (world.jar.contains(id.owner())) todo.add(id);
+        // The jar's methods, and the bridge's (HorizonBridge: what Horizon's hook points call, Library.bridge).
+        for (Id id : needs.keySet()) if (world.jar.contains(id.owner()) || Library.bridge(id.owner())) todo.add(id);
         while (!todo.isEmpty()) {
             Id id = todo.poll();
             if (!needs.containsKey(id) || !out.add(id)) continue;
@@ -959,6 +994,22 @@ final class JarRust {
                     #[allow(dead_code)]
                     fn jstring(text: &str) -> Ref {
                         jstring_of(&text.encode_utf16().collect::<Vec<u16>>())
+                    }
+
+                    /// Horizon's side of the bridge (HorizonBridge): a Java String from UTF-16 units, as Horizon's NBT
+                    /// keeps text.
+                    #[allow(dead_code)]
+                    pub fn jbridge_string(units: &[u16]) -> Ref {
+                        jstring_of(units)
+                    }
+
+                    /// A Java String's UTF-16 units; None for null.
+                    #[allow(dead_code)]
+                    pub fn jbridge_units(s: &Ref) -> Option<Vec<u16>> {
+                        if s.is_none() {
+                            return None;
+                        }
+                        jstring_units(s).ok()
                     }
 
                     /// A String's units.

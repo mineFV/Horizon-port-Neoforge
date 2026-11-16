@@ -92,8 +92,11 @@ final class Port {
 
             EventTable table = table(o.horizonSrc(), translator, work);
             Path carrying = Files.createDirectory(work.resolve("content"));
+            Map<String, Object> machines = machines(o.facts(), jar);
+            // This tool's own translator, for the machines' bridge (Machines, BridgeRust): only with the machines file.
+            JarRust.Result java = machines == null ? null : JarRust.translate(JarRust.classes(jar), Library.classes(), Map.of());
             Bundle.Outcome outcome = Bundle.finish(bundle, decompiled, o.horizonSrc(), info, analysis, table, o.approximate(),
-                    into -> Content.carry(jar, analysis, tools, carrying, into, o.approximate(), o.facts()), machines(o.facts(), jar));
+                    into -> Content.carry(jar, analysis, tools, carrying, into, o.approximate(), o.facts()), machines, java);
             Report.write(bundle.resolve("report"), jar, frontend, analysis, outcome);
             deliver(bundle, target);
 
@@ -116,7 +119,9 @@ final class Port {
             out.println("  Machines: " + (o.facts() == null ? "not read (no --facts)"
                     : made == null ? (table == null ? "not wired (this Horizon source has no hook catalogue)" : "not read (no " + Dump.machinesFile(o.facts()).getFileName() + " beside the facts: dump writes it)")
                     : made.blocks() + " blocks with a block entity; " + made.on().size() + " block-entity hook points on" + (made.off().isEmpty() ? "" : ", " + made.off().size() + " written commented out")
-                            + "; their ticks, menus and saves aren't ported (report/machines.md)"));
+                            + (made.bridged().isEmpty() ? "; their ticks, menus and saves aren't ported" + (made.bridgeProblem() == null ? "" : " (no bridge: " + made.bridgeProblem() + ")")
+                            : "; " + made.bridged().size() + " ticking type" + (made.bridged().size() == 1 ? "" : "s") + " run by the mod's own Java, translated (java.rs, bridge.rs); menus aren't ported")
+                            + " (report/machines.md)"));
             Content.Result content = outcome.content();
             out.println("  Content: " + switch (content.state()) {
                 case "packed" -> content.file() + " (" + content.files() + (content.files() == 1 ? " file" : " files") + "), " + content.why();

@@ -51,10 +51,11 @@ final class Machines {
     /**
      * What was written. on: hook point to its injection id; off: hook point to why it is commented out. counts:
      * hook point to how many blocks it answers for. notes: by block, what isn't carried over. menus: blocks whose
-     * menu isn't opened, with why. types: block entity types.
+     * menu isn't opened, with why. types: block entity types. bridged: the ticking types the bridge runs, with their
+     * block; bridgeProblem: why there is no bridge, or null.
      */
     record Made(Map<String, String> on, Map<String, String> off, Map<String, Integer> counts, Map<String, List<String>> notes, int blocks, int types,
-                int menuTypes) {}
+                int menuTypes, Map<String, String> bridged, String bridgeProblem) {}
 
     static Map<String, Object> read(Path file) throws IOException {
         Map<String, Object> m;
@@ -69,6 +70,16 @@ final class Machines {
 
     /** Writes the helpers and their injections into the bundle's mod folder, and the hooks API they need. */
     static Made apply(Path mod, String modId, Map<String, Object> machines, EventTable table) throws IOException {
+        return apply(mod, modId, machines, table, null);
+    }
+
+    /**
+     * java: this tool's translation of the jar (JarRust), or null. When it has what the bridge needs (BridgeRust), the
+     * bundle gets it as two modules, the translation and Horizon's side of the bridge, and the tick helper runs the
+     * block entities whose type one block makes through it.
+     */
+    static Made apply(Path mod, String modId, Map<String, Object> machines, EventTable table, JarRust.Result java) throws IOException {
+        bridgeProblem = null;
         Path manifestFile = mod.resolve("horizon-mixin.toml");
         String manifest = Files.readString(manifestFile, StandardCharsets.UTF_8);
         Map<String, Object> root;
@@ -94,15 +105,40 @@ final class Machines {
         StringBuilder added = new StringBuilder();
         int api = 0;
         String function = modId.replaceAll("[^A-Za-z0-9_]", "_");
+        // The bridge: which ticking types it runs (each made by one block, as `dump` found it), as modules of the bundle.
+        Map<String, String> bridged = new TreeMap<>();
+        String bridgeModule = null;
+        List<String> missing = new ArrayList<>();
+        Map<String, String> functions = java == null ? null : BridgeRust.functions(java, missing);
+        if (java != null && functions == null) bridgeProblem = "the translation lacks " + String.join(", ", missing);
+        if (functions != null) {
+            Map<String, List<String>> byType = new TreeMap<>();
+            blocks.forEach((id, m) -> {
+                String type = Json.text(m, "block_entity");
+                if (type != null && Boolean.TRUE.equals(m.get("ticks_on_server"))) byType.computeIfAbsent(type, k -> new ArrayList<>()).add(id);
+            });
+            byType.forEach((type, made) -> {
+                if (made.size() == 1) bridged.put(type, made.get(0));
+                else made.forEach(b -> note(notes, b, "its block entity type is made by " + made.size() + " blocks: which one is at a position isn't told by the hook point, so it doesn't tick"));
+            });
+            bridgeModule = module + "_bridge";
+            Files.writeString(mod.resolve("java.rs"), java.rust(), StandardCharsets.UTF_8);
+            Files.writeString(mod.resolve("bridge.rs"), BridgeRust.module("super::" + module + "_java", modId, functions), StandardCharsets.UTF_8);
+        }
         for (String name : HOOKS) {
-            Body body = body(name, blocks, notes);
+            Body body = name.equals("block_entity_tick") && !bridged.isEmpty() ? bridgedTick(bridged, bridgeModule, blocks) : body(name, blocks, notes);
             if (body.count() == 0) continue;
             counts.put(name, body.count());
             Hook hook = table.named(name);
             String why = hook == null ? "this Horizon source's catalogue has no `" + name + "`" : unusable(hook, body.uses());
             if (why == null && taken.containsKey(hook.target())) why = "the hook point already has an injection, `" + taken.get(hook.target()) + "`: merge this helper into its own";
             String id = Wiring.unique(name.replace('_', '-'), ids);
-            Files.writeString(mod.resolve(id + ".rs"), helper(name, hook, body, function + "_" + name, module), StandardCharsets.UTF_8);
+            String helperText = helper(name, hook, body, function + "_" + name, module);
+            if (name.equals("block_entity") && !bridged.isEmpty() && bridged.size() == typesTicking(blocks)) {
+                // Every ticking type runs through the bridge: an empty compound is what a new block entity starts from.
+                helperText = helperText.replace(BLOCK_ENTITY_TODO, "    // It starts empty: the bridge (bridge.rs) makes the mod's own block entity from it, and saves back what the mod saves.\n");
+            }
+            Files.writeString(mod.resolve(id + ".rs"), helperText, StandardCharsets.UTF_8);
             if (why != null) {
                 off.put(name, why);
                 added.append("\n# Off: the mod's machines on `").append(name).append("` (").append(id).append(".rs).\n#   ").append(sentence(why))
@@ -121,13 +157,47 @@ final class Machines {
             }
             added.append("]\n");
         }
+        if (bridgeModule != null) {
+            added.insert(0, "\n# The mod's Java translated by horizon-port-neoforge, and Horizon's side of the bridge to it (BridgeRust).\n"
+                    + "[[module]]\nid = \"java\"\nfile = \"crates/horizon-client/src/game.rs\"\nname = \"" + module + "_java\"\nsource = \"java.rs\"\n\n"
+                    + "[[module]]\nid = \"bridge\"\nfile = \"crates/horizon-client/src/game.rs\"\nname = \"" + bridgeModule + "\"\nsource = \"bridge.rs\"\n");
+        }
         if (added.length() > 0) {
             String text = manifest.stripTrailing() + "\n\n# The mod's machines, put on Horizon's block-entity hook points by horizon-port-neoforge from what NeoForge gave\n"
                     + "# of them in a server (`dump`). Their helpers carry over what was measured; what the block entities do is a TODO.\n" + added;
             Files.writeString(manifestFile, text, StandardCharsets.UTF_8);
         }
         if (api > 0) Wiring.needs(mod.getParent().getParent().resolve("compatibility.json"), api);
-        return new Made(on, off, counts, notes, blocks.size(), Json.object(machines.get("block_entity_types")).size(), Json.array(machines.get("menu_types")).size());
+        return new Made(on, off, counts, notes, blocks.size(), Json.object(machines.get("block_entity_types")).size(), Json.array(machines.get("menu_types")).size(),
+                bridged, bridgeProblem);
+    }
+
+    static final String BLOCK_ENTITY_TODO = "    // TODO: what each block entity saves isn't ported: it starts empty (report/machines.md lists what NeoForge's saved).\n";
+
+    /** How many block entity types tick on the server. */
+    private static int typesTicking(Map<String, Map<String, Object>> blocks) {
+        Set<String> types = new java.util.TreeSet<>();
+        blocks.values().forEach(m -> {
+            if (Json.text(m, "block_entity") != null && Boolean.TRUE.equals(m.get("ticks_on_server"))) types.add(Json.text(m, "block_entity"));
+        });
+        return types.size();
+    }
+
+    /** Why the bridge wasn't written, when a translation was given; null otherwise. */
+    static String bridgeProblem;
+
+    /** The tick helper's body when the bridge runs some types: each type's block, then the bridge's tick. */
+    static Body bridgedTick(Map<String, String> bridged, String bridgeModule, Map<String, Map<String, Object>> blocks) {
+        StringBuilder b = new StringBuilder();
+        b.append("    // Each block entity type the bridge runs, and the block that makes it (one each, as `dump` found them in NeoForge):\n");
+        b.append("    // the mod's own Java, translated, ticks it (bridge.rs).\n");
+        b.append("    let block = match entity.id.as_str() {\n");
+        bridged.forEach((type, block) -> b.append("        ").append(rust(type)).append(" => ").append(rust(block)).append(",\n"));
+        b.append("        _ => return,\n    };\n");
+        b.append("    let id = entity.id.clone();\n");
+        b.append("    if let Some(saved) = crate::game::").append(bridgeModule).append("::tick(block, &id, pos, &entity.nbt) {\n");
+        b.append("        entity.nbt = saved;\n    }\n");
+        return new Body(b.toString(), List.of("pos", "entity"), bridged.size());
     }
 
     /** Why a helper can't be put on the hook point; null when it can. */
@@ -401,9 +471,18 @@ final class Machines {
         m.counts().forEach((hook, n) -> out.add("| `" + hook + "` | " + n + " | "
                 + (m.on().containsKey(hook) ? "on, in `" + m.on().get(hook) + "`" : "off: " + m.off().get(hook).replace("|", "\\|")) + " |"));
         out.add("");
-        out.add("What they do is the mod's own code, which isn't translated yet: `block_entity_tick` does nothing until its TODO is filled in, "
-                + "what a block entity saves isn't carried over, and no menu opens (the mod declares " + m.menuTypes() + " menu " + (m.menuTypes() == 1 ? "type" : "types")
-                + ", and no screen is ported). `report/machines.md` lists what isn't, block by block.");
+        if (!m.bridged().isEmpty()) {
+            out.add("What they do is the mod's own code, translated by this tool (`java.rs`): `block_entity_tick` runs it through the bridge "
+                    + "(`bridge.rs`) for " + m.bridged().size() + (m.bridged().size() == 1 ? " type" : " types") + " (" + String.join(", ", m.bridged().keySet().stream().map(t -> "`" + t + "`").toList())
+                    + "): the block's own block entity, loaded from what Horizon saved, ticked by the ticker its block gives, saved back after each tick. "
+                    + "Not yet: menus and screens (the mod declares " + m.menuTypes() + " menu " + (m.menuTypes() == 1 ? "type" : "types") + "), and what the block "
+                    + "entity does to the world beyond its own data (a Level's methods aren't translated). `report/machines.md` lists what isn't, block by block.");
+        } else {
+            out.add("What they do is the mod's own code" + (m.bridgeProblem() == null ? ", which isn't translated yet" : ", whose bridge isn't written: " + m.bridgeProblem())
+                    + ": `block_entity_tick` does nothing until its TODO is filled in, "
+                    + "what a block entity saves isn't carried over, and no menu opens (the mod declares " + m.menuTypes() + " menu " + (m.menuTypes() == 1 ? "type" : "types")
+                    + ", and no screen is ported). `report/machines.md` lists what isn't, block by block.");
+        }
         return out;
     }
 

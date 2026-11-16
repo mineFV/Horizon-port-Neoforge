@@ -108,6 +108,16 @@ lacks() {
   fi
 }
 
+# no_text <file>: the file is empty (nothing was said).
+no_text() {
+  if [ -s "$1" ]; then
+    echo "  FAIL: $1 isn't empty:"; head -5 "$1"
+    failures=$((failures + 1))
+  else
+    echo "  ok: nothing in $1"
+  fi
+}
+
 # plain_jar <name> <folder>: a jar of that folder alone.
 plain_jar() { jar --create --file "$B/jars/$1.jar" -C "$2" .; }
 
@@ -1046,6 +1056,44 @@ exits 2 tool standins --server "$SI/same-src"
 says "$ERR" "isn't a NeoForge server: it has no libraries/ folder"
 exits 2 tool standins "$J" --server "$SI/same"
 says "$ERR" '`standins` takes no file, only --server'
+
+echo; echo "== bridge"
+# The made-up Counter mod (testmod/counter) built against the stand-ins (game/), translated with Horizon's side of the
+# bridge (--bridge); where rustc is, that bridge compiled against a stand-in for Horizon's NBT (test/bridge/) and run
+# as Horizon's block-entity tick runs it: the mod's own Java counts the ticks and saves them.
+BR=$B/bridge
+rm -rf "$BR" && mkdir -p "$BR/stubs" "$BR/classes" "$BR/jar"
+javac --release 21 -d "$BR/stubs" test/bridge/stubs/net/neoforged/fml/common/Mod.java
+javac --release 21 -cp "build/model:$BR/stubs" -d "$BR/classes" $(find testmod/counter/src -name '*.java')
+cp -r testmod/counter/resources/. "$BR/jar/"
+jar --create --file "$B/jars/counter.jar" -C "$BR/jar" . -C "$BR/classes" com
+exits 0 tool translate "$B/jars/counter.jar" --out "$BR/out" --bridge super::java
+says "$OUT" "counter.jar: 14 of 14 methods translated from their bytecode"
+says "$OUT" "bridge.rs, Horizon's side of the bridge, which reaches the translation as super::java."
+says "$BR/out/translated.rs" "pub fn jexport_mod(bus: Ref) -> JR<Ref> {"
+says "$BR/out/bridge.rs" "use super::java as j;"
+exits 0 tool translate "$B/jars/numbers.jar" --out "$BR/numbers" --bridge super::java
+says "$OUT" "problem: no bridge: the translation lacks the mod's own object"
+if command -v rustc > /dev/null; then
+  if rustc --edition 2024 --crate-type lib --crate-name horizon_world -o "$BR/libhorizon_world.rlib" test/bridge/horizon_world.rs > "$BR/rustc.txt" 2>&1 \
+     && TRANSLATED_DIR="$PWD/$BR/out" rustc --edition 2024 --extern horizon_world="$BR/libhorizon_world.rlib" -o "$BR/check" test/bridge/bridge_check.rs >> "$BR/rustc.txt" 2>&1; then
+    echo "  ok: the bridge compiles (edition 2024, as Horizon's)"
+    lacks "$BR/rustc.txt" "warning"
+    "$BR/check" > "$BR/ran.txt" 2> "$BR/said.txt"
+    # A new block entity: 45 ticks, 2 seconds; Horizon's own key kept.
+    says "$BR/ran.txt" "new: 45 changes; horizon=Int(7) seconds=Long(2) ticks=Int(45)"
+    # Loaded elsewhere from that compound: it goes on counting.
+    says "$BR/ran.txt" "loaded: horizon=Int(7) seconds=Long(3) ticks=Int(70)"
+    # Its compound changed by something else: made again from it.
+    says "$BR/ran.txt" "edited: horizon=Int(7) seconds=Long(2) ticks=Int(1005)"
+    says "$BR/ran.txt" "round trip: true"
+    no_text "$BR/said.txt"
+  else
+    echo "  FAIL: the bridge doesn't compile:"; head -30 "$BR/rustc.txt"; failures=$((failures + 1))
+  fi
+else
+  echo "  (skipped: running the bridge: there is no rustc here)"
+fi
 
 echo; echo "== dump"
 # Against a stand-in server and a stand-in for Horizon's oracle (test/fixture/horizon-src/tools): nothing starts.

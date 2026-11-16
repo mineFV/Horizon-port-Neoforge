@@ -135,8 +135,13 @@ final class Pack {
         out.println(hooks != null
                 ? "  It touches hook points only (API " + hooks + "): the launcher also builds it on a later Horizon that has that API."
                 : "  It builds on that commit only: " + onlyHere + ".");
-        out.println("  It isn't a finished port: " + count(facts.todos(), "TODO") + " in the code that is on, " + count(facts.off(), "injection")
-                + " commented out. Built into the game it changes nothing yet; what a build tells is whether Horizon takes it and compiles it.");
+        if (facts.todos() == 0 && facts.off() == 0) {
+            out.println("  No TODO in the code that is on and no injection commented out: built into the game, what is on runs. "
+                    + "PORTING.md and report/ say what of the mod isn't ported.");
+        } else {
+            out.println("  It isn't a finished port: " + count(facts.todos(), "TODO") + " in the code that is on, " + count(facts.off(), "injection")
+                    + " commented out. Built into the game it changes nothing yet; what a build tells is whether Horizon takes it and compiles it.");
+        }
         out.println("To try it: put the file in the instance's horizon-native-mods/ folder and press Build on the launcher's Mods page, or build the folder itself:");
         out.println("  horizon-launcher native-build \"" + mod.toAbsolutePath() + "\" --instance <name> --trust-native-code");
         out.println("Native code isn't sandboxed: that build is yours to start, once you have read the code. Nothing was compiled or installed here.");
