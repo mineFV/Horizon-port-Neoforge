@@ -164,6 +164,9 @@ fn main() {
     for n in -12..=12 {
         p("mth", n.to_string(), text(places__mth(n)));
     }
+    for n in -9..=9 {
+        p("vec", n.to_string(), text(places__vec(n)));
+    }
     for d in 0..=5 {
         p("opposite", d.to_string(), show(places__opposite(d)));
         p("steps", d.to_string(), show(places__steps(d)));

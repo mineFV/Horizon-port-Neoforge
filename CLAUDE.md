@@ -314,7 +314,7 @@ Say so rather than assume it works:
   collections), 8154 (no object whose supertypes aren't all known), 7302 (class objects; static methods initializing
   their class, which rightly dropped those whose initializer isn't translated), 7668 (`revive`), 8967 (the makers of
   an object a call can't run on drop, not the callers), 9067 (the rest of the library model: streams, UUID, atomics,
-  threads and executors, Unicode, TreeMap, ConcurrentHashMap...), 9075 (arraycopy, BitSet, UUID.fromString, split by a plain separator...), 9143 (2026-11-16: the first stand-ins of the game, BlockPos's packed form), 9166 (the positions and directions Mekanism uses, observed in the game by `standins`), 9244 (NBT), 9303 (ids, ByIdMap), 9346 (Mth). With `--server` there were fewer for a while:
+  threads and executors, Unicode, TreeMap, ConcurrentHashMap...), 9075 (arraycopy, BitSet, UUID.fromString, split by a plain separator...), 9143 (2026-11-16: the first stand-ins of the game, BlockPos's packed form), 9166 (the positions and directions Mekanism uses, observed in the game by `standins`), 9244 (NBT), 9303 (ids, ByIdMap), 9346 (Mth), 9360 (Vec3). With `--server` there were fewer for a while:
   objects of classes implementing NeoForge's interfaces can then be made, and calls that may reach them must be
   certain. The game holds the rest back: `essais/mekanism/phase-d-notes.md` measures what each part of it is worth;
 - our translator's output has been compiled and run on the test's made-up classes only. Mekanism's translation was

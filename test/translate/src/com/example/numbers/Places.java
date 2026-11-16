@@ -153,6 +153,15 @@ public final class Places {
                 + " " + net.minecraft.util.Mth.SQRT_OF_TWO;
     }
 
+    /** The game's Vec3: arithmetic, distances, normalizing, texts and hashes. */
+    public static String vec(int n) {
+        net.minecraft.world.phys.Vec3 a = new net.minecraft.world.phys.Vec3(n * 0.5, -n, n % 3 == 0 ? -0.0 : 1e-5 * n);
+        net.minecraft.world.phys.Vec3 b = net.minecraft.world.phys.Vec3.atCenterOf(new BlockPos(n, 2 * n, -n));
+        return a + " " + a.hashCode() + " " + a.normalize() + " " + a.add(b) + " " + a.cross(b) + " " + a.distanceTo(b) + " " + a.lerp(b, 0.3)
+                + " " + a.equals(new net.minecraft.world.phys.Vec3(a.x, a.y, 0.0)) + " " + a.closerThan(b, 4.0, 3.0) + " " + a.relative(Direction.from3DDataValue(n), 2.5)
+                + " " + a.with(Direction.Axis.Y, 9.0).get(Direction.Axis.Y) + " " + BlockPos.containing(b.scale(-1.0)) + " " + new BlockPos(n, n, n).getCenter();
+    }
+
     public static int eastX(int x) {
         return new BlockPos(x, 0, 0).east().getX();
     }

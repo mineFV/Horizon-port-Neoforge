@@ -40,6 +40,7 @@ public final class GameProbe {
         NbtProbe.run();
         IdProbe.run();
         MthProbe.run();
+        VecProbe.run();
     }
 
     static void directions() {

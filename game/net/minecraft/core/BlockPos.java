@@ -50,6 +50,16 @@ public class BlockPos extends Vec3i {
         return new BlockPos(floor(x), floor(y), floor(z));
     }
 
+    /** Observed: the block a position is in, as containing(x, y, z). */
+    public static BlockPos containing(Position p) {
+        return containing(p.x(), p.y(), p.z());
+    }
+
+    /** Observed: the middle of the block (Vec3.atCenterOf). */
+    public net.minecraft.world.phys.Vec3 getCenter() {
+        return net.minecraft.world.phys.Vec3.atCenterOf(this);
+    }
+
     private static int floor(double d) {
         int i = (int) d;
         return d < i ? i - 1 : i;

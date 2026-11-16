@@ -909,7 +909,7 @@ javac --release 21 -cp "$TR/classes" -d "$TR/classes" test/translate/NumbersChec
 printf 'modLoader = "javafml"\nloaderVersion = "[4,)"\nlicense = "MIT"\n[[mods]]\nmodId = "numbers"\nversion = "1.0"\ndisplayName = "Numbers"\n' > "$TR/jar/META-INF/neoforge.mods.toml"
 jar --create --file "$B/jars/numbers.jar" -C "$TR/jar" . -C "$TR/classes" com
 exits 0 tool translate "$B/jars/numbers.jar" --out "$TR/out"
-says "$OUT" "numbers.jar: 493 of 493 methods translated from their bytecode"
+says "$OUT" "numbers.jar: 494 of 494 methods translated from their bytecode"
 # Class objects: an enum's valueOf (Enum.valueOf with a class constant), and their tables.
 says "$TR/out/translation.md" '- `com.example.numbers.Boxes$Color.valueOf(Ljava/lang/String;)Lcom/example/numbers/Boxes$Color;` as'
 says "$TR/out/translated.rs" 'fn jinstance_of(t: u32, a: u32) -> bool {'
@@ -922,7 +922,7 @@ else
 fi
 says "$OUT" "Nothing was compiled or run"
 # The game's stand-ins (game/), translated with the mod where it reaches them.
-says "$OUT" "Stand-ins for the game: 31 classes, not checked against the game's (no --server)."
+says "$OUT" "Stand-ins for the game: 33 classes, not checked against the game's (no --server)."
 says "$TR/out/translation.md" '- `com.example.numbers.Places.keys(I)Ljava/lang/String;` as `places__keys`'
 says "$TR/out/translated.rs" '/// `net.minecraft.core.Vec3i.compareTo(Lnet/minecraft/core/Vec3i;)I`, translated from its bytecode.'
 says "$TR/out/translated.rs" 'pub fn numbers__collatz(mut l0: i64) -> JR<i64> {'
@@ -972,7 +972,7 @@ exits 0 tool translate "$B/jars/gamey.jar" --server "$TR/server" --out "$TR/game
 says "$OUT" "Read: the supertypes of 4 classes of the game, NeoForge and their libraries, from 1 jars in"
 # Each stand-in checked against the server's class: one whose interfaces differ, one that would inherit a method the
 # game's declares, are left out.
-says "$OUT" "Stand-ins for the game: 29 classes, checked against the game's."
+says "$OUT" "Stand-ins for the game: 31 classes, checked against the game's."
 says "$OUT" "- left out: net.minecraft.core.Vec3i: its superclass or interfaces aren't the game's"
 says "$OUT" "- left out: net.minecraft.core.BlockPos: the game's class declares getX()I, which the stand-in would take from net.minecraft.core.Vec3i"
 says "$TR/gamey-out/translation.md" "- left out: net.minecraft.core.Vec3i"
@@ -1025,8 +1025,8 @@ for v in same upper; do
   jar --create --file "$SI/$v/libraries/net/neoforged/neoforge/21.1.1/neoforge-21.1.1-server.jar" -C "$SI/$v-classes" .
 done
 exits 0 tool standins --server "$SI/same"
-says "$OUT" "ok: the 31 stand-ins have the supertypes and the methods of the server's classes"
-says "$OUT" "ok: the game and the stand-ins give the same 19601 answers to the probe"
+says "$OUT" "ok: the 33 stand-ins have the supertypes and the methods of the server's classes"
+says "$OUT" "ok: the game and the stand-ins give the same 20210 answers to the probe"
 says "$OUT" "no server, no world, no mod"
 no_file logs
 exits 1 tool standins --server "$SI/upper"
