@@ -24,7 +24,7 @@ A stand-in declares the real class's superclass and interfaces, so that a type t
 `--server`, `translate` checks each stand-in against the real class (`Library.checkStandIns`) and leaves out one
 whose supertypes differ, or that would inherit a method the real class declares.
 
-What differs from the game, where a program can see it: nothing the probe asks (20210 answers on NeoForge
+What differs from the game, where a program can see it: nothing the probe asks (20225 answers on NeoForge
 21.1.266, 2026-11-16), which includes which object each method gives back (this one or a new one, of which
 class), caches (which numbers' tags are the same object), the texts of a mod's own subclasses (named and
 anonymous), NBT's texts (SNBT) and orders, error messages, and the extremes where arithmetic wraps. A
@@ -33,7 +33,7 @@ NullPointerException's message isn't compared: the JVM builds it from the byteco
 What is here: positions and directions (net/minecraft/core: Vec3i, BlockPos and its MutableBlockPos, Direction
 with Axis and AxisDirection) and NBT (net/minecraft/nbt: the tags of numbers, texts, lists, arrays and compounds,
 and NbtUtils' positions), ids (net/minecraft/resources/ResourceLocation, with its exception), ByIdMap's continuous
-maps points in doubles (net/minecraft/world/phys/Vec3, but xRot, yRot and zRot, and Position) and Mth's arithmetic (not its sine, cosine and atan2, which the game reads from tables built with Math.sin
+maps equipment slots (net/minecraft/world/entity/EquipmentSlot, but limit), points in doubles (net/minecraft/world/phys/Vec3, but xRot, yRot and zRot, and Position) and Mth's arithmetic (not its sine, cosine and atan2, which the game reads from tables built with Math.sin
 and Math.asin, nor its random numbers). They cover what Mekanism calls of them, but for the members below.
 
 What isn't here, and what it costs: BlockPos's getCenter, betweenClosed and codecs, Direction's getRotation and

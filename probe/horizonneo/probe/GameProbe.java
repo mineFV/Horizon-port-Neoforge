@@ -41,6 +41,7 @@ public final class GameProbe {
         IdProbe.run();
         MthProbe.run();
         VecProbe.run();
+        EquipProbe.run();
     }
 
     static void directions() {

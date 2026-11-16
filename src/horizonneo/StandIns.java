@@ -29,7 +29,8 @@ final class StandIns {
     /** The probe's files in this tool's jar; GameProbe's main runs the others. */
     static final List<String> PROBES = List.of("probe/horizonneo/probe/GameProbe.java", "probe/horizonneo/probe/NbtProbe.java",
             "probe/horizonneo/probe/IdProbe.java", "probe/horizonneo/probe/MthProbe.java",
-            "probe/horizonneo/probe/VecProbe.java");
+            "probe/horizonneo/probe/VecProbe.java",
+            "probe/horizonneo/probe/EquipProbe.java");
 
     /** A run of the probe: what it printed, or why it couldn't run. */
     record Run(List<String> lines, String problem) {}
