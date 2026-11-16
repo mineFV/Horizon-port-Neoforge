@@ -1,0 +1,18 @@
+# Counter: horizon-port-neoforge's made-up test mod for a block entity that ticks and saves.
+modLoader = "javafml"
+loaderVersion = "[1,)"
+license = "MIT"
+
+[[mods]]
+modId = "counter"
+version = "1.0.0"
+displayName = "Counter"
+description = "A block whose block entity counts its server ticks and saves them. Made up for horizon-port-neoforge's tests."
+authors = "horizon-port-neoforge"
+
+[[dependencies.counter]]
+modId = "neoforge"
+type = "required"
+versionRange = "[21.1,)"
+ordering = "NONE"
+side = "BOTH"

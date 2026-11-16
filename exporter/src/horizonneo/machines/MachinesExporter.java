@@ -128,10 +128,38 @@ public final class MachinesExporter {
             if (!namespaces.contains(id.getNamespace())) continue;
             Block block = BuiltInRegistries.BLOCK.get(id);
             if (!(block instanceof EntityBlock)) continue;
-            blocks.add(id.toString(), block(level, player, block));
+            JsonObject b = block(level, player, block);
+            b.add("texts", texts(id, block));
+            blocks.add(id.toString(), b);
         }
         o.add("blocks", blocks);
+        // What the stand-ins' Object methods must answer for the game's objects (game/README.md): a level's text.
+        o.addProperty("level_text", String.valueOf(level));
         return o;
+    }
+
+    /**
+     * What the game's Object methods answer for a block, its default state and a DeferredHolder of it, observed here
+     * for the translator's stand-ins (game/), which a probe without the game's registries can't ask.
+     */
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    private static JsonObject texts(ResourceLocation id, Block block) {
+        JsonObject t = new JsonObject();
+        t.addProperty("block", String.valueOf(block));
+        t.addProperty("state", String.valueOf(block.defaultBlockState()));
+        try {
+            net.neoforged.neoforge.registries.DeferredHolder a = net.neoforged.neoforge.registries.DeferredHolder.create((net.minecraft.resources.ResourceKey) net.minecraft.core.registries.Registries.BLOCK, id);
+            net.neoforged.neoforge.registries.DeferredHolder b = net.neoforged.neoforge.registries.DeferredHolder.create((net.minecraft.resources.ResourceKey) net.minecraft.core.registries.Registries.BLOCK, id);
+            t.addProperty("holder", String.valueOf(a));
+            t.addProperty("holder_equals_same_key", a.equals(b));
+            t.addProperty("holder_equals_text", a.equals(String.valueOf(a)));
+            t.addProperty("holder_hash_is_key_hash", a.hashCode() == a.getKey().hashCode());
+            t.addProperty("holder_hash_same_key", a.hashCode() == b.hashCode());
+            t.addProperty("holder_value_is_block", a.get() == block);
+        } catch (Throwable e) {
+            t.addProperty("holder_unread", String.valueOf(e));
+        }
+        return t;
     }
 
     @SuppressWarnings({"unchecked", "rawtypes"})

@@ -930,7 +930,7 @@ else
 fi
 says "$OUT" "Nothing was compiled or run"
 # The game's stand-ins (game/), translated with the mod where it reaches them.
-says "$OUT" "Stand-ins for the game: 35 classes, not checked against the game's (no --server)."
+says "$OUT" "Stand-ins for the game: 93 classes, not checked against the game's (no --server)."
 says "$TR/out/translation.md" '- `com.example.numbers.Places.keys(I)Ljava/lang/String;` as `places__keys`'
 says "$TR/out/translated.rs" '/// `net.minecraft.core.Vec3i.compareTo(Lnet/minecraft/core/Vec3i;)I`, translated from its bytecode.'
 says "$TR/out/translated.rs" 'pub fn numbers__collatz(mut l0: i64) -> JR<i64> {'
@@ -980,7 +980,7 @@ exits 0 tool translate "$B/jars/gamey.jar" --server "$TR/server" --out "$TR/game
 says "$OUT" "Read: the supertypes of 4 classes of the game, NeoForge and their libraries, from 1 jars in"
 # Each stand-in checked against the server's class: one whose interfaces differ, one that would inherit a method the
 # game's declares, are left out.
-says "$OUT" "Stand-ins for the game: 33 classes, checked against the game's."
+says "$OUT" "Stand-ins for the game: 91 classes, checked against the game's."
 says "$OUT" "- left out: net.minecraft.core.Vec3i: its superclass or interfaces aren't the game's"
 says "$OUT" "- left out: net.minecraft.core.BlockPos: the game's class declares getX()I, which the stand-in would take from net.minecraft.core.Vec3i"
 says "$TR/gamey-out/translation.md" "- left out: net.minecraft.core.Vec3i"
@@ -1025,7 +1025,7 @@ SI=$B/standins
 for v in same upper; do
   rm -rf "$SI/$v-src" "$SI/$v-classes"
   mkdir -p "$SI/$v-src" "$SI/$v-classes" "$SI/$v/libraries/net/neoforged/neoforge/21.1.1"
-  cp -r game/net "$SI/$v-src/"
+  cp -r game/net game/com "$SI/$v-src/"
 done
 perl -0pi -e 's/(public String toString\(\) \{\n\s*return serializedName)/$1.toUpperCase()/' "$SI/upper-src/net/minecraft/core/Direction.java"
 for v in same upper; do
@@ -1033,8 +1033,8 @@ for v in same upper; do
   jar --create --file "$SI/$v/libraries/net/neoforged/neoforge/21.1.1/neoforge-21.1.1-server.jar" -C "$SI/$v-classes" .
 done
 exits 0 tool standins --server "$SI/same"
-says "$OUT" "ok: the 35 stand-ins have the supertypes and the methods of the server's classes"
-says "$OUT" "ok: the game and the stand-ins give the same 20225 answers to the probe"
+says "$OUT" "ok: the 93 stand-ins have the supertypes and the methods of the server's classes"
+says "$OUT" "ok: the game and the stand-ins give the same 20229 answers to the probe"
 says "$OUT" "no server, no world, no mod"
 no_file logs
 exits 1 tool standins --server "$SI/upper"

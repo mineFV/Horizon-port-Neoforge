@@ -35,7 +35,16 @@ final class Library {
 
     /** Whether a class of the model stands in for the game's (game/), not for Java's library (lib/). */
     static boolean standIn(String name) {
-        return !name.startsWith("java/");
+        return !name.startsWith("java/") && !bridge(name);
+    }
+
+    /**
+     * Whether a class of the model is this tool's own, beside the stand-ins (game/): HorizonBridge, which Horizon's
+     * hook points call, and HorizonRegistries. Not the game's: not checked against it, and kept translated.
+     */
+    static boolean bridge(String name) {
+        String simple = name.substring(name.lastIndexOf('/') + 1);
+        return !name.startsWith("java/") && simple.startsWith("Horizon");
     }
 
     /**
