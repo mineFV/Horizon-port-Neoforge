@@ -1081,11 +1081,13 @@ if command -v rustc > /dev/null; then
     lacks "$BR/rustc.txt" "warning"
     "$BR/check" > "$BR/ran.txt" 2> "$BR/said.txt"
     # A new block entity: 45 ticks, 2 seconds; Horizon's own key kept.
-    says "$BR/ran.txt" "new: 45 changes; horizon=Int(7) seconds=Long(2) ticks=Int(45)"
+    says "$BR/ran.txt" 'new: 45 changes; below=String(JavaString([66, 108, 111, 99, 107, 123, 109, 105, 110, 101, 99, 114, 97, 102, 116, 58, 115, 116, 111, 110, 101, 125])) horizon=Int(7) seconds=Long(2) ticks=Int(45)'
     # Loaded elsewhere from that compound: it goes on counting.
-    says "$BR/ran.txt" "loaded: horizon=Int(7) seconds=Long(3) ticks=Int(70)"
+    says "$BR/ran.txt" 'loaded: below=String(JavaString([66, 108, 111, 99, 107, 123, 109, 105, 110, 101, 99, 114, 97, 102, 116, 58, 97, 105, 114, 125])) horizon=Int(7) seconds=Long(3) ticks=Int(70)'
     # Its compound changed by something else: made again from it.
-    says "$BR/ran.txt" "edited: horizon=Int(7) seconds=Long(2) ticks=Int(1005)"
+    says "$BR/ran.txt" "seconds=Long(2) ticks=Int(1005)"
+    # The block below, asked of the world once a second: at 20 and 40 ticks, then at 60.
+    says "$BR/ran.txt" "asked: 3"
     says "$BR/ran.txt" "round trip: true"
     no_text "$BR/said.txt"
   else

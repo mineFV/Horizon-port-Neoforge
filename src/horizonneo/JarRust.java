@@ -996,6 +996,10 @@ final class JarRust {
                         jstring_of(&text.encode_utf16().collect::<Vec<u16>>())
                     }
 
+                    /// Who answers HorizonWorld.ask: set by Horizon's side of the bridge (bridge.rs).
+                    #[allow(dead_code)]
+                    pub static JWORLD: std::sync::OnceLock<fn(&[u16]) -> Option<Vec<u16>>> = std::sync::OnceLock::new();
+
                     /// Horizon's side of the bridge (HorizonBridge): a Java String from UTF-16 units, as Horizon's NBT
                     /// keeps text.
                     #[allow(dead_code)]

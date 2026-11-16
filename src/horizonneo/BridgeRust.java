@@ -87,7 +87,9 @@ final class BridgeRust {
             // newBlockEntity and loaded from the compound Horizon saves; each tick runs the ticker its block gave, then
             // writes what the mod saves back into that compound. The object is made again from the compound when the
             // compound isn't the one written here last (a world loaded, another block in its place).
+            use std::cell::RefCell;
             use std::collections::{BTreeSet, HashMap};
+            use std::sync::mpsc::{Receiver, Sender, channel};
             use std::sync::{LazyLock, Mutex, MutexGuard};
 
             use horizon_world::nbt::{Compound, JavaString, Tag};
@@ -128,9 +130,101 @@ final class BridgeRust {
                 j::jexport_mod(bus).map(|_| ()).map_err(|e| j::jdescribe(&e))
             });
 
+            // The mod's Java runs on a thread of its own. What it asks of the world (HorizonWorld.ask) goes to the thread
+            // that ticks, which holds Horizon's world and answers, until the tick is done: no world is shared.
+
+            /// What the Java thread tells the ticking thread: a question to the world, or the tick's end.
+            enum Told {
+                Ask(Vec<u16>),
+                Done(Option<Compound>),
+            }
+
+            type Job = Box<dyn FnOnce() -> Option<Compound> + Send>;
+
+            struct Thread {
+                jobs: Sender<Job>,
+                told: Receiver<Told>,
+                answers: Sender<Option<Vec<u16>>>,
+            }
+
+            static THREAD: LazyLock<Mutex<Option<Thread>>> = LazyLock::new(|| Mutex::new(None));
+
+            thread_local! {
+                /// On the Java thread: where its questions go, and where their answers come from.
+                static ASKING: RefCell<Option<(Sender<Told>, Receiver<Option<Vec<u16>>>)>> = const { RefCell::new(None) };
+            }
+
+            /// HorizonWorld.ask's answer (j::JWORLD): asked of the ticking thread; None on any other thread.
+            fn ask(question: &[u16]) -> Option<Vec<u16>> {
+                ASKING.with(|asking| {
+                    let asking = asking.borrow();
+                    let (told, answers) = asking.as_ref()?;
+                    told.send(Told::Ask(question.to_vec())).ok()?;
+                    answers.recv().ok().flatten()
+                })
+            }
+
+            fn spawn() -> Option<Thread> {
+                let (jobs, waiting) = channel::<Job>();
+                let (telling, told) = channel::<Told>();
+                let (answers, answered) = channel::<Option<Vec<u16>>>();
+                let _ = j::JWORLD.set(ask);
+                std::thread::Builder::new()
+                    .name("{MOD} java".to_string())
+                    .spawn(move || {
+                        ASKING.with(|asking| *asking.borrow_mut() = Some((telling.clone(), answered)));
+                        for job in waiting {
+                            let done = job();
+                            if telling.send(Told::Done(done)).is_err() {
+                                break;
+                            }
+                        }
+                    })
+                    .ok()?;
+                Some(Thread { jobs, told, answers })
+            }
+
             /// One server tick of the block entity `id` at `pos`, which block `block` makes, saved as `nbt`: the compound
-            /// to save in its place when the mod changed it.
-            pub fn tick(block: &str, id: &str, pos: [i32; 3], nbt: &Compound) -> Option<Compound> {
+            /// to save in its place when the mod changed it. `world` answers what the mod's Java asks of the world.
+            pub fn tick(block: &str, id: &str, pos: [i32; 3], nbt: &Compound, world: &mut dyn FnMut(&[u16]) -> Option<Vec<u16>>) -> Option<Compound> {
+                let mut thread = lock(&THREAD);
+                if thread.is_none() {
+                    *thread = spawn();
+                }
+                let (block, id, nbt) = (block.to_string(), id.to_string(), nbt.clone());
+                let job: Job = Box::new(move || tick_here(&block, &id, pos, &nbt));
+                let result = match thread.as_ref() {
+                    None => Err(()),
+                    Some(t) => {
+                        if t.jobs.send(job).is_err() {
+                            Err(())
+                        } else {
+                            loop {
+                                match t.told.recv() {
+                                    Ok(Told::Ask(question)) => {
+                                        if t.answers.send(world(&question)).is_err() {
+                                            break Err(());
+                                        }
+                                    }
+                                    Ok(Told::Done(done)) => break Ok(done),
+                                    Err(_) => break Err(()),
+                                }
+                            }
+                        }
+                    }
+                };
+                match result {
+                    Ok(done) => done,
+                    Err(()) => {
+                        said("the mod's Java thread stopped: it is started again at the next tick".to_string());
+                        *thread = None;
+                        None
+                    }
+                }
+            }
+
+            /// The tick itself, on the Java thread.
+            fn tick_here(block: &str, id: &str, pos: [i32; 3], nbt: &Compound) -> Option<Compound> {
                 if let Err(e) = &*LOADED {
                     said(format!("the mod couldn't be loaded: {}", e));
                     return None;

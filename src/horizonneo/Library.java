@@ -89,6 +89,15 @@ final class Library {
 
     /** The model's native methods, by owner.name+descriptor. */
     static final Map<String, Native> NATIVES = Map.ofEntries(
+            Map.entry("net/minecraft/world/level/HorizonWorld.ask(Ljava/lang/String;)Ljava/lang/String;", new Native("jnative_horizon_ask", """
+                    /// HorizonWorld.ask: a question to Horizon's world, answered by the bridge (bridge.rs, JWORLD) on the
+                    /// thread that holds the world; null when nothing answers.
+                    #[allow(dead_code)]
+                    fn jnative_horizon_ask(question: Ref) -> JR<Ref> {
+                        let units = jstring_units(&question)?;
+                        Ok(JWORLD.get().and_then(|ask| ask(&units)).map(|answer| jstring_of(&answer)).unwrap_or(None))
+                    }
+                    """)),
             Map.entry("java/lang/Object.hashCode()I", new Native("jnative_object_hash_code", """
                     /// Object.hashCode: the object's identity, a non-negative int as the JVM gives (its value is its own).
                     #[allow(dead_code)]

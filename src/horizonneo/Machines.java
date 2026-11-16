@@ -195,9 +195,18 @@ final class Machines {
         bridged.forEach((type, block) -> b.append("        ").append(rust(type)).append(" => ").append(rust(block)).append(",\n"));
         b.append("        _ => return,\n    };\n");
         b.append("    let id = entity.id.clone();\n");
-        b.append("    if let Some(saved) = crate::game::").append(bridgeModule).append("::tick(block, &id, pos, &entity.nbt) {\n");
+        b.append("    // What the mod's Java asks of the world, answered from this level: \"block x y z\", the block's id there.\n");
+        b.append("    let mut world = |question: &[u16]| -> Option<Vec<u16>> {\n");
+        b.append("        let question = String::from_utf16_lossy(question);\n");
+        b.append("        let mut words = question.split(' ');\n");
+        b.append("        match (words.next(), words.next(), words.next(), words.next()) {\n");
+        b.append("            (Some(\"block\"), Some(x), Some(y), Some(z)) => {\n");
+        b.append("                let (x, y, z) = (x.parse().ok()?, y.parse().ok()?, z.parse().ok()?);\n");
+        b.append("                Some(game.res.facts().get(game.world.block(x, y, z)).name.encode_utf16().collect())\n");
+        b.append("            }\n            _ => None,\n        }\n    };\n");
+        b.append("    if let Some(saved) = crate::game::").append(bridgeModule).append("::tick(block, &id, pos, &entity.nbt, &mut world) {\n");
         b.append("        entity.nbt = saved;\n    }\n");
-        return new Body(b.toString(), List.of("pos", "entity"), bridged.size());
+        return new Body(b.toString(), List.of("game", "pos", "entity"), bridged.size());
     }
 
     /** Why a helper can't be put on the hook point; null when it can. */

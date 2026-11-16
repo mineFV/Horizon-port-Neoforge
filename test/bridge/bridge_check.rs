@@ -19,10 +19,23 @@ fn shown(c: &Compound) -> String {
     parts.join(" ")
 }
 
+/// A made-up world: stone below y = 2, air above; how many questions it was asked.
+static ASKED: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+
+fn world(question: &[u16]) -> Option<Vec<u16>> {
+    ASKED.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+    let q = String::from_utf16_lossy(question);
+    let words: Vec<&str> = q.split(' ').collect();
+    match words.as_slice() {
+        ["block", _, y, _] => Some((if y.parse::<i32>().ok()? < 2 { "minecraft:stone" } else { "minecraft:air" }).encode_utf16().collect()),
+        _ => None,
+    }
+}
+
 fn ticks(at: [i32; 3], n: usize, nbt: &mut Compound) -> usize {
     let mut changed = 0;
     for _ in 0..n {
-        if let Some(next) = bridge::tick("counter:counter", "counter:counter", at, nbt) {
+        if let Some(next) = bridge::tick("counter:counter", "counter:counter", at, nbt, &mut world) {
             *nbt = next;
             changed += 1;
         }
@@ -45,6 +58,7 @@ fn main() {
     edited.insert(JavaString::from("ticks"), Tag::Int(1000));
     ticks([1, 2, 3], 5, &mut edited);
     println!("edited: {}", shown(&edited));
+    println!("asked: {}", ASKED.load(std::sync::atomic::Ordering::Relaxed));
     // Every kind of tag, to the mod's and back.
     let mut all = Compound::new();
     all.insert(JavaString::from("b"), Tag::Byte(-3));

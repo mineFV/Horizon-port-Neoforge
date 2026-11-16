@@ -14,6 +14,11 @@ public abstract class Level extends AttachmentHolder implements LevelAccessor, A
         this.isClientSide = isClientSide;
     }
 
+    /** The state at a position, from Horizon's world (HorizonWorld): its block, in its default state. */
+    public net.minecraft.world.level.block.state.BlockState getBlockState(net.minecraft.core.BlockPos pos) {
+        return HorizonWorld.blockState(pos);
+    }
+
     /** Not modelled: what closing a level does is the game's. */
     @Override
     public native void close();

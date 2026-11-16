@@ -16,6 +16,27 @@ public final class HorizonRegistries {
 
     private HorizonRegistries() {}
 
+    private static final Map<String, net.minecraft.world.level.block.Block> OTHERS = new HashMap<>();
+
+    /**
+     * The block registered under an id: the mod's own, else one made for that id (a block of the game's or of another
+     * mod's, which only says what it is: its behaviour isn't modelled), the same object each time.
+     */
+    public static net.minecraft.world.level.block.Block block(String id) {
+        net.minecraft.resources.ResourceLocation location = net.minecraft.resources.ResourceLocation.parse(id);
+        Object own = get(ResourceKey.create(net.minecraft.core.registries.Registries.BLOCK, location));
+        if (own instanceof net.minecraft.world.level.block.Block block) return block;
+        synchronized (HorizonRegistries.class) {
+            net.minecraft.world.level.block.Block other = OTHERS.get(id);
+            if (other == null) {
+                other = new net.minecraft.world.level.block.Block(net.minecraft.world.level.block.state.BlockBehaviour.Properties.of());
+                other.horizonRegistered(location);
+                OTHERS.put(id, other);
+            }
+            return other;
+        }
+    }
+
     static synchronized void add(ResourceKey<?> key, Supplier<?> supplier) {
         SUPPLIERS.put(key, supplier);
     }
