@@ -138,6 +138,8 @@ The tool's commands: `metadata`, `license`, `analyze`, `port`, `check`, `pack`, 
 | `tools/UnicodeTables.java` (not in `src/`) | Run by `build.sh`: Unicode's tables from the JDK that builds the tool, as Rust statics (`unicode.rs` in the jar) that the model's Character and String read |
 | `Bytecode`, `MethodRust`, `JarRust`, `JavaWorld` | `translate`, our own translator: every opcode decoded; a method's bytecode as a Rust function (its blocks as labelled loops and blocks, or as arms of a `match` in a `loop` when the flow is irreducible) and what it needs; the classes as the JVM resolves them (field slots, call selection, subtypes, class ids); the jar's methods, kept until what each needs is translated, as one module with the object model's runtime, dispatchers, type tests, class initializers and lambda classes, and why for the rest |
 | `Tickers` | Which of the mod's methods a block entity's ticker runs: read in the ticker's class as the JVM wrote it during `dump` (else by its class's name), in `report/machines.md` |
+| `BridgeRust`, `game/.../HorizonBridge.java` | The bridge (step d, decision 4): HorizonBridge, translated with the mod, makes, ticks, loads and saves its block entities as the game does; BridgeRust writes Horizon's side, `bridge.rs`, which keeps the objects by position and turns NBT both ways; `jexport_mod` (JarRust) makes the mod's @Mod object first |
+| `testmod/counter/` (not in `src/`) | A made-up NeoForge mod (MIT) whose block entity counts its ticks and saves them: the end-to-end test, built against NeoForge (`build.sh`) or against the stand-ins (the tests) |
 | `Pack` | `pack`: the bundle as a `.hnmod`, written as Horizon's `docs/api/mod-files.md` says |
 | `Report` | `report.md` and `report.json` |
 | `Toml`, `Json`, `Translator` | Small readers, and the one place that starts `horizon-port.jar` |
@@ -309,6 +311,10 @@ Say so rather than assume it works:
   run `dump` against a stand-in for the oracle, never a server;
 - a block declared with state properties of its own, a state light table or shape tables has passed
   `cargo horizon-mod check`, never Horizon's loader: Mekanism's 136 such blocks haven't been loaded in the game;
+- the bridge (2026-11-16): the Counter test mod runs through it in the tests (its bridge compiled as edition 2024
+  against a stand-in for Horizon's NBT): never built into Horizon, never loaded in the game. Its bundle is in
+  `essais/counter/bundle` (dump, port --facts, pack). A Level's methods aren't translated: what a block entity does
+  to the world beyond its own data doesn't reach Horizon yet;
 - the exporter's `ticker` and `ticker_class` ran in `dump` on Mekanism once (2026-11-16, facts-v3): all 143 ticking blocks
   certain, 121 on TileEntityMekanism.tickServer and 22 on TileEntityTransmitter.tickServer. Neither method is
   translated yet, and no tick is wired;
