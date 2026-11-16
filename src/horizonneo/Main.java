@@ -76,6 +76,14 @@ public final class Main {
             case "translate" -> {
                 return translate(Line.read(args, Set.of("--out", "--server"), Set.of()), out, err);
             }
+            case "standins" -> {
+                Line line = Line.read(args, Set.of("--server"), Set.of());
+                if (!line.plain().isEmpty()) throw new Usage("`standins` takes no file, only --server");
+                if (!line.has("--server")) throw new Usage("`standins` needs --server <a NeoForge server folder, made by NeoForge's installer>");
+                Path server = Path.of(line.options().get("--server"));
+                if (!Files.isDirectory(server.resolve("libraries"))) throw new Usage(server + " isn't a NeoForge server: it has no libraries/ folder");
+                return StandIns.run(server, out, err);
+            }
             case "dump" -> {
                 return dump(Line.read(args, Set.of("--server", "--horizon-src", "--out", "--python"), Set.of()), out, err);
             }
@@ -499,6 +507,15 @@ public final class Main {
                   question such as "is this class of the mod a List?" can be answered
                   when the class implements one of the game's interfaces. Only the
                   server's classes: the client's stay unknown.
+
+              standins --server FOLDER
+                  The translator's stand-ins for the game (game/ in this tool's source) against
+                  the game itself: their superclasses, interfaces and methods against the
+                  classes in the server's libraries, and their answers against the game's.
+                  One program (probe/) is compiled against the server's jars and against the
+                  stand-ins, each is run, and what they print must be the same. That runs
+                  the game's classes as a library, to observe them: no server is started,
+                  no world, no mod; their code isn't read. Exit 1 when they differ.
 
               dump <mod.jar> --server FOLDER --horizon-src FOLDER [--out FILE] [--python PROGRAM]
                   The mod's real facts, read in NeoForge itself by Horizon's own oracle

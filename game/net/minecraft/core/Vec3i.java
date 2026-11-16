@@ -46,11 +46,16 @@ public abstract class Vec3i implements Comparable<Vec3i> {
     }
 
     /**
-     * Not modelled: Horizon's code gives the game's order of positions (y, then z, then x), not the number compareTo
-     * returns, which a difference could overflow.
+     * The game's order of positions (Horizon's `game/explosion.rs`: y, then z, then x), and the number it gives as
+     * observed in the game (`standins`, probe/): the first coordinate that differs, this one's minus the other's, as
+     * an int subtraction that wraps ((MAX, 0, 0) against (MIN, 0, 0) gives -1).
      */
     @Override
-    public native int compareTo(Vec3i other);
+    public int compareTo(Vec3i other) {
+        if (y != other.y) return y - other.y;
+        if (z != other.z) return z - other.z;
+        return x - other.x;
+    }
 
     /** Not modelled here: a BlockPos's own is below. */
     @Override

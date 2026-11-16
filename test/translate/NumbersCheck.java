@@ -88,11 +88,21 @@ public final class NumbersCheck {
         // The game's positions and directions, through the translator's stand-ins (game/).
         for (int a : INTS) {
             p("packed", a, () -> Places.packed(a, a >> 1, -a));
+            p("eastX", a, () -> Places.eastX(a));
+            for (int b : INTS) p("compare", a + " " + b, () -> Places.compare(a, b));
         }
         // Horizon's own test of the packed form (position.rs, packed_signed_limits_and_java_overflow).
         p("packed", "limits", () -> Places.packed(-33554432, -2048, 33554431));
         for (long l : LONGS) {
             p("unpacked", l, () -> Places.unpackedX(l) + " " + Places.unpackedY(l) + " " + Places.unpackedZ(l));
+            for (int d : range(0, 7)) p("walk", l + " " + d, () -> Places.walk(l, d));
+        }
+        for (int n : range(0, 12)) p("keys", n, () -> Places.keys(n));
+        for (int d : range(0, 5)) {
+            p("opposite", d, () -> Places.opposite(d));
+            p("steps", d, () -> Places.steps(d));
+            p("nameLength", d, () -> Places.nameLength(d));
+            p("sorted", d, () -> Places.sorted(d));
         }
         // Exceptions and texts.
         for (int n : range(0, 12)) {

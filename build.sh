@@ -23,6 +23,9 @@ javac --patch-module java.base=lib -d "$out/model" $(find lib game -name '*.java
 java --add-opens java.base/java.lang=ALL-UNNAMED tools/UnicodeTables.java "$out/classes/horizonneo/unicode.rs"
 cp -r "$out/model/." "$out/classes/model/"
 # The machines exporter isn't compiled here (it needs NeoForge's jars): `dump` compiles it against a server's own.
+# The stand-ins' probe (probe/) isn't compiled here either: `standins` compiles it against a server's jars and the stand-ins.
+mkdir -p "$out/classes/probe"
+cp -r probe/. "$out/classes/probe/"
 mkdir -p "$out/classes/exporter"
 cp -r exporter/src/. exporter/resources/. "$out/classes/exporter/"
 jar --create --file "$out/horizon-port-neoforge.jar" --main-class horizonneo.Main -C "$out/classes" .

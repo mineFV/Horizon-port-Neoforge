@@ -53,6 +53,23 @@ public final class Places {
         return m.toString();
     }
 
+    /**
+     * Positions sorted (Vec3i.compareTo) and a direction's text, joined. Coordinates of a world: with extremes the
+     * subtraction wraps and the order isn't one, which the model's sort can tell (lib/README.md).
+     */
+    public static String sorted(int d) {
+        java.util.List<BlockPos> l = new java.util.ArrayList<>();
+        int[] c = {0, 7, -3, 30000000, -30000000, 64};
+        for (int i = 0; i < c.length; i++) l.add(new BlockPos(c[(i + d) % c.length], c[(i * 2 + d) % c.length], c[(i * 5) % c.length]));
+        java.util.Collections.sort(l);
+        return Direction.values()[d] + " " + l;
+    }
+
+    /** compareTo itself, extremes included: the first coordinate that differs, subtracted with wrapping. */
+    public static int compare(int a, int b) {
+        return new BlockPos(a, 1, b).compareTo(new BlockPos(b, 1, a)) + 3 * new BlockPos(0, a, 0).compareTo(new BlockPos(0, b, 0));
+    }
+
     public static int eastX(int x) {
         return new BlockPos(x, 0, 0).east().getX();
     }

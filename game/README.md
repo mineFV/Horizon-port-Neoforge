@@ -9,7 +9,12 @@ Where a stand-in's behaviour comes from, and nothing else:
 - **Horizon's own code** (MIT), which rewrites the game in Rust: each member says which file it follows;
 - the game's **public API**, as `--server` reads it from a NeoForge server's jars: names, descriptors, supertypes
   and which members a class declares. Never its code: no stand-in is written from Mojang's or NeoForge's
-  bytecode or decompiled source.
+  bytecode or decompiled source;
+- **what the game answers**, observed (decided by the maintainer, 2026-11-16): `standins --server` compiles one
+  program (probe/, `GameProbe`) against the server's jars and against the stand-ins, runs both and compares what
+  they print, line by line. The game's classes run as a library, with no server, world or mod. A behaviour taken
+  from observation says so, and the probe calls it on inputs that pin it down (extremes included).
+  On NeoForge 21.1.266 (2026-11-16): 1135 answers, all the same.
 
 A member whose behaviour neither gives for certain is left out (a mod's call to it isn't translated), or, when the
 real class declares it over one it inherits (`equals`, `hashCode`, `toString`), it is declared `native` with no Rust
@@ -26,6 +31,7 @@ What differs from the game, where a program can see it:
   tell. `offset(int, int, int)` is left out for the same reason (an offset of nothing may be the same object);
 - Vec3i is abstract: a mod's own `new Vec3i` isn't translated (see Vec3i.java).
 
-Left out for now, and what it costs: `Direction.toString` (nothing in Horizon gives the game's text for a
-direction). The world is closed, and nearly every mod calls `toString` on some Object (a text joined with one), which
-may then be a Direction: so no Direction can be made, and nothing that uses one is translated.
+A member a mod calls that a stand-in lacks keeps every object of that class out of the closed world (a virtual
+call that may reach one can't be translated): a stand-in is only worth as much as the API it covers. Mekanism calls
+some 80 members of BlockPos, MutableBlockPos, Direction, its Axis and AxisDirection: until they are all here, no
+Direction is made in its translation.

@@ -135,12 +135,28 @@ fn main() {
     // The game's positions and directions, through the translator's stand-ins (game/).
     for a in INTS {
         p("packed", a.to_string(), show(places__packed(a, a >> 1, a.wrapping_neg())));
+        p("eastX", a.to_string(), show(places__east_x(a)));
+        for b in INTS {
+            p("compare", format!("{} {}", a, b), show(places__compare(a, b)));
+        }
     }
     // Horizon's own test of the packed form (position.rs, packed_signed_limits_and_java_overflow).
     p("packed", "limits".to_string(), show(places__packed(-33554432, -2048, 33554431)));
     for l in LONGS {
         let (x, y, z) = (show(places__unpacked_x(l)), show(places__unpacked_y(l)), show(places__unpacked_z(l)));
         p("unpacked", l.to_string(), format!("{} {} {}", x, y, z));
+        for d in 0..=7 {
+            p("walk", format!("{} {}", l, d), show(places__walk(l, d)));
+        }
+    }
+    for n in 0..=12 {
+        p("keys", n.to_string(), text(places__keys(n)));
+    }
+    for d in 0..=5 {
+        p("opposite", d.to_string(), show(places__opposite(d)));
+        p("steps", d.to_string(), show(places__steps(d)));
+        p("nameLength", d.to_string(), show(places__name_length(d)));
+        p("sorted", d.to_string(), text(places__sorted(d)));
     }
     // Exceptions and texts.
     for n in 0..=12 {

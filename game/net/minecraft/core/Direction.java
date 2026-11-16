@@ -55,7 +55,9 @@ public enum Direction implements StringRepresentable {
         return serializedName;
     }
 
-    /** Not modelled: the game's text for a direction isn't in Horizon's code. */
+    /** Its name in lower case, as observed in the game (`standins`, probe/): the same as getSerializedName. */
     @Override
-    public native String toString();
+    public String toString() {
+        return serializedName;
+    }
 }

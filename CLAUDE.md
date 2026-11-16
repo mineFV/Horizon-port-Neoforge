@@ -86,7 +86,7 @@ bash test/run-test.sh         # builds, writes the fixture, runs everything; end
 java -jar build/horizon-port-neoforge.jar --help
 ```
 
-The tool's commands: `metadata`, `license`, `analyze`, `port`, `check`, `pack`, `dump`, `translate` (`--server`: a NeoForge server's libraries, for the game's supertypes). The tests need
+The tool's commands: `metadata`, `license`, `analyze`, `port`, `check`, `pack`, `dump`, `standins` (the game's stand-ins against a server's classes and answers), `translate` (`--server`: a NeoForge server's libraries, for the game's supertypes). The tests need
 `horizon-port.jar`; the ones that pack a `.hmod` or check a `.hnmod` are skipped, with a note, without Horizon's tools.
 
 ## Rules that are not up for interpretation
@@ -133,6 +133,7 @@ The tool's commands: `metadata`, `license`, `analyze`, `port`, `check`, `pack`, 
 | `Machines` | The block entities in the machines file, on Horizon's block-entity hook points; `report/machines.md` |
 | `exporter/` (not in `src/`) | The NeoForge mod `dump` compiles at run time: places each block with a block entity and writes `<facts>.machines.json` |
 | `lib/` (not in `src/`), `Library` | The translator's model of Java's library: our own Java, from the API specification, compiled by `build.sh` with `--patch-module java.base=lib` into the jar's `model/`; its `native` methods in Rust |
+| `StandIns`, `probe/` (not in `src/`) | `standins`: the stand-ins' signatures against a server's classes, and one probe compiled against both and run, their answers compared |
 | `game/` (not in `src/`) | The translator's stand-ins for the game's classes (step d): our own Java, from Horizon's code and the game's public API, compiled with `lib/`; checked against the real classes with `--server` (`Library.checkStandIns`). Its README says where each behaviour comes from and what differs |
 | `tools/UnicodeTables.java` (not in `src/`) | Run by `build.sh`: Unicode's tables from the JDK that builds the tool, as Rust statics (`unicode.rs` in the jar) that the model's Character and String read |
 | `Bytecode`, `MethodRust`, `JarRust`, `JavaWorld` | `translate`, our own translator: every opcode decoded; a method's bytecode as a Rust function (its blocks as labelled loops and blocks, or as arms of a `match` in a `loop` when the flow is irreducible) and what it needs; the classes as the JVM resolves them (field slots, call selection, subtypes, class ids); the jar's methods, kept until what each needs is translated, as one module with the object model's runtime, dispatchers, type tests, class initializers and lambda classes, and why for the rest |
@@ -268,7 +269,9 @@ The tool's commands: `metadata`, `license`, `analyze`, `port`, `check`, `pack`, 
   method always calls `hashCode`, `equals`, `toString` or `compareTo` on an Object (a HashMap, a text joined with
   one, a sort): an object whose own isn't translated can't be made. Unmodelled, Vec3i's hashCode took Mekanism from
   9075 to 7955 (every HashMap user dropped) until a stand-in's makers drop instead (`poisonable`); BlockPos and
-  Direction still can't be made while Vec3i.compareTo and Direction.toString aren't modelled (game/README.md).
+  Direction couldn't be made until Vec3i.compareTo and Direction.toString were (observed in the game, `standins`).
+  The same holds for every member a mod calls: one missing (Mekanism's Direction.getClockWise) keeps every Direction
+  out, so a stand-in counts only once it covers the API the mod uses.
 
 - **Run horizon-port with `-Xss512m`** on a real Horizon source: its comment stripper overflows Java's default
   stack on Horizon's long lines. `Port.STACK` does it everywhere.

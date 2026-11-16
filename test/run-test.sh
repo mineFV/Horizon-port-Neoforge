@@ -909,7 +909,7 @@ javac --release 21 -cp "$TR/classes" -d "$TR/classes" test/translate/NumbersChec
 printf 'modLoader = "javafml"\nloaderVersion = "[4,)"\nlicense = "MIT"\n[[mods]]\nmodId = "numbers"\nversion = "1.0"\ndisplayName = "Numbers"\n' > "$TR/jar/META-INF/neoforge.mods.toml"
 jar --create --file "$B/jars/numbers.jar" -C "$TR/jar" . -C "$TR/classes" com
 exits 0 tool translate "$B/jars/numbers.jar" --out "$TR/out"
-says "$OUT" "numbers.jar: 479 of 485 methods translated from their bytecode"
+says "$OUT" "numbers.jar: 487 of 487 methods translated from their bytecode"
 # Class objects: an enum's valueOf (Enum.valueOf with a class constant), and their tables.
 says "$TR/out/translation.md" '- `com.example.numbers.Boxes$Color.valueOf(Ljava/lang/String;)Lcom/example/numbers/Boxes$Color;` as'
 says "$TR/out/translated.rs" 'fn jinstance_of(t: u32, a: u32) -> bool {'
@@ -921,12 +921,10 @@ else
   echo "  FAIL: gathered__checked doesn't initialize its class first"; failures=$((failures + 1))
 fi
 says "$OUT" "Nothing was compiled or run"
-# The game's stand-ins (game/): what the packed form needs is translated; no BlockPos nor Direction can be made while
-# compareTo and toString, which sorting and texts may reach on any object, aren't modelled (game/README.md).
+# The game's stand-ins (game/), translated with the mod where it reaches them.
 says "$OUT" "Stand-ins for the game: 4 classes, not checked against the game's (no --server)."
-says "$TR/out/translation.md" '- `com.example.numbers.Places.packed(III)J` as `places__packed`'
-says "$TR/out/translation.md" '`com.example.numbers.Places.keys(I)Ljava/lang/String;`: it makes an object of net.minecraft.core.BlockPos that a virtual call may reach, and it calls net.minecraft.core.Vec3i.compareTo'
-says "$TR/out/translation.md" 'whose initializer net.minecraft.core.Direction.<clinit>()V, which isn'"'"'t translated (it makes an object of net.minecraft.core.Direction that a virtual call may reach, and it calls java.lang.Object.toString'
+says "$TR/out/translation.md" '- `com.example.numbers.Places.keys(I)Ljava/lang/String;` as `places__keys`'
+says "$TR/out/translated.rs" '/// `net.minecraft.core.Vec3i.compareTo(Lnet/minecraft/core/Vec3i;)I`, translated from its bytecode.'
 says "$TR/out/translated.rs" 'pub fn numbers__collatz(mut l0: i64) -> JR<i64> {'
 says "$TR/out/translated.rs" 'pub fn numbers__is_digit(p0: u16) -> JR<bool> {'
 says "$TR/out/translated.rs" 'fn jcmpg_f32(a: f32, b: f32) -> i32 {'
@@ -997,14 +995,48 @@ if command -v rustc > /dev/null; then
     else
       echo "  FAIL: Java and the translation differ:"; diff "$TR/java.txt" "$TR/rust.txt" | head -20; failures=$((failures + 1))
     fi
-    # The stand-ins against Horizon's own answer (game/README.md): its test of the packed form.
+    # The stand-ins against Horizon's own answers (game/README.md): its test of the packed form, an offset that
+    # wraps as Java's int does, a position's text and hash (a HashMap's order), north's opposite, normal and name.
     says "$TR/java.txt" "packed limits -> -9223371899415824384"
+    says "$TR/java.txt" "eastX 2147483647 -> -2147483648"
+    says "$TR/java.txt" "keys 1 -> {BlockPos{x=0, y=-20, z=0}=100}"
+    says "$TR/java.txt" "opposite 2 -> 3"
+    says "$TR/java.txt" "steps 2 -> -1"
+    says "$TR/java.txt" "nameLength 2 -> 5"
   else
     echo "  FAIL: the translation doesn't compile:"; head -30 "$TR/rustc.txt"; failures=$((failures + 1))
   fi
 else
   echo "  (skipped: running the translation: there is no rustc here)"
 fi
+
+echo; echo "== standins"
+# The stand-ins (game/) against a made-up server whose game is a copy of them: the same answers; then a copy whose
+# Direction.toString is in upper case: the probe finds it. Nothing of the real game is in the fixture.
+SI=$B/standins
+for v in same upper; do
+  rm -rf "$SI/$v-src" "$SI/$v-classes"
+  mkdir -p "$SI/$v-src" "$SI/$v-classes" "$SI/$v/libraries/net/neoforged/neoforge/21.1.1"
+  cp -r game/net "$SI/$v-src/"
+done
+perl -0pi -e 's/(public String toString\(\) \{\n\s*return serializedName)/$1.toUpperCase()/' "$SI/upper-src/net/minecraft/core/Direction.java"
+for v in same upper; do
+  javac --release 21 -d "$SI/$v-classes" $(find "$SI/$v-src" -name '*.java')
+  jar --create --file "$SI/$v/libraries/net/neoforged/neoforge/21.1.1/neoforge-21.1.1-server.jar" -C "$SI/$v-classes" .
+done
+exits 0 tool standins --server "$SI/same"
+says "$OUT" "ok: the 4 stand-ins have the supertypes and the methods of the server's classes"
+says "$OUT" "ok: the game and the stand-ins give the same 1135 answers to the probe"
+says "$OUT" "no server, no world, no mod"
+exits 1 tool standins --server "$SI/upper"
+says "$OUT" 'problem: the game gives `direction 0 toString -> DOWN`, the stand-ins `direction 0 toString -> down`'
+exits 1 tool standins --server "$SI/upper/libraries/.."
+exits 2 tool standins
+says "$ERR" '`standins` needs --server'
+exits 2 tool standins --server "$SI/same-src"
+says "$ERR" "isn't a NeoForge server: it has no libraries/ folder"
+exits 2 tool standins "$J" --server "$SI/same"
+says "$ERR" '`standins` takes no file, only --server'
 
 echo; echo "== dump"
 # Against a stand-in server and a stand-in for Horizon's oracle (test/fixture/horizon-src/tools): nothing starts.
