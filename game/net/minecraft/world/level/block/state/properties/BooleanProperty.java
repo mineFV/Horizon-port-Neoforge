@@ -6,7 +6,7 @@ import java.util.Optional;
 
 /** The stand-in for the game's BooleanProperty, observed (`standins`): true then false, named "true" and "false". */
 public class BooleanProperty extends Property<Boolean> {
-    private final List<Boolean> values = List.of(true, false);
+    private final java.util.Set<Boolean> values = new java.util.LinkedHashSet<>(List.of(true, false));
 
     protected BooleanProperty(String name) {
         super(name, Boolean.class);
@@ -41,6 +41,6 @@ public class BooleanProperty extends Property<Boolean> {
     /** Observed: 31 times Property's, plus its values' (a set of true and false). */
     @Override
     public int generateHashCode() {
-        return 31 * super.generateHashCode() + Boolean.hashCode(true) + Boolean.hashCode(false);
+        return 31 * super.generateHashCode() + values.hashCode();
     }
 }

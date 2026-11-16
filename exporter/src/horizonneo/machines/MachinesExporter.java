@@ -148,6 +148,9 @@ public final class MachinesExporter {
         t.addProperty("block", String.valueOf(block));
         t.addProperty("state", String.valueOf(block.defaultBlockState()));
         t.addProperty("definition", String.valueOf(block.getStateDefinition()));
+        t.addProperty("facing", String.valueOf(net.minecraft.world.level.block.state.properties.BlockStateProperties.FACING));
+        t.addProperty("horizontal_facing", String.valueOf(net.minecraft.world.level.block.state.properties.BlockStateProperties.HORIZONTAL_FACING));
+        t.addProperty("lit", String.valueOf(net.minecraft.world.level.block.state.properties.BlockStateProperties.LIT));
         try {
             block.defaultBlockState().getValue(net.minecraft.world.level.block.state.properties.BlockStateProperties.FACING);
             t.addProperty("missing_property", "no error");

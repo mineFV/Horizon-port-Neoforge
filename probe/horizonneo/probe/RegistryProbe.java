@@ -25,6 +25,14 @@ final class RegistryProbe {
         p("property", () -> lit + " " + lit.getName() + " " + lit.getValueClass().getName() + " " + lit.getPossibleValues() + " " + lit.getName(true) + " " + lit.getName(false)
                 + " " + lit.getValue("true") + " " + lit.getValue("TRUE") + " " + lit.getValue("x") + " " + lit.equals(made) + " " + (lit == made) + " " + (lit.hashCode() == made.hashCode())
                 + " " + lit.equals(net.minecraft.world.level.block.state.properties.BooleanProperty.create("powered")) + " " + (lit.hashCode() == lit.generateHashCode()));
+        net.minecraft.world.level.block.state.properties.DirectionProperty all = net.minecraft.world.level.block.state.properties.DirectionProperty.create("facing");
+        net.minecraft.world.level.block.state.properties.DirectionProperty four = net.minecraft.world.level.block.state.properties.DirectionProperty.create("facing",
+                net.minecraft.core.Direction.NORTH, net.minecraft.core.Direction.EAST, net.minecraft.core.Direction.SOUTH, net.minecraft.core.Direction.WEST);
+        net.minecraft.world.level.block.state.properties.DirectionProperty listed = net.minecraft.world.level.block.state.properties.DirectionProperty.create("facing",
+                java.util.List.of(net.minecraft.core.Direction.SOUTH, net.minecraft.core.Direction.NORTH));
+        net.minecraft.world.level.block.state.properties.DirectionProperty some = net.minecraft.world.level.block.state.properties.DirectionProperty.create("facing", d -> d.getAxis().isHorizontal());
+        p("direction property", () -> all + " | " + four + " | " + listed + " | " + some + " | " + all.getName(net.minecraft.core.Direction.UP) + " " + all.getValue("up") + " " + all.getValue("UP")
+                + " " + four.getValue("up") + " " + all.equals(four) + " " + four.equals(some) + " " + four.equals(listed) + " " + (four.hashCode() == some.hashCode()) + " " + all.getPossibleValues().getClass().getSimpleName().isEmpty());
         // A property's hash starts from its class object's, which changes from run to run: only differences are asked.
         p("property hash", () -> (lit.generateHashCode() - net.minecraft.world.level.block.state.properties.BooleanProperty.create("x").generateHashCode()) + " " + (lit.generateHashCode() == made.generateHashCode()));
     }
