@@ -141,6 +141,18 @@ public final class Places {
         return b.append(' ').append(f.apply(n)).append(' ').append(f.apply(-n)).toString();
     }
 
+    /** The game's Mth on the bounds and between them. */
+    public static String mth(int n) {
+        double d = n * 0.75 - (n % 3 == 0 ? 1e10 : 0) + (n % 5 == 0 ? Double.NaN : 0);
+        float f = (float) (n * 37.5);
+        return net.minecraft.util.Mth.floor(d) + " " + net.minecraft.util.Mth.ceil(d) + " " + net.minecraft.util.Mth.floor(f) + " " + net.minecraft.util.Mth.ceil(f)
+                + " " + net.minecraft.util.Mth.clamp(n * 3, -10, 10) + " " + net.minecraft.util.Mth.clamp(d, -2.0, 2.0) + " " + net.minecraft.util.Mth.clamp(f, 10f, -10f)
+                + " " + net.minecraft.util.Mth.wrapDegrees(f) + " " + net.minecraft.util.Mth.rotLerp(0.25f, f, -f) + " " + net.minecraft.util.Mth.lerp(0.3, d, n)
+                + " " + net.minecraft.util.Mth.positiveCeilDiv(n * 7, n % 4 == 0 ? 3 : n % 4) + " " + net.minecraft.util.Mth.lerpDiscrete(n / 10f, -n, n * n)
+                + " " + net.minecraft.util.Mth.length(d, f) + " " + net.minecraft.util.Mth.sqrt(f) + " " + net.minecraft.util.Mth.invSqrt(n) + " " + net.minecraft.util.Mth.equal(d, d + 1e-6)
+                + " " + net.minecraft.util.Mth.SQRT_OF_TWO;
+    }
+
     public static int eastX(int x) {
         return new BlockPos(x, 0, 0).east().getX();
     }

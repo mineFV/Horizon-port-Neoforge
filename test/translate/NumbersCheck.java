@@ -101,6 +101,7 @@ public final class NumbersCheck {
         for (int n : range(-8, 8)) p("more", n, () -> Places.more(n));
         for (int n : range(0, 20)) p("nbt", n, () -> Places.nbt(n));
         for (int n : range(-10, 10)) p("ids", n, () -> Places.ids(n));
+        for (int n : range(-12, 12)) p("mth", n, () -> Places.mth(n));
         for (int d : range(0, 5)) {
             p("opposite", d, () -> Places.opposite(d));
             p("steps", d, () -> Places.steps(d));

@@ -39,6 +39,7 @@ public final class GameProbe {
         subclasses();
         NbtProbe.run();
         IdProbe.run();
+        MthProbe.run();
     }
 
     static void directions() {

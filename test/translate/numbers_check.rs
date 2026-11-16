@@ -161,6 +161,9 @@ fn main() {
     for n in -10..=10 {
         p("ids", n.to_string(), text(places__ids(n)));
     }
+    for n in -12..=12 {
+        p("mth", n.to_string(), text(places__mth(n)));
+    }
     for d in 0..=5 {
         p("opposite", d.to_string(), show(places__opposite(d)));
         p("steps", d.to_string(), show(places__steps(d)));
