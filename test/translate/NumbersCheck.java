@@ -1,6 +1,7 @@
 import com.example.numbers.Boxes;
 import com.example.numbers.Gathered;
 import com.example.numbers.Numbers;
+import com.example.numbers.Places;
 import com.example.numbers.Shapes;
 import com.example.numbers.Texts;
 
@@ -83,6 +84,15 @@ public final class NumbersCheck {
             p("arrays", n, () -> Shapes.arrays(n));
             p("same", n, () -> Shapes.same(n));
             p("callNever", n, () -> Shapes.callNever(null, n));
+        }
+        // The game's positions and directions, through the translator's stand-ins (game/).
+        for (int a : INTS) {
+            p("packed", a, () -> Places.packed(a, a >> 1, -a));
+        }
+        // Horizon's own test of the packed form (position.rs, packed_signed_limits_and_java_overflow).
+        p("packed", "limits", () -> Places.packed(-33554432, -2048, 33554431));
+        for (long l : LONGS) {
+            p("unpacked", l, () -> Places.unpackedX(l) + " " + Places.unpackedY(l) + " " + Places.unpackedZ(l));
         }
         // Exceptions and texts.
         for (int n : range(0, 12)) {

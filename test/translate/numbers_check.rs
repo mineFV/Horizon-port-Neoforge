@@ -132,6 +132,16 @@ fn main() {
         p("same", n.to_string(), show(shapes__same(n)));
         p("callNever", n.to_string(), show(shapes__call_never(None, n)));
     }
+    // The game's positions and directions, through the translator's stand-ins (game/).
+    for a in INTS {
+        p("packed", a.to_string(), show(places__packed(a, a >> 1, a.wrapping_neg())));
+    }
+    // Horizon's own test of the packed form (position.rs, packed_signed_limits_and_java_overflow).
+    p("packed", "limits".to_string(), show(places__packed(-33554432, -2048, 33554431)));
+    for l in LONGS {
+        let (x, y, z) = (show(places__unpacked_x(l)), show(places__unpacked_y(l)), show(places__unpacked_z(l)));
+        p("unpacked", l.to_string(), format!("{} {} {}", x, y, z));
+    }
     // Exceptions and texts.
     for n in 0..=12 {
         p("divide", n.to_string(), text(texts__divide(10, n - 3)));

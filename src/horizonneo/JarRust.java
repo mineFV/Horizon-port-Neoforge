@@ -71,6 +71,11 @@ final class JarRust {
 
     /** outside: classes the mod runs with, known for their supertypes alone (`JavaWorld.outside`). */
     static Result translate(ModJar jar, Map<String, ClassData> outside) throws IOException {
+        return translate(jar, Library.classes(), outside);
+    }
+
+    /** model: the library model's classes and the game's stand-ins, as `Library.checkStandIns` left them. */
+    static Result translate(ModJar jar, Map<String, ClassData> model, Map<String, ClassData> outside) throws IOException {
         Map<String, ClassData> classes = new TreeMap<>();
         try (ZipFile zip = new ZipFile(jar.path().toFile())) {
             Enumeration<? extends ZipEntry> entries = zip.entries();
@@ -82,7 +87,7 @@ final class JarRust {
                 classes.put(c.name, c);
             }
         }
-        return translate(classes, Library.classes(), outside);
+        return translate(classes, model, outside);
     }
 
     static Result translate(Map<String, ClassData> classes) throws IOException {
@@ -347,10 +352,12 @@ final class JarRust {
      * out, not the callers: one class made in one place, reached through Consumer
      * or Iterator, otherwise kept every method that iterates out. Both keep each method left with what it needs. On
      * Mekanism: 7594 methods without, 8871 for calls on types outside the jar alone, 8967 for every call.
+     * The game's stand-ins (game/) too: a BlockPos, whose hashCode isn't modelled, otherwise kept every method that
+     * puts into a HashMap out (on Mekanism, 7955 against 9075 before the stand-ins).
      */
     private static boolean poisonable(JavaWorld world, String instance) {
         String owner = instance.startsWith(JavaWorld.LAMBDA) ? instance.substring(JavaWorld.LAMBDA.length(), instance.indexOf('#')) : instance;
-        return world.jar.contains(owner);
+        return world.jar.contains(owner) || (world.cls(owner) != null && Library.standIn(owner));
     }
 
     /**

@@ -33,6 +33,47 @@ final class Library {
         return out;
     }
 
+    /** Whether a class of the model stands in for the game's (game/), not for Java's library (lib/). */
+    static boolean standIn(String name) {
+        return !name.startsWith("java/");
+    }
+
+    /**
+     * The stand-ins for the game (game/) that differ from the real classes read with `--server` where a program can
+     * tell, with why: their superclass or interfaces aren't the game's, or the real class declares a method that the
+     * stand-in would inherit from a class above it instead. A stand-in the server doesn't have isn't checked.
+     */
+    static Map<String, String> checkStandIns(Map<String, ClassData> model, Map<String, ClassData> outside) {
+        Map<String, String> out = new TreeMap<>();
+        for (ClassData c : model.values()) {
+            if (!standIn(c.name)) continue;
+            ClassData real = outside.get(c.name);
+            if (real == null) continue;
+            if (!java.util.Objects.equals(real.superName, c.superName) || !new java.util.HashSet<>(real.interfaces).equals(new java.util.HashSet<>(c.interfaces))) {
+                out.put(c.name, "its superclass or interfaces aren't the game's");
+                continue;
+            }
+            for (ClassData.Method m : real.methods) {
+                if (m.isStatic() || (m.access() & 0x0002) != 0 || m.name().startsWith("<")) continue;
+                if (declares(c, m.name(), m.descriptor())) continue;
+                for (String s = c.superName; s != null && model.containsKey(s); s = model.get(s).superName) {
+                    ClassData up = model.get(s);
+                    if (declares(up, m.name(), m.descriptor())) {
+                        out.put(c.name, "the game's class declares " + m.name() + m.descriptor() + ", which the stand-in would take from " + s.replace('/', '.'));
+                        break;
+                    }
+                }
+                if (out.containsKey(c.name)) break;
+            }
+        }
+        return out;
+    }
+
+    private static boolean declares(ClassData c, String name, String descriptor) {
+        for (ClassData.Method m : c.methods) if (m.name().equals(name) && m.descriptor().equals(descriptor)) return true;
+        return false;
+    }
+
     /** A native method of the model: the Rust function's name and its text. */
     record Native(String name, String rust) {}
 

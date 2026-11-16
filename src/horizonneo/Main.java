@@ -113,12 +113,21 @@ public final class Main {
             outside = JavaWorld.outside(jars);
             read = "the supertypes of " + outside.size() + " classes of the game, NeoForge and their libraries, from " + jars.size() + " jars in " + server;
         }
-        JarRust.Result r = JarRust.translate(jar, outside);
+        Map<String, ClassData> model = new java.util.TreeMap<>(Library.classes());
+        Map<String, String> leftOut = Library.checkStandIns(model, outside);
+        model.keySet().removeAll(leftOut.keySet());
+        long standIns = model.keySet().stream().filter(Library::standIn).count();
+        StringBuilder game = new StringBuilder(outside.isEmpty()
+                ? "Stand-ins for the game: " + standIns + " classes, not checked against the game's (no --server)."
+                : "Stand-ins for the game: " + standIns + " classes, checked against the game's.");
+        for (var e : leftOut.entrySet()) game.append("\n- left out: ").append(e.getKey().replace('/', '.')).append(": ").append(e.getValue());
+        JarRust.Result r = JarRust.translate(jar, model, outside);
         java.nio.file.Files.createDirectories(dir);
         java.nio.file.Files.writeString(dir.resolve("translated.rs"), r.rust(), java.nio.charset.StandardCharsets.UTF_8);
-        java.nio.file.Files.writeString(dir.resolve("translation.md"), JarRust.report(r, -1).replaceFirst("\n\n", "\n\nRead: " + java.util.regex.Matcher.quoteReplacement(read) + ".\n\n"),
+        java.nio.file.Files.writeString(dir.resolve("translation.md"), JarRust.report(r, -1).replaceFirst("\n\n", "\n\nRead: " + java.util.regex.Matcher.quoteReplacement(read) + ".\n\n" + java.util.regex.Matcher.quoteReplacement(game.toString()) + "\n\n"),
                 java.nio.charset.StandardCharsets.UTF_8);
         out.println("Read: " + read + ".");
+        out.println(game);
         out.println(jar.path().getFileName() + ": " + r.translated().size() + " of " + r.methods() + " methods translated from their bytecode, by this tool's own translator");
         int shown = 0;
         for (var e : r.reasons().entrySet()) {

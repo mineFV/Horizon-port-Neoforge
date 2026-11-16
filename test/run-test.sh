@@ -903,12 +903,13 @@ echo; echo "== translate"
 # and, where rustc is, the translation run on the same inputs as the Java: the outputs must be the same.
 TR=$B/translate
 mkdir -p "$TR/classes" "$TR/jar/META-INF"
-javac --release 21 -d "$TR/classes" test/translate/src/com/example/numbers/*.java
+# The game's stand-ins (game/) are what the made-up classes are built against, and what the Java reference runs with.
+javac --release 21 -cp build/model -d "$TR/classes" test/translate/src/com/example/numbers/*.java
 javac --release 21 -cp "$TR/classes" -d "$TR/classes" test/translate/NumbersCheck.java
 printf 'modLoader = "javafml"\nloaderVersion = "[4,)"\nlicense = "MIT"\n[[mods]]\nmodId = "numbers"\nversion = "1.0"\ndisplayName = "Numbers"\n' > "$TR/jar/META-INF/neoforge.mods.toml"
 jar --create --file "$B/jars/numbers.jar" -C "$TR/jar" . -C "$TR/classes" com
 exits 0 tool translate "$B/jars/numbers.jar" --out "$TR/out"
-says "$OUT" "numbers.jar: 474 of 474 methods translated from their bytecode"
+says "$OUT" "numbers.jar: 479 of 485 methods translated from their bytecode"
 # Class objects: an enum's valueOf (Enum.valueOf with a class constant), and their tables.
 says "$TR/out/translation.md" '- `com.example.numbers.Boxes$Color.valueOf(Ljava/lang/String;)Lcom/example/numbers/Boxes$Color;` as'
 says "$TR/out/translated.rs" 'fn jinstance_of(t: u32, a: u32) -> bool {'
@@ -920,6 +921,12 @@ else
   echo "  FAIL: gathered__checked doesn't initialize its class first"; failures=$((failures + 1))
 fi
 says "$OUT" "Nothing was compiled or run"
+# The game's stand-ins (game/): what the packed form needs is translated; no BlockPos nor Direction can be made while
+# compareTo and toString, which sorting and texts may reach on any object, aren't modelled (game/README.md).
+says "$OUT" "Stand-ins for the game: 4 classes, not checked against the game's (no --server)."
+says "$TR/out/translation.md" '- `com.example.numbers.Places.packed(III)J` as `places__packed`'
+says "$TR/out/translation.md" '`com.example.numbers.Places.keys(I)Ljava/lang/String;`: it makes an object of net.minecraft.core.BlockPos that a virtual call may reach, and it calls net.minecraft.core.Vec3i.compareTo'
+says "$TR/out/translation.md" 'whose initializer net.minecraft.core.Direction.<clinit>()V, which isn'"'"'t translated (it makes an object of net.minecraft.core.Direction that a virtual call may reach, and it calls java.lang.Object.toString'
 says "$TR/out/translated.rs" 'pub fn numbers__collatz(mut l0: i64) -> JR<i64> {'
 says "$TR/out/translated.rs" 'pub fn numbers__is_digit(p0: u16) -> JR<bool> {'
 says "$TR/out/translated.rs" 'fn jcmpg_f32(a: f32, b: f32) -> i32 {'
@@ -946,7 +953,7 @@ lacks "$TR/out/translation.md" 'nothing implements equals(Ljava/lang/Object;)Z o
 lacks "$TR/out/translation.md" 'several default methods could be getFirst'
 # --server: the supertypes of the game's classes, read from a server's libraries (a stand-in here).
 mkdir -p "$TR/game" "$TR/gamey/META-INF" "$TR/server/libraries/net/neoforged/neoforge/21.1.1"
-javac --release 21 -d "$TR/game" test/translate/game/net/minecraft/world/Named.java test/translate/game/net/minecraft/world/Light.java
+javac --release 21 -d "$TR/game" test/translate/game/net/minecraft/world/Named.java test/translate/game/net/minecraft/world/Light.java test/translate/game/net/minecraft/core/*.java
 jar --create --file "$TR/server/libraries/net/neoforged/neoforge/21.1.1/neoforge-21.1.1-server.jar" -C "$TR/game" .
 rm -rf "$TR/gamey/com"
 javac --release 21 -cp "$TR/game" -d "$TR/gamey" test/translate/gamey/com/example/gamey/Tagged.java
@@ -964,7 +971,13 @@ says "$TR/gamey-out/translation.md" '`com.example.gamey.Tagged.words(Ljava/lang/
 says "$TR/gamey-out/translation.md" '- `com.example.gamey.Tagged.total(Ljava/util/List;)I` as `tagged__total`'
 says "$TR/gamey-out/translation.md" '`com.example.gamey.Tagged.lit()Ljava/lang/Object;`: it makes an object of com.example.gamey.Tagged$Lit that a virtual call may reach, and it calls java.util.function.Consumer.accept'
 exits 0 tool translate "$B/jars/gamey.jar" --server "$TR/server" --out "$TR/gamey-out"
-says "$OUT" "Read: the supertypes of 2 classes of the game, NeoForge and their libraries, from 1 jars in"
+says "$OUT" "Read: the supertypes of 4 classes of the game, NeoForge and their libraries, from 1 jars in"
+# Each stand-in checked against the server's class: one whose interfaces differ, one that would inherit a method the
+# game's declares, are left out.
+says "$OUT" "Stand-ins for the game: 2 classes, checked against the game's."
+says "$OUT" "- left out: net.minecraft.core.Vec3i: its superclass or interfaces aren't the game's"
+says "$OUT" "- left out: net.minecraft.core.BlockPos: the game's class declares getX()I, which the stand-in would take from net.minecraft.core.Vec3i"
+says "$TR/gamey-out/translation.md" "- left out: net.minecraft.core.Vec3i"
 says "$TR/gamey-out/translation.md" '- `com.example.gamey.Tagged.size(I)I` as `tagged__size`'
 says "$TR/gamey-out/translation.md" '`com.example.gamey.Tagged.weight()I`: it makes an object of com.example.gamey.Tagged$Badge that a virtual call may reach, and a virtual call isn'"'"'t certain: com.example.gamey.Tagged$Badge.weight on com.example.gamey.Tagged$Badge it is a default method of net.minecraft.world.Named, outside the jar'
 exits 2 tool translate "$B/jars/gamey.jar" --server "$TR/game"
@@ -978,12 +991,14 @@ if command -v rustc > /dev/null; then
     lacks "$TR/rustc.txt" "warning"
     # HotSpot throws a JVM exception it raised often at one place without its message (OmitStackTraceInFastThrow):
     # the reference is the JVM's semantics, which give one.
-    java -XX:-OmitStackTraceInFastThrow -cp "$TR/classes" NumbersCheck > "$TR/java.txt"
+    java -XX:-OmitStackTraceInFastThrow -cp "$TR/classes:build/model" NumbersCheck > "$TR/java.txt"
     if "$TR/check" > "$TR/rust.txt" && cmp -s "$TR/java.txt" "$TR/rust.txt"; then
       echo "  ok: Java and the translation give the same $(wc -l < "$TR/java.txt") results"
     else
       echo "  FAIL: Java and the translation differ:"; diff "$TR/java.txt" "$TR/rust.txt" | head -20; failures=$((failures + 1))
     fi
+    # The stand-ins against Horizon's own answer (game/README.md): its test of the packed form.
+    says "$TR/java.txt" "packed limits -> -9223371899415824384"
   else
     echo "  FAIL: the translation doesn't compile:"; head -30 "$TR/rustc.txt"; failures=$((failures + 1))
   fi
