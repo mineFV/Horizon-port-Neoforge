@@ -1028,6 +1028,7 @@ exits 0 tool standins --server "$SI/same"
 says "$OUT" "ok: the 4 stand-ins have the supertypes and the methods of the server's classes"
 says "$OUT" "ok: the game and the stand-ins give the same 1135 answers to the probe"
 says "$OUT" "no server, no world, no mod"
+no_file logs
 exits 1 tool standins --server "$SI/upper"
 says "$OUT" 'problem: the game gives `direction 0 toString -> DOWN`, the stand-ins `direction 0 toString -> down`'
 exits 1 tool standins --server "$SI/upper/libraries/.."

@@ -50,7 +50,7 @@ final class StandIns {
         try {
             Path modelDir = work.resolve("model");
             writeModel(modelDir);
-            String cp = String.join(java.io.File.pathSeparator, jars.stream().map(Path::toString).toList());
+            String cp = String.join(java.io.File.pathSeparator, jars.stream().map(p -> p.toAbsolutePath().toString()).toList());
             Run game = probe(work.resolve("game"), cp);
             Run ours = probe(work.resolve("ours"), modelDir.toString());
             if (game.problem() != null) {
@@ -114,7 +114,8 @@ final class StandIns {
         String jvm = ProcessHandle.current().info().command().orElse("java");
         Path printed = dir.resolve("out.txt"), errors = dir.resolve("err.txt");
         Process p = new ProcessBuilder(jvm, "-cp", classes + java.io.File.pathSeparator + cp, "horizonneo.probe.GameProbe")
-                .redirectOutput(printed.toFile()).redirectError(errors.toFile()).start();
+                // In its own folder: the game's logger writes logs/ where it runs, which is deleted with it.
+                .directory(dir.toFile()).redirectOutput(printed.toFile()).redirectError(errors.toFile()).start();
         try {
             if (!p.waitFor(300, TimeUnit.SECONDS)) {
                 p.destroyForcibly();
