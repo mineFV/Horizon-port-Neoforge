@@ -120,6 +120,27 @@ public final class Places {
                 + " " + c.getFloat("heat") + " " + c.getLong("ratio") + " " + c.equals(d) + " " + d.get("ticks");
     }
 
+    static final String[] IDS = {"mekanism:steel_casing", "stone", ":b", "a:b:c", "Bad Id", "x/y.z", "é", "tab\t", ""};
+
+    /** Ids: parsed, built, compared, hashed and their errors' messages; ByIdMap's strategies. */
+    public static String ids(int n) {
+        String text = IDS[Math.floorMod(n, IDS.length)];
+        StringBuilder b = new StringBuilder();
+        net.minecraft.resources.ResourceLocation id = net.minecraft.resources.ResourceLocation.tryParse(text);
+        b.append(id).append(' ');
+        try {
+            net.minecraft.resources.ResourceLocation p = net.minecraft.resources.ResourceLocation.parse(text);
+            b.append(p.hashCode()).append(' ').append(p.toLanguageKey("block")).append(' ').append(p.toShortLanguageKey()).append(' ').append(p.withSuffix("_" + n));
+            b.append(' ').append(p.compareTo(net.minecraft.resources.ResourceLocation.withDefaultNamespace("stone"))).append(' ').append(p.toDebugFileName());
+        } catch (net.minecraft.ResourceLocationException e) {
+            b.append(e.getMessage());
+        }
+        net.minecraft.util.ByIdMap.OutOfBoundsStrategy[] all = net.minecraft.util.ByIdMap.OutOfBoundsStrategy.values();
+        java.util.function.IntFunction<net.minecraft.util.ByIdMap.OutOfBoundsStrategy> f =
+                net.minecraft.util.ByIdMap.continuous(Enum::ordinal, all, all[Math.floorMod(n, 3)]);
+        return b.append(' ').append(f.apply(n)).append(' ').append(f.apply(-n)).toString();
+    }
+
     public static int eastX(int x) {
         return new BlockPos(x, 0, 0).east().getX();
     }

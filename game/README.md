@@ -24,7 +24,7 @@ A stand-in declares the real class's superclass and interfaces, so that a type t
 `--server`, `translate` checks each stand-in against the real class (`Library.checkStandIns`) and leaves out one
 whose supertypes differ, or that would inherit a method the real class declares.
 
-What differs from the game, where a program can see it: nothing the probe asks (8956 answers on NeoForge
+What differs from the game, where a program can see it: nothing the probe asks (11296 answers on NeoForge
 21.1.266, 2026-11-16), which includes which object each method gives back (this one or a new one, of which
 class), caches (which numbers' tags are the same object), the texts of a mod's own subclasses (named and
 anonymous), NBT's texts (SNBT) and orders, error messages, and the extremes where arithmetic wraps. A
@@ -32,10 +32,11 @@ NullPointerException's message isn't compared: the JVM builds it from the byteco
 
 What is here: positions and directions (net/minecraft/core: Vec3i, BlockPos and its MutableBlockPos, Direction
 with Axis and AxisDirection) and NBT (net/minecraft/nbt: the tags of numbers, texts, lists, arrays and compounds,
-and NbtUtils' positions). They cover what Mekanism calls of them, but for the members below.
+and NbtUtils' positions), ids (net/minecraft/resources/ResourceLocation, with its exception) and ByIdMap's continuous
+maps. They cover what Mekanism calls of them, but for the members below.
 
 What isn't here, and what it costs: BlockPos's getCenter, betweenClosed and codecs, Direction's getRotation and
 codecs, MutableBlockPos's other setters, NBT's codecs (NbtOps), its readers and writers (DataOutput, visitors),
-TagType. A call to one isn't translated; and when a virtual call through a wider type (Object, List...) may reach
+TagType, ResourceLocation's codecs and its readers (StringReader), ByIdMap.sparse. A call to one isn't translated; and when a virtual call through a wider type (Object, List...) may reach
 an object whose class lacks it, the methods that make such objects drop instead. A stand-in is worth as much as
 the API it covers.

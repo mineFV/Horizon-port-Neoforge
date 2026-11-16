@@ -158,6 +158,9 @@ fn main() {
     for n in 0..=20 {
         p("nbt", n.to_string(), text(places__nbt(n)));
     }
+    for n in -10..=10 {
+        p("ids", n.to_string(), text(places__ids(n)));
+    }
     for d in 0..=5 {
         p("opposite", d.to_string(), show(places__opposite(d)));
         p("steps", d.to_string(), show(places__steps(d)));

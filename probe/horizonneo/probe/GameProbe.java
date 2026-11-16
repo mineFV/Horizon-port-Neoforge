@@ -38,6 +38,7 @@ public final class GameProbe {
         containing();
         subclasses();
         NbtProbe.run();
+        IdProbe.run();
     }
 
     static void directions() {
