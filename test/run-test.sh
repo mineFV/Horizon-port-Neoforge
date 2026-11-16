@@ -132,6 +132,14 @@ for t in TomlTest JsonTest MetadataTest LicenceCheckTest ClassDataTest AnalyzerT
   java -cp "build/classes:$B/classes" "horizonneo.$t" "$B/mod" "$J" "$B/jars/neoforge-stubs.jar" "$B/jars/oddities.jar" || failures=$((failures + 1))
 done
 
+# Tickers on its own made-up classes (test/tickers/), which the fixture's mod doesn't need.
+mkdir -p "$B/tickers"
+javac --release 21 -d "$B/tickers" $(find test/tickers -name '*.java')
+# The JVM writes the lambdas' classes where it runs, as dump has it do for the oracle's server.
+rm -rf "$B/tickers-run" && mkdir -p "$B/tickers-run"
+(cd "$B/tickers-run" && java -Djdk.invoke.LambdaMetafactory.dumpProxyClassFiles=true -cp ../tickers com.example.tickers.Dumper > names.txt)
+java -cp "build/classes:$B/classes" horizonneo.TickersTest "$B/tickers" "$B/tickers-run/DUMP_LAMBDA_PROXY_CLASS_FILES" "$B/tickers-run/names.txt" || failures=$((failures + 1))
+
 echo; echo "== metadata"
 exits 0 tool metadata "$J"
 says "$OUT" 'Pocket Compass 1.2.3 (`pocketcompass`), a NeoForge mod: pocketcompass.jar'
@@ -653,7 +661,7 @@ if [ -f "${HORIZON_PORT_JAR:-}" ]; then
     says "$M/horizon-mixin.toml" "This Horizon source's catalogue has no \`block_entity_fluids\`"
     says "$P/facts/compatibility.json" '"hooks": 142'
     says "$P/facts/PORTING.md" '| `block_entity_container` | 1 | on, in `block-entity-container` |'
-    says "$P/facts/report/machines.md" '| `pocketcompass:machine_block` | `pocketcompass:machine` | yes | energy, progress |'
+    says "$P/facts/report/machines.md" '| `pocketcompass:machine_block` | `pocketcompass:machine` | yes | not certain: the ticker is a lambda made in com.example.pocketcompass.MachineBlock, which isn'"'"'t the mod'"'"'s | energy, progress |'
     says "$P/facts/report/machines.md" "1 face slot took none of the items tried"
     says "$P/facts/report/machines.md" "neither the block nor its block entity hands NeoForge a MenuProvider"
     exits 0 tool check "$P/facts" --horizon-src "$H"

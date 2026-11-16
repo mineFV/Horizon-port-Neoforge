@@ -93,7 +93,7 @@ final class Port {
             EventTable table = table(o.horizonSrc(), translator, work);
             Path carrying = Files.createDirectory(work.resolve("content"));
             Bundle.Outcome outcome = Bundle.finish(bundle, decompiled, o.horizonSrc(), info, analysis, table, o.approximate(),
-                    into -> Content.carry(jar, analysis, tools, carrying, into, o.approximate(), o.facts()), machines(o.facts()));
+                    into -> Content.carry(jar, analysis, tools, carrying, into, o.approximate(), o.facts()), machines(o.facts(), jar));
             Report.write(bundle.resolve("report"), jar, frontend, analysis, outcome);
             deliver(bundle, target);
 
@@ -136,6 +136,19 @@ final class Port {
         }
         out.println("The decompiled source and the copy of the jar have been deleted. Nothing was compiled or run.");
         return Main.DONE;
+    }
+
+    /**
+     * The machines file beside the facts, read, each ticking block given the method its ticker runs (`tick`, from
+     * the jar: Tickers); null without facts or without one.
+     */
+    static Map<String, Object> machines(Path facts, ModJar jar) throws IOException {
+        Map<String, Object> machines = machines(facts);
+        if (machines == null) return null;
+        Map<String, String> ticks = Tickers.all(machines, JarRust.classes(jar));
+        Map<String, Object> blocks = Json.object(machines.get("blocks"));
+        ticks.forEach((id, tick) -> Json.object(blocks.get(id)).put("tick", tick));
+        return machines;
     }
 
     /** The machines file beside the facts, read; null without facts or without one. */

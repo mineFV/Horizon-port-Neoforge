@@ -46,6 +46,18 @@ final class Dump {
     /** How long the oracle may take: it builds its exporter, starts the server and dumps. */
     static final int SECONDS = 15 * 60;
     static final String ORACLE = "tools/neoforge_oracle.py", HOME = ".local/neoforge-oracle";
+    /** The JVM's option to write lambdas' classes, and the folder it writes them to, where the JVM runs. */
+    static final String DUMP_LAMBDAS = "jdk.invoke.LambdaMetafactory.dumpProxyClassFiles", LAMBDA_FOLDER = "DUMP_LAMBDA_PROXY_CLASS_FILES";
+
+    /** Deletes a folder and what it holds, when it is there. */
+    static void deleteTree(Path dir) throws IOException {
+        if (!Files.isDirectory(dir, LinkOption.NOFOLLOW_LINKS)) return;
+        List<Path> all;
+        try (Stream<Path> s = Files.walk(dir)) {
+            all = s.sorted(java.util.Comparator.reverseOrder()).toList();
+        }
+        for (Path p : all) Files.delete(p);
+    }
 
     record Options(Path server, Path horizonSrc, Path out, String python) {}
 
@@ -105,6 +117,11 @@ final class Dump {
             command.addAll(List.of("--namespaces", String.join(",", ids), "--out", facts.toString()));
             ProcessBuilder builder = new ProcessBuilder(command).directory(horizon.toFile()).redirectErrorStream(true).redirectOutput(log.toFile());
             builder.environment().put("HORIZON_NEOFORGE", version);
+            // The JVM writes each lambda's class to DUMP_LAMBDA_PROXY_CLASS_FILES/ where the server runs: the
+            // exporter reads its block entities' tickers there, whose code names the mod's method each one runs
+            // (Tickers). The JVM reads JAVA_TOOL_OPTIONS itself: the oracle, run unchanged, needn't know.
+            String before = builder.environment().get("JAVA_TOOL_OPTIONS");
+            builder.environment().put("JAVA_TOOL_OPTIONS", (before == null || before.isBlank() ? "" : before + " ") + "-D" + DUMP_LAMBDAS + "=true");
             out.println("  note: the oracle is running (its output goes to " + log + ")");
             Process process;
             try {
@@ -126,6 +143,8 @@ final class Dump {
                 out.println("  problem: the oracle didn't finish within " + SECONDS + " seconds; it was stopped. Its output: " + log);
                 return Main.FAILED;
             }
+            // What the JVM wrote of lambda classes isn't needed once the exporter has read it.
+            deleteTree(horizon.resolve(HOME).resolve("runs").resolve("export").resolve(LAMBDA_FOLDER));
             if (process.exitValue() != 0 || !Files.isRegularFile(facts)) {
                 out.println("  problem: the oracle failed (exit " + process.exitValue() + "). The end of its output:");
                 tail(log, 25).forEach(l -> out.println("    " + l));

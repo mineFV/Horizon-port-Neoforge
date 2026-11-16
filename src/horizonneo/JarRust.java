@@ -76,6 +76,11 @@ final class JarRust {
 
     /** model: the library model's classes and the game's stand-ins, as `Library.checkStandIns` left them. */
     static Result translate(ModJar jar, Map<String, ClassData> model, Map<String, ClassData> outside) throws IOException {
+        return translate(classes(jar), model, outside);
+    }
+
+    /** The jar's classes, by internal name (not those under META-INF/, as versioned or module ones). */
+    static Map<String, ClassData> classes(ModJar jar) throws IOException {
         Map<String, ClassData> classes = new TreeMap<>();
         try (ZipFile zip = new ZipFile(jar.path().toFile())) {
             Enumeration<? extends ZipEntry> entries = zip.entries();
@@ -87,7 +92,7 @@ final class JarRust {
                 classes.put(c.name, c);
             }
         }
-        return translate(classes, model, outside);
+        return classes;
     }
 
     static Result translate(Map<String, ClassData> classes) throws IOException {

@@ -410,7 +410,7 @@ final class Machines {
     /** report/machines.md: by block, what NeoForge gave and what of it isn't in the bundle. */
     static String report(Map<String, Object> machines, Made m) {
         StringBuilder b = new StringBuilder("# The mod's machines\n\nWhat NeoForge gave of each block with a block entity, placed alone and new in a server ")
-                .append("(`dump`), and what of it isn't in the bundle.\n\n| Block | Block entity | Ticks | Saves (in NeoForge) | Not carried over |\n|---|---|---|---|---|\n");
+                .append("(`dump`), and what of it isn't in the bundle. A ticker's method is the mod's lambda its class was made by, when that is certain (`Tickers`).\n\n| Block | Block entity | Ticks | Its ticker runs | Saves (in NeoForge) | Not carried over |\n|---|---|---|---|---|---|\n");
         Map<String, Object> blocks = new TreeMap<>(Json.object(machines.get("blocks")));
         blocks.forEach((id, v) -> {
             Map<String, Object> o = Json.object(v);
@@ -418,7 +418,8 @@ final class Machines {
             List<String> notes = new ArrayList<>(m.notes().getOrDefault(id, List.of()));
             Json.object(o.get("unread")).forEach((k, why) -> notes.add(k + " couldn't be read (" + why + ")"));
             b.append("| `").append(id).append("` | ").append(Json.text(o, "block_entity") == null ? "" : "`" + Json.text(o, "block_entity") + "`").append(" | ")
-                    .append(Boolean.TRUE.equals(o.get("ticks_on_server")) ? "yes" : "no").append(" | ").append(saved).append(" | ")
+                    .append(Boolean.TRUE.equals(o.get("ticks_on_server")) ? "yes" : "no").append(" | ")
+                    .append(Json.text(o, "tick") == null ? "" : Json.text(o, "tick").replace("|", "\\|")).append(" | ").append(saved).append(" | ")
                     .append(String.join("; ", notes).replace("|", "\\|")).append(" |\n");
         });
         return b.toString();

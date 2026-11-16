@@ -137,6 +137,7 @@ The tool's commands: `metadata`, `license`, `analyze`, `port`, `check`, `pack`, 
 | `game/` (not in `src/`) | The translator's stand-ins for the game's classes (step d): our own Java, from Horizon's code and the game's public API, compiled with `lib/`; checked against the real classes with `--server` (`Library.checkStandIns`). Its README says where each behaviour comes from and what differs |
 | `tools/UnicodeTables.java` (not in `src/`) | Run by `build.sh`: Unicode's tables from the JDK that builds the tool, as Rust statics (`unicode.rs` in the jar) that the model's Character and String read |
 | `Bytecode`, `MethodRust`, `JarRust`, `JavaWorld` | `translate`, our own translator: every opcode decoded; a method's bytecode as a Rust function (its blocks as labelled loops and blocks, or as arms of a `match` in a `loop` when the flow is irreducible) and what it needs; the classes as the JVM resolves them (field slots, call selection, subtypes, class ids); the jar's methods, kept until what each needs is translated, as one module with the object model's runtime, dispatchers, type tests, class initializers and lambda classes, and why for the rest |
+| `Tickers` | Which of the mod's methods a block entity's ticker runs: read in the ticker's class as the JVM wrote it during `dump` (else by its class's name), in `report/machines.md` |
 | `Pack` | `pack`: the bundle as a `.hnmod`, written as Horizon's `docs/api/mod-files.md` says |
 | `Report` | `report.md` and `report.json` |
 | `Toml`, `Json`, `Translator` | Small readers, and the one place that starts `horizon-port.jar` |
@@ -273,6 +274,12 @@ The tool's commands: `metadata`, `license`, `analyze`, `port`, `check`, `pack`, 
   The same holds for every member a mod calls: one missing (Mekanism's Direction.getClockWise) keeps every Direction
   out, so a stand-in counts only once it covers the API the mod uses.
 
+- **A ticker's method isn't readable at run time, but the JVM writes it down**: getTicker gives a lambda, whose class
+  (`Owner$$Lambda/0x...`) only names where it was made. Mekanism makes all its tickers in one class, for four
+  methods. `dump` passes `-Djdk.invoke.LambdaMetafactory.dumpProxyClassFiles=true` through JAVA_TOOL_OPTIONS (the
+  oracle runs `java` itself), the JVM writes each lambda's class to `DUMP_LAMBDA_PROXY_CLASS_FILES/a/b/Owner$$Lambda.0x...class`
+  where the server runs, the exporter puts the ticker's in the machines file, and its code is one call: the method.
+
 - **Run horizon-port with `-Xss512m`** on a real Horizon source: its comment stripper overflows Java's default
   stack on Horizon's long lines. `Port.STACK` does it everywhere.
 - **horizon-port's `check` knows one Horizon commit** (`a46ce6898bd72016e061aaec1afc1375b384deac`, in its
@@ -302,6 +309,7 @@ Say so rather than assume it works:
   run `dump` against a stand-in for the oracle, never a server;
 - a block declared with state properties of its own, a state light table or shape tables has passed
   `cargo horizon-mod check`, never Horizon's loader: Mekanism's 136 such blocks haven't been loaded in the game;
+- the exporter's `ticker` and `ticker_class` (2026-11-17) have only run in the tests' made-up JVM, never in `dump`;
 - the machines exporter has run on Mekanism only (2026-11-14): 154 block entity types, 103 with item slots,
   82 with energy, 16 with tanks, no menu NeoForge could be asked for. The tests run `Machines` on a made-up
   machines file; the exporter itself only compiles and runs against a real server;

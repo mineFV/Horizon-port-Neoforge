@@ -1147,6 +1147,7 @@ cat > fixture/facts/pocketcompass.machines.json <<'EOF'
   "blocks": {
     "pocketcompass:machine_block": {
       "block_entity": "pocketcompass:machine", "class": "com.example.pocketcompass.MachineBlockEntity", "ticks_on_server": true,
+      "ticker": "com.example.pocketcompass.MachineBlock$$Lambda",
       "saved": ["energy", "progress"],
       "items": { "slots": 3, "limits": [64, 64, 64], "faces": {
         "down": { "slots": 1, "same": false, "reaches": [2], "inputs": [], "outputs": [2] },

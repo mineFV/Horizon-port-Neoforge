@@ -155,6 +155,24 @@ public final class MachinesExporter {
                 read(o, unread, "block_entity", () -> new JsonPrimitive(BuiltInRegistries.BLOCK_ENTITY_TYPE.getKey(be.getType()).toString()));
                 read(o, unread, "class", () -> new JsonPrimitive(be.getClass().getName()));
                 read(o, unread, "ticks_on_server", () -> new JsonPrimitive(((EntityBlock) block).getTicker(level, state, (BlockEntityType) be.getType()) != null));
+                // The ticker's class, as the JVM names it: a lambda's is "Owner$$Lambda/0x...". Its code, which the
+                // JVM writes to DUMP_LAMBDA_PROXY_CLASS_FILES/ where the server runs (dump asks it to), names the
+                // mod's method it runs: it goes along as it is, for the tool to read (Tickers).
+                read(o, unread, "ticker", () -> {
+                    Object ticker = ((EntityBlock) block).getTicker(level, state, (BlockEntityType) be.getType());
+                    return ticker == null ? NONE : new JsonPrimitive(ticker.getClass().getName());
+                });
+                read(o, unread, "ticker_class", () -> {
+                    Object ticker = ((EntityBlock) block).getTicker(level, state, (BlockEntityType) be.getType());
+                    if (ticker == null || !ticker.getClass().isHidden()) return NONE;
+                    // "a.b.Owner$$Lambda/0x12" is written as a/b/Owner$$Lambda.0x12.class.
+                    String name = ticker.getClass().getName();
+                    int slash = name.indexOf('/');
+                    String file0 = slash < 0 ? name.replace('.', '/') : name.substring(0, slash).replace('.', '/') + "." + name.substring(slash + 1);
+                    java.nio.file.Path file = java.nio.file.Path.of("DUMP_LAMBDA_PROXY_CLASS_FILES", file0 + ".class");
+                    if (!java.nio.file.Files.isRegularFile(file)) throw new IllegalStateException("the JVM didn't write the ticker's class (" + file + ")");
+                    return new JsonPrimitive(java.util.Base64.getEncoder().encodeToString(java.nio.file.Files.readAllBytes(file)));
+                });
                 read(o, unread, "saved", () -> {
                     CompoundTag tag = be.saveWithoutMetadata(level.registryAccess());
                     JsonArray keys = new JsonArray();
