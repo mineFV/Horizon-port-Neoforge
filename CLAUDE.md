@@ -309,7 +309,9 @@ Say so rather than assume it works:
   run `dump` against a stand-in for the oracle, never a server;
 - a block declared with state properties of its own, a state light table or shape tables has passed
   `cargo horizon-mod check`, never Horizon's loader: Mekanism's 136 such blocks haven't been loaded in the game;
-- the exporter's `ticker` and `ticker_class` (2026-11-17) have only run in the tests' made-up JVM, never in `dump`;
+- the exporter's `ticker` and `ticker_class` ran in `dump` on Mekanism once (2026-11-16, facts-v3): all 143 ticking blocks
+  certain, 121 on TileEntityMekanism.tickServer and 22 on TileEntityTransmitter.tickServer. Neither method is
+  translated yet, and no tick is wired;
 - the machines exporter has run on Mekanism only (2026-11-14): 154 block entity types, 103 with item slots,
   82 with energy, 16 with tanks, no menu NeoForge could be asked for. The tests run `Machines` on a made-up
   machines file; the exporter itself only compiles and runs against a real server;
