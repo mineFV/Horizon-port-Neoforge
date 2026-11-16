@@ -314,8 +314,9 @@ Say so rather than assume it works:
 - the bridge (2026-11-16): the Counter test mod runs through it in the tests (its bridge compiled as edition 2024
   against a stand-in for Horizon's NBT): never built into Horizon, never loaded in the game. Its bundle is in
   `essais/counter/bundle` (dump, port --facts, pack). The mod's Java runs on a thread of its own: what it asks of the world
-  (HorizonWorld.ask, one question yet: the block at a position, for Level.getBlockState) goes to the ticking thread,
-  which answers from `game` (no `unsafe`, which Horizon forbids). Nothing it does to the world reaches Horizon yet;
+  (HorizonWorld.ask: a position's state as "id[key=value,...]" for Level.getBlockState; a property set for
+  Level.setBlock) goes to the ticking thread, which answers from `game` (no `unsafe`, which Horizon forbids). Only
+  properties of the block already there can be set: Horizon's hook points don't write whole blocks;
 - the exporter's `ticker` and `ticker_class` ran in `dump` on Mekanism once (2026-11-16, facts-v3): all 143 ticking blocks
   certain, 121 on TileEntityMekanism.tickServer and 22 on TileEntityTransmitter.tickServer. Neither method is
   translated yet, and no tick is wired;
