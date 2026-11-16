@@ -2,6 +2,7 @@ package com.example.numbers;
 
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
+import net.minecraft.core.Vec3i;
 
 /** Made up: the game's positions and directions, through the translator's stand-ins (game/). */
 public final class Places {
@@ -68,6 +69,26 @@ public final class Places {
     /** compareTo itself, extremes included: the first coordinate that differs, subtracted with wrapping. */
     public static int compare(int a, int b) {
         return new BlockPos(a, 1, b).compareTo(new BlockPos(b, 1, a)) + 3 * new BlockPos(0, a, 0).compareTo(new BlockPos(0, b, 0));
+    }
+
+    /** The rest of the stand-ins' API: a MutableBlockPos moved in place, axes, turns (and their exceptions), texts. */
+    public static String more(int n) {
+        Direction d = Direction.from3DDataValue(n);
+        BlockPos.MutableBlockPos m = new BlockPos.MutableBlockPos(n, -n, n * 3);
+        StringBuilder s = new StringBuilder();
+        s.append(m).append(' ').append(m.move(d)).append(' ').append(m.immutable()).append(' ').append(m.offset(0, 0, 0) == m);
+        s.append(' ').append(m.setWithOffset(BlockPos.ZERO, d.getOpposite())).append(' ').append(m.hashCode());
+        s.append(' ').append(d.getAxis()).append(' ').append(d.getAxis().choose(1.5, -2.5, n)).append(' ').append(d.getAxisDirection());
+        s.append(' ').append(d.getNormal()).append(' ').append(d.getNormal() == d.getNormal()).append(' ').append(d.toYRot());
+        try {
+            s.append(' ').append(d.getClockWise()).append(' ').append(d.getCounterClockWise());
+        } catch (IllegalStateException e) {
+            s.append(" throws ").append(e.getMessage());
+        }
+        s.append(' ').append(Direction.getNearest(n - 3.5f, 1f, -n)).append(' ').append(BlockPos.containing(n * -0.75, 1e300, n / 3.0));
+        s.append(' ').append(new BlockPos(1, 2, 3) {}).append(' ').append(new BlockPos(n, 0, 0).distSqr(new Vec3i(0, n, 1)));
+        s.append(' ').append(new BlockPos(n, n, n).relative(d, n).below(n).above(0));
+        return s.toString();
     }
 
     public static int eastX(int x) {

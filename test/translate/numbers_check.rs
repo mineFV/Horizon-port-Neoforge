@@ -152,6 +152,9 @@ fn main() {
     for n in 0..=12 {
         p("keys", n.to_string(), text(places__keys(n)));
     }
+    for n in -8..=8 {
+        p("more", n.to_string(), text(places__more(n)));
+    }
     for d in 0..=5 {
         p("opposite", d.to_string(), show(places__opposite(d)));
         p("steps", d.to_string(), show(places__steps(d)));

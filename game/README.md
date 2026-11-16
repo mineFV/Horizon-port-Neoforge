@@ -24,14 +24,13 @@ A stand-in declares the real class's superclass and interfaces, so that a type t
 `--server`, `translate` checks each stand-in against the real class (`Library.checkStandIns`) and leaves out one
 whose supertypes differ, or that would inherit a method the real class declares.
 
-What differs from the game, where a program can see it:
+What differs from the game, where a program can see it: nothing the probe asks (8582 answers on NeoForge
+21.1.266, 2026-11-16), which includes which object each method gives back (this one or a new one, of which
+class), the texts of a mod's own subclasses (named and anonymous), and the extremes where int arithmetic wraps.
 
-- a position's methods (`above`, `relative`...) give a new object each time: whether the game ever hands back the
-  same object where it gives an equal one isn't in Horizon's code, so a mod that compares positions with `==` could
-  tell. `offset(int, int, int)` is left out for the same reason (an offset of nothing may be the same object);
-- Vec3i is abstract: a mod's own `new Vec3i` isn't translated (see Vec3i.java).
-
-A member a mod calls that a stand-in lacks keeps every object of that class out of the closed world (a virtual
-call that may reach one can't be translated): a stand-in is only worth as much as the API it covers. Mekanism calls
-some 80 members of BlockPos, MutableBlockPos, Direction, its Axis and AxisDirection: until they are all here, no
-Direction is made in its translation.
+What isn't here, and what it costs: the members of these classes a mod calls that no stand-in has (BlockPos's
+getCenter, betweenClosed and codecs, Direction's getRotation, Mutable's other setters...). A call to one isn't
+translated; and when a virtual call through a wider type (Object, Comparable...) may reach an object whose class
+lacks it, the methods that make such objects drop instead. A stand-in is worth as much as the API it covers:
+these cover what Mekanism calls of BlockPos, MutableBlockPos, Vec3i, Direction, Axis and AxisDirection, but for
+the members above.
