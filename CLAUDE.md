@@ -133,6 +133,7 @@ The tool's commands: `metadata`, `license`, `analyze`, `port`, `check`, `pack`, 
 | `Machines` | The block entities in the machines file, on Horizon's block-entity hook points; `report/machines.md` |
 | `exporter/` (not in `src/`) | The NeoForge mod `dump` compiles at run time: places each block with a block entity and writes `<facts>.machines.json` |
 | `lib/` (not in `src/`), `Library` | The translator's model of Java's library: our own Java, from the API specification, compiled by `build.sh` with `--patch-module java.base=lib` into the jar's `model/`; its `native` methods in Rust |
+| `game/` (not in `src/`) | The translator's stand-ins for the game's classes (step d): our own Java, from Horizon's code and the game's public API, compiled with `lib/`; checked against the real classes with `--server` (`Library.checkStandIns`). Its README says where each behaviour comes from and what differs |
 | `tools/UnicodeTables.java` (not in `src/`) | Run by `build.sh`: Unicode's tables from the JDK that builds the tool, as Rust statics (`unicode.rs` in the jar) that the model's Character and String read |
 | `Bytecode`, `MethodRust`, `JarRust`, `JavaWorld` | `translate`, our own translator: every opcode decoded; a method's bytecode as a Rust function (its blocks as labelled loops and blocks, or as arms of a `match` in a `loop` when the flow is irreducible) and what it needs; the classes as the JVM resolves them (field slots, call selection, subtypes, class ids); the jar's methods, kept until what each needs is translated, as one module with the object model's runtime, dispatchers, type tests, class initializers and lambda classes, and why for the rest |
 | `Pack` | `pack`: the bundle as a `.hnmod`, written as Horizon's `docs/api/mod-files.md` says |
@@ -263,6 +264,12 @@ The tool's commands: `metadata`, `license`, `analyze`, `port`, `check`, `pack`, 
   barrel, furnace...). The declared machines are on plain templates, so no menu is wired yet. Mekanism's block
   entities aren't `MenuProvider`s either: the mod opens its menus in its own code.
 
+- **A stand-in of the game is useless until Object's methods are modelled on it**: the world is closed, and some
+  method always calls `hashCode`, `equals`, `toString` or `compareTo` on an Object (a HashMap, a text joined with
+  one, a sort): an object whose own isn't translated can't be made. Unmodelled, Vec3i's hashCode took Mekanism from
+  9075 to 7955 (every HashMap user dropped) until a stand-in's makers drop instead (`poisonable`); BlockPos and
+  Direction still can't be made while Vec3i.compareTo and Direction.toString aren't modelled (game/README.md).
+
 - **Run horizon-port with `-Xss512m`** on a real Horizon source: its comment stripper overflows Java's default
   stack on Horizon's long lines. `Port.STACK` does it everywhere.
 - **horizon-port's `check` knows one Horizon commit** (`a46ce6898bd72016e061aaec1afc1375b384deac`, in its
@@ -304,7 +311,7 @@ Say so rather than assume it works:
   collections), 8154 (no object whose supertypes aren't all known), 7302 (class objects; static methods initializing
   their class, which rightly dropped those whose initializer isn't translated), 7668 (`revive`), 8967 (the makers of
   an object a call can't run on drop, not the callers), 9067 (the rest of the library model: streams, UUID, atomics,
-  threads and executors, Unicode, TreeMap, ConcurrentHashMap...), 9075 (arraycopy, BitSet, UUID.fromString, split by a plain separator...). With `--server` there were fewer for a while:
+  threads and executors, Unicode, TreeMap, ConcurrentHashMap...), 9075 (arraycopy, BitSet, UUID.fromString, split by a plain separator...), 9143 (2026-11-16: the first stand-ins of the game, BlockPos's packed form). With `--server` there were fewer for a while:
   objects of classes implementing NeoForge's interfaces can then be made, and calls that may reach them must be
   certain. The game holds the rest back: `essais/mekanism/phase-d-notes.md` measures what each part of it is worth;
 - our translator's output has been compiled and run on the test's made-up classes only. Mekanism's translation was
