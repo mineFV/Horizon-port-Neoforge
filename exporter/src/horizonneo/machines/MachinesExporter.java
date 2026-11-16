@@ -147,6 +147,13 @@ public final class MachinesExporter {
         JsonObject t = new JsonObject();
         t.addProperty("block", String.valueOf(block));
         t.addProperty("state", String.valueOf(block.defaultBlockState()));
+        t.addProperty("definition", String.valueOf(block.getStateDefinition()));
+        try {
+            block.defaultBlockState().getValue(net.minecraft.world.level.block.state.properties.BlockStateProperties.FACING);
+            t.addProperty("missing_property", "no error");
+        } catch (Throwable e) {
+            t.addProperty("missing_property", e.getClass().getName() + ": " + e.getMessage());
+        }
         try {
             net.neoforged.neoforge.registries.DeferredHolder a = net.neoforged.neoforge.registries.DeferredHolder.create((net.minecraft.resources.ResourceKey) net.minecraft.core.registries.Registries.BLOCK, id);
             net.neoforged.neoforge.registries.DeferredHolder b = net.neoforged.neoforge.registries.DeferredHolder.create((net.minecraft.resources.ResourceKey) net.minecraft.core.registries.Registries.BLOCK, id);

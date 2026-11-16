@@ -940,7 +940,7 @@ else
 fi
 says "$OUT" "Nothing was compiled or run"
 # The game's stand-ins (game/), translated with the mod where it reaches them.
-says "$OUT" "Stand-ins for the game: 93 classes, not checked against the game's (no --server)."
+says "$OUT" "Stand-ins for the game: 98 classes, not checked against the game's (no --server)."
 says "$TR/out/translation.md" '- `com.example.numbers.Places.keys(I)Ljava/lang/String;` as `places__keys`'
 says "$TR/out/translated.rs" '/// `net.minecraft.core.Vec3i.compareTo(Lnet/minecraft/core/Vec3i;)I`, translated from its bytecode.'
 says "$TR/out/translated.rs" 'pub fn numbers__collatz(mut l0: i64) -> JR<i64> {'
@@ -990,7 +990,7 @@ exits 0 tool translate "$B/jars/gamey.jar" --server "$TR/server" --out "$TR/game
 says "$OUT" "Read: the supertypes of 4 classes of the game, NeoForge and their libraries, from 1 jars in"
 # Each stand-in checked against the server's class: one whose interfaces differ, one that would inherit a method the
 # game's declares, are left out.
-says "$OUT" "Stand-ins for the game: 91 classes, checked against the game's."
+says "$OUT" "Stand-ins for the game: 96 classes, checked against the game's."
 says "$OUT" "- left out: net.minecraft.core.Vec3i: its superclass or interfaces aren't the game's"
 says "$OUT" "- left out: net.minecraft.core.BlockPos: the game's class declares getX()I, which the stand-in would take from net.minecraft.core.Vec3i"
 says "$TR/gamey-out/translation.md" "- left out: net.minecraft.core.Vec3i"
@@ -1043,8 +1043,8 @@ for v in same upper; do
   jar --create --file "$SI/$v/libraries/net/neoforged/neoforge/21.1.1/neoforge-21.1.1-server.jar" -C "$SI/$v-classes" .
 done
 exits 0 tool standins --server "$SI/same"
-says "$OUT" "ok: the 93 stand-ins have the supertypes and the methods of the server's classes"
-says "$OUT" "ok: the game and the stand-ins give the same 20229 answers to the probe"
+says "$OUT" "ok: the 98 stand-ins have the supertypes and the methods of the server's classes"
+says "$OUT" "ok: the game and the stand-ins give the same 20231 answers to the probe"
 says "$OUT" "no server, no world, no mod"
 no_file logs
 exits 1 tool standins --server "$SI/upper"
@@ -1068,7 +1068,7 @@ javac --release 21 -cp "build/model:$BR/stubs" -d "$BR/classes" $(find testmod/c
 cp -r testmod/counter/resources/. "$BR/jar/"
 jar --create --file "$B/jars/counter.jar" -C "$BR/jar" . -C "$BR/classes" com
 exits 0 tool translate "$B/jars/counter.jar" --out "$BR/out" --bridge super::java
-says "$OUT" "counter.jar: 14 of 14 methods translated from their bytecode"
+says "$OUT" "counter.jar: 16 of 16 methods translated from their bytecode"
 says "$OUT" "bridge.rs, Horizon's side of the bridge, which reaches the translation as super::java."
 says "$BR/out/translated.rs" "pub fn jexport_mod(bus: Ref) -> JR<Ref> {"
 says "$BR/out/bridge.rs" "use super::java as j;"
@@ -1086,8 +1086,9 @@ if command -v rustc > /dev/null; then
     says "$BR/ran.txt" 'loaded: below=String(JavaString([66, 108, 111, 99, 107, 123, 109, 105, 110, 101, 99, 114, 97, 102, 116, 58, 97, 105, 114, 125])) horizon=Int(7) seconds=Long(3) ticks=Int(70)'
     # Its compound changed by something else: made again from it.
     says "$BR/ran.txt" "seconds=Long(2) ticks=Int(1005)"
-    # The block below, asked of the world once a second: at 20 and 40 ticks, then at 60.
-    says "$BR/ran.txt" "asked: 3"
+    # Each tick, the state there (the ticker gets the world's); each second, the block below and the state again, then
+    # lit switched: at 20 and 40 ticks, then at 60 elsewhere. 84 questions; lit twice, put out once.
+    says "$BR/ran.txt" "asked: 84; lit 2 times; lit now at (1, 2, 3): Some(false)"
     says "$BR/ran.txt" "round trip: true"
     no_text "$BR/said.txt"
   else

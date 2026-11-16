@@ -38,8 +38,8 @@ public abstract class BlockBehaviour implements FeatureElement {
 
     /** The stand-in for BlockBehaviour.BlockStateBase: a state of a block. */
     public abstract static class BlockStateBase extends StateHolder<Block, BlockState> {
-        protected BlockStateBase(Block owner) {
-            super(owner);
+        protected BlockStateBase(Block owner, java.util.Map<net.minecraft.world.level.block.state.properties.Property<?>, Comparable<?>> values) {
+            super(owner, values);
         }
 
         public Block getBlock() {

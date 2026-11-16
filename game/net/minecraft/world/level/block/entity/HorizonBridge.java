@@ -74,7 +74,12 @@ public final class HorizonBridge {
     /** One tick of a block entity with its ticker, as the level runs it. */
     @SuppressWarnings({"unchecked", "rawtypes"})
     public static void tickWith(BlockEntityTicker ticker, BlockEntity entity) {
-        ticker.tick(LEVEL, entity.getBlockPos(), entity.getBlockState(), entity);
+        // The state in the world now (its properties may have changed since the last tick); the block entity's
+        // follows it when it is still its block's, as the level keeps them together.
+        BlockState state = LEVEL.getBlockState(entity.getBlockPos());
+        if (state.getBlock() == entity.getBlockState().getBlock()) entity.setBlockState(state);
+        else state = entity.getBlockState();
+        ticker.tick(LEVEL, entity.getBlockPos(), state, entity);
     }
 
     public static void load(BlockEntity entity, CompoundTag tag) {

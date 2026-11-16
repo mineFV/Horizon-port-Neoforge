@@ -7,16 +7,37 @@ import net.neoforged.neoforge.common.extensions.IBlockExtension;
 
 /** The stand-in for the game's Block: its default state (one, as a block without properties has). */
 public class Block extends BlockBehaviour implements ItemLike, IBlockExtension {
+    /** Its states: those of the properties it adds (createBlockStateDefinition), one when it adds none. */
+    protected final net.minecraft.world.level.block.state.StateDefinition<Block, BlockState> stateDefinition;
     private BlockState defaultState;
     private net.minecraft.resources.ResourceLocation horizonId;
 
     public Block(BlockBehaviour.Properties properties) {
         super(properties);
+        net.minecraft.world.level.block.state.StateDefinition.Builder<Block, BlockState> builder = new net.minecraft.world.level.block.state.StateDefinition.Builder<>(this);
+        createBlockStateDefinition(builder);
+        this.stateDefinition = builder.horizonCreate(BlockState::new);
+        registerDefaultState(stateDefinition.any());
+    }
+
+    /** The properties its states have: none here, a mod's block adds its own. */
+    protected void createBlockStateDefinition(net.minecraft.world.level.block.state.StateDefinition.Builder<Block, BlockState> builder) {}
+
+    protected final void registerDefaultState(BlockState state) {
+        this.defaultState = state;
     }
 
     public final BlockState defaultBlockState() {
-        if (defaultState == null) defaultState = new BlockState(this);
         return defaultState;
+    }
+
+    public net.minecraft.world.level.block.state.StateDefinition<Block, BlockState> getStateDefinition() {
+        return stateDefinition;
+    }
+
+    /** HorizonWorld's: the id this block was registered under. Not the game's API. */
+    public net.minecraft.resources.ResourceLocation horizonId() {
+        return horizonId;
     }
 
     /**

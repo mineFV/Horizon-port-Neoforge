@@ -19,6 +19,14 @@ public abstract class Level extends AttachmentHolder implements LevelAccessor, A
         return HorizonWorld.blockState(pos);
     }
 
+    /**
+     * Sets the state at a position, through Horizon's world (HorizonWorld): a change of the properties of the block
+     * there; another block isn't set yet (false), as Horizon's hook points don't write whole blocks.
+     */
+    public boolean setBlock(net.minecraft.core.BlockPos pos, net.minecraft.world.level.block.state.BlockState state, int flags) {
+        return HorizonWorld.setBlock(pos, state, flags);
+    }
+
     /** Not modelled: what closing a level does is the game's. */
     @Override
     public native void close();

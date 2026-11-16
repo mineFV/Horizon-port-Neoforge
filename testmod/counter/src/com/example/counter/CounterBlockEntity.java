@@ -10,7 +10,7 @@ import net.minecraft.world.level.block.state.BlockState;
 /**
  * Counts its server ticks; every 20, adds a second to its total, notes the block below it, and marks itself changed.
  * All are saved, so the count goes on after the world is reloaded: what Horizon's save must carry over. The block
- * below is read from the level: what Horizon's world must answer.
+ * below is read from the level, and the block is lit or put out each second: what Horizon's world must answer and do.
  */
 public class CounterBlockEntity extends BlockEntity {
     private int ticks;
@@ -26,6 +26,7 @@ public class CounterBlockEntity extends BlockEntity {
         if (counter.ticks % 20 == 0) {
             counter.seconds++;
             counter.below = level.getBlockState(pos.below()).getBlock().toString();
+            level.setBlock(pos, state.setValue(CounterBlock.LIT, !state.getValue(CounterBlock.LIT)), 3);
             counter.setChanged();
         }
     }

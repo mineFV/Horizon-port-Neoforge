@@ -19,6 +19,14 @@ final class RegistryProbe {
         p("key order", () -> a.compareTo(c) + " " + c.compareTo(a) + " " + a.compareTo(b) + " " + ResourceKey.create(block, counter).compareTo(a));
         p("key registry made", () -> (ResourceKey.createRegistryKey(ResourceLocation.withDefaultNamespace("block")) == block) + " " + ResourceKey.createRegistryKey(counter));
         // A DeferredHolder binds to the game's registries when it is made, which need the game started: not asked here.
+        // BlockStateProperties needs the game's registries (its sounds): its LIT is BooleanProperty.create("lit").
+        net.minecraft.world.level.block.state.properties.BooleanProperty lit = net.minecraft.world.level.block.state.properties.BooleanProperty.create("lit");
+        net.minecraft.world.level.block.state.properties.BooleanProperty made = net.minecraft.world.level.block.state.properties.BooleanProperty.create("lit");
+        p("property", () -> lit + " " + lit.getName() + " " + lit.getValueClass().getName() + " " + lit.getPossibleValues() + " " + lit.getName(true) + " " + lit.getName(false)
+                + " " + lit.getValue("true") + " " + lit.getValue("TRUE") + " " + lit.getValue("x") + " " + lit.equals(made) + " " + (lit == made) + " " + (lit.hashCode() == made.hashCode())
+                + " " + lit.equals(net.minecraft.world.level.block.state.properties.BooleanProperty.create("powered")) + " " + (lit.hashCode() == lit.generateHashCode()));
+        // A property's hash starts from its class object's, which changes from run to run: only differences are asked.
+        p("property hash", () -> (lit.generateHashCode() - net.minecraft.world.level.block.state.properties.BooleanProperty.create("x").generateHashCode()) + " " + (lit.generateHashCode() == made.generateHashCode()));
     }
 
     static void p(String key, java.util.function.Supplier<Object> call) {

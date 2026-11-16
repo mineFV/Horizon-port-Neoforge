@@ -1,1 +1,1 @@
-{ "variants": { "": { "model": "counter:block/counter" } } }
+{ "variants": { "lit=false": { "model": "counter:block/counter" }, "lit=true": { "model": "counter:block/counter_lit" } } }

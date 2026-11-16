@@ -19,17 +19,42 @@ fn shown(c: &Compound) -> String {
     parts.join(" ")
 }
 
-/// A made-up world: stone below y = 2, air above; how many questions it was asked.
+/// A made-up world: stone below y = 2, air above, the Counter block at the positions ticked, with its `lit` kept;
+/// how many questions it was asked, and how many times it was lit.
 static ASKED: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+static LIT: std::sync::Mutex<Option<std::collections::HashMap<(i32, i32, i32), bool>>> = std::sync::Mutex::new(None);
+static LIT_ON: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+const COUNTERS: [(i32, i32, i32); 2] = [(1, 2, 3), (4, 5, 6)];
 
 fn world(question: &[u16]) -> Option<Vec<u16>> {
     ASKED.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
     let q = String::from_utf16_lossy(question);
     let words: Vec<&str> = q.split(' ').collect();
-    match words.as_slice() {
-        ["block", _, y, _] => Some((if y.parse::<i32>().ok()? < 2 { "minecraft:stone" } else { "minecraft:air" }).encode_utf16().collect()),
-        _ => None,
-    }
+    let mut lit = LIT.lock().unwrap();
+    let lit = lit.get_or_insert_with(std::collections::HashMap::new);
+    let answer = match words.as_slice() {
+        ["block", x, y, z] => {
+            let at = (x.parse::<i32>().ok()?, y.parse::<i32>().ok()?, z.parse::<i32>().ok()?);
+            if COUNTERS.contains(&at) {
+                format!("counter:counter[lit={}]", lit.get(&at).copied().unwrap_or(false))
+            } else if at.1 < 2 {
+                "minecraft:stone".to_string()
+            } else {
+                "minecraft:air".to_string()
+            }
+        }
+        ["set", x, y, z, "lit", value, "3"] => {
+            let at = (x.parse::<i32>().ok()?, y.parse::<i32>().ok()?, z.parse::<i32>().ok()?);
+            let on = *value == "true";
+            let was = lit.insert(at, on).unwrap_or(false);
+            if on && !was {
+                LIT_ON.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+            }
+            (was != on).to_string()
+        }
+        _ => return None,
+    };
+    Some(answer.encode_utf16().collect())
 }
 
 fn ticks(at: [i32; 3], n: usize, nbt: &mut Compound) -> usize {
@@ -58,7 +83,8 @@ fn main() {
     edited.insert(JavaString::from("ticks"), Tag::Int(1000));
     ticks([1, 2, 3], 5, &mut edited);
     println!("edited: {}", shown(&edited));
-    println!("asked: {}", ASKED.load(std::sync::atomic::Ordering::Relaxed));
+    println!("asked: {}; lit {} times; lit now at (1, 2, 3): {:?}", ASKED.load(std::sync::atomic::Ordering::Relaxed), LIT_ON.load(std::sync::atomic::Ordering::Relaxed),
+        LIT.lock().unwrap().as_ref().and_then(|m| m.get(&(1, 2, 3)).copied()));
     // Every kind of tag, to the mod's and back.
     let mut all = Compound::new();
     all.insert(JavaString::from("b"), Tag::Byte(-3));
