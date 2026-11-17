@@ -79,6 +79,11 @@ final class Machines {
      * block entities whose type one block makes through it.
      */
     static Made apply(Path mod, String modId, Map<String, Object> machines, EventTable table, JarRust.Result java) throws IOException {
+        return apply(mod, modId, machines, table, java, null);
+    }
+
+    /** info: the mod's metadata, for the container the bridge gives its constructor (its id when null). */
+    static Made apply(Path mod, String modId, Map<String, Object> machines, EventTable table, JarRust.Result java, ModInfo info) throws IOException {
         bridgeProblem = null;
         Path manifestFile = mod.resolve("horizon-mixin.toml");
         String manifest = Files.readString(manifestFile, StandardCharsets.UTF_8);
@@ -123,7 +128,7 @@ final class Machines {
             });
             bridgeModule = module + "_bridge";
             Files.writeString(mod.resolve("java.rs"), java.rust(), StandardCharsets.UTF_8);
-            Files.writeString(mod.resolve("bridge.rs"), BridgeRust.module("super::" + module + "_java", modId, functions), StandardCharsets.UTF_8);
+            Files.writeString(mod.resolve("bridge.rs"), BridgeRust.module("super::" + module + "_java", info != null ? info : ModInfo.minimal(modId), functions), StandardCharsets.UTF_8);
         }
         for (String name : HOOKS) {
             Body body = name.equals("block_entity_tick") && !bridged.isEmpty() ? bridgedTick(bridged, bridgeModule, blocks) : body(name, blocks, notes);

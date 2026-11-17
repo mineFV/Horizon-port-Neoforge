@@ -23,6 +23,7 @@ final class BridgeRust {
     /** HorizonBridge's methods the module calls, by name and descriptor. */
     static final List<String[]> NEEDED = List.of(
             new String[] {"bus", "()Lnet/neoforged/bus/api/IEventBus;"},
+            new String[] {"container", "(Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Lnet/neoforged/bus/api/IEventBus;)Lnet/neoforged/fml/ModContainer;"},
             new String[] {"make", "(Ljava/lang/String;III)Lnet/minecraft/world/level/block/entity/BlockEntity;"},
             new String[] {"ticker", "(Lnet/minecraft/world/level/block/entity/BlockEntity;)Lnet/minecraft/world/level/block/entity/BlockEntityTicker;"},
             new String[] {"tickWith", "(Lnet/minecraft/world/level/block/entity/BlockEntityTicker;Lnet/minecraft/world/level/block/entity/BlockEntity;)V"},
@@ -62,7 +63,7 @@ final class BridgeRust {
     /** The function each needed method is in the translation; null (with `missing` filled) when one isn't translated. */
     static Map<String, String> functions(JarRust.Result translation, List<String> missing) {
         Map<String, String> out = new TreeMap<>();
-        if (!translation.rust().contains("pub fn jexport_mod(")) missing.add("the mod's own object (its one @Mod class, made with its event bus or nothing)");
+        if (!translation.rust().contains("pub fn jexport_mod(")) missing.add("the mod's own object (its one @Mod class, whose constructor is translated)");
         for (String[] m : NEEDED) {
             String f = translation.functions().get(new JarRust.Id(BRIDGE, m[0], m[1]));
             if (f == null) missing.add("HorizonBridge." + m[0]);
@@ -75,8 +76,10 @@ final class BridgeRust {
      * The module's text. java: the translation's module, as the bridge module names it (`super::port_x_java`); modId:
      * for what the module says when something goes wrong.
      */
-    static String module(String java, String modId, Map<String, String> f) {
-        String t = TEMPLATE.replace("{JAVA}", java).replace("{MOD}", modId);
+    static String module(String java, ModInfo info, Map<String, String> f) {
+        String t = TEMPLATE.replace("{JAVA}", java).replace("{MOD}", info.id())
+                .replace("{MOD_ID_TEXT}", Machines.rust(info.id())).replace("{MOD_VERSION_TEXT}", Machines.rust(info.version()))
+                .replace("{MOD_NAME_TEXT}", Machines.rust(info.name()));
         for (Map.Entry<String, String> e : f.entrySet()) t = t.replace("{" + e.getKey() + "}", "j::" + e.getValue());
         return t;
     }
@@ -127,7 +130,8 @@ final class BridgeRust {
             /// happen then. What went wrong, if anything.
             static LOADED: LazyLock<Result<(), String>> = LazyLock::new(|| {
                 let bus = {bus}().map_err(|e| j::jdescribe(&e))?;
-                j::jexport_mod(bus).map(|_| ()).map_err(|e| j::jdescribe(&e))
+                let container = {container}(text({MOD_ID_TEXT}), text({MOD_VERSION_TEXT}), text({MOD_NAME_TEXT}), bus.clone()).map_err(|e| j::jdescribe(&e))?;
+                j::jexport_mod(bus, container).map(|_| ()).map_err(|e| j::jdescribe(&e))
             });
 
             // The mod's Java runs on a thread of its own. What it asks of the world (HorizonWorld.ask) goes to the thread

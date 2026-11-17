@@ -17,4 +17,9 @@ record ModInfo(String loader, String metadataFile, String id, String name, Strin
         mixinConfigs = List.copyOf(mixinConfigs);
         warnings = List.copyOf(warnings);
     }
+
+    /** What is known of a mod by its id alone: its name is its id, its version "0". */
+    static ModInfo minimal(String id) {
+        return new ModInfo("neoforge", null, id, id, "0", null, List.of(), List.of(), List.of(), List.of());
+    }
 }

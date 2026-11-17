@@ -190,7 +190,8 @@ final class JarRust {
             break;
         }
         // The model's own methods aren't the mod's: only the mod's are reported.
-        why.keySet().removeIf(id -> !world.jar.contains(id.owner()));
+        // HORIZONNEO_ALL_REASONS (a diagnostic): keep the reasons of the model's and the bridge's methods too.
+        if (System.getenv("HORIZONNEO_ALL_REASONS") == null) why.keySet().removeIf(id -> !world.jar.contains(id.owner()));
         return new Result(methods, translated, why, rust, functionNames);
     }
 
@@ -199,7 +200,7 @@ final class JarRust {
     /**
      * What Horizon's side of the bridge (BridgeRust) calls that Java can't name: `jexport_mod`, which makes the mod's
      * object as NeoForge does when it loads the mod (its class initialized, then its constructor run, given the mod's
-     * event bus). Written when the jar has one @Mod class whose constructor, taking the bus or nothing, is translated.
+     * event bus and its container, as it asks). Written when the jar has one @Mod class whose constructor is translated.
      */
     static String exports(JavaWorld world, Writing w, Map<Id, String> names) {
         List<ClassData> mods = new ArrayList<>();
@@ -209,17 +210,29 @@ final class JarRust {
         }
         if (mods.size() != 1) return "";
         ClassData mod = mods.get(0);
-        for (String descriptor : List.of("(" + BUS + ")V", "()V")) {
+        // NeoForge gives a mod's constructor what it asks for among the bus and the container, in either order.
+        String container = "Lnet/neoforged/fml/ModContainer;";
+        for (String descriptor : List.of("(" + BUS + container + ")V", "(" + container + BUS + ")V", "(" + BUS + ")V", "(" + container + ")V", "()V")) {
             String init = names.get(new Id(mod.name, "<init>", descriptor));
             if (init == null || !world.concrete(mod.name)) continue;
-            boolean bus = descriptor.contains(BUS);
+            List<String> args = new ArrayList<>();
+            String rest = descriptor.substring(1, descriptor.indexOf(')'));
+            while (!rest.isEmpty()) {
+                if (rest.startsWith(BUS)) {
+                    args.add("bus.clone()");
+                    rest = rest.substring(BUS.length());
+                } else {
+                    args.add("container.clone()");
+                    rest = rest.substring(container.length());
+                }
+            }
             return "\n/// The mod's object (" + mod.name.replace('/', '.') + "), made as NeoForge makes it when it loads the mod: its class\n"
-                    + "/// initialized, then its constructor run" + (bus ? ", given the mod's event bus" : "") + ". What the bridge calls first.\n"
-                    + "#[allow(dead_code)]\npub fn jexport_mod(bus: Ref) -> JR<Ref> {\n"
-                    + (bus ? "" : "    let _ = bus;\n")
+                    + "/// initialized, then its constructor run, given what it asks for of its event bus and its container. What the\n/// bridge calls first.\n"
+                    + "#[allow(dead_code)]\npub fn jexport_mod(bus: Ref, container: Ref) -> JR<Ref> {\n"
+                    + "    let _ = (&bus, &container);\n"
                     + "    " + w.init(mod.name) + "()?;\n"
                     + "    let o = jnew(" + w.id(mod.name) + ", b\"" + world.layout(mod.name) + "\");\n"
-                    + "    " + init + "(o.clone()" + (bus ? ", bus" : "") + ")?;\n    Ok(o)\n}\n";
+                    + "    " + init + "(o.clone()" + (args.isEmpty() ? "" : ", " + String.join(", ", args)) + ")?;\n    Ok(o)\n}\n";
         }
         return "";
     }

@@ -148,7 +148,7 @@ public final class Main {
             if (functions == null) {
                 out.println("problem: no bridge: the translation lacks " + String.join(", ", missing));
             } else {
-                java.nio.file.Files.writeString(dir.resolve("bridge.rs"), BridgeRust.module(line.options().get("--bridge"), id, functions), java.nio.charset.StandardCharsets.UTF_8);
+                java.nio.file.Files.writeString(dir.resolve("bridge.rs"), BridgeRust.module(line.options().get("--bridge"), NeoForgeFrontend.read(jar).info(), functions), java.nio.charset.StandardCharsets.UTF_8);
                 out.println("Written: " + dir.resolve("bridge.rs") + ", Horizon's side of the bridge, which reaches the translation as " + line.options().get("--bridge") + ".");
             }
         }

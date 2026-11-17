@@ -47,6 +47,11 @@ public final class HorizonBridge {
         return new net.neoforged.bus.api.HorizonEventBus();
     }
 
+    /** The mod's container, from its neoforge.mods.toml, which its constructor may be given with its bus. */
+    public static net.neoforged.fml.ModContainer container(String modId, String version, String displayName, net.neoforged.bus.api.IEventBus bus) {
+        return new net.neoforged.fml.HorizonModContainer(modId, version, displayName, bus);
+    }
+
     public static Level level() {
         return LEVEL;
     }

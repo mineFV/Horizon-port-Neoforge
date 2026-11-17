@@ -143,7 +143,7 @@ final class Bundle {
             }
         }
         List<Wiring.Wired> listeners = table == null ? List.of() : Wiring.apply(mod, id, analysis, table, approximate);
-        Machines.Made made = table == null || machines == null ? null : Machines.apply(mod, id, machines, table, java);
+        Machines.Made made = table == null || machines == null ? null : Machines.apply(mod, id, machines, table, java, info);
 
         Map<String, Handler> theirs = mixinStatuses(dir.resolve("report").resolve("report.json"));
         Translation translation = translation(dir.resolve("report").resolve("translation.md"));
