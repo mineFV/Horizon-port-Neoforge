@@ -1054,6 +1054,11 @@ exits 2 tool standins
 says "$ERR" '`standins` needs --server'
 exits 2 tool standins --server "$SI/same-src"
 says "$ERR" "isn't a NeoForge server: it has no libraries/ folder"
+# --horizon-src: the probe as a mod in the server, through dump's path; this made-up server's game has no NeoForge
+# events, so the mod doesn't compile, and says so (the real run is by hand: CLAUDE.md).
+exits 1 tool standins --server "$SI/same" --horizon-src "$H"
+says "$OUT" "problem: the probe doesn't compile as a mod against the server's jars"
+says "$OUT" "ok: the game and the stand-ins give the same"
 exits 2 tool standins "$J" --server "$SI/same"
 says "$ERR" '`standins` takes no file, only --server'
 

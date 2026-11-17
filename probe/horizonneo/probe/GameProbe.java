@@ -14,6 +14,9 @@ import net.minecraft.core.Vec3i;
 public final class GameProbe {
     private GameProbe() {}
 
+    /** Where the answers go: standard output, or InServer's file in a server. */
+    static java.io.PrintStream OUT = System.out;
+
     static final int MAX = Integer.MAX_VALUE, MIN = Integer.MIN_VALUE;
     static final int[][] PLACES = {
         {0, 0, 0}, {1, 2, 3}, {-1, -2, -3}, {5, 64, -7}, {3, 64, -7}, {5, 60, -7}, {5, 64, 9},
@@ -229,6 +232,6 @@ public final class GameProbe {
             // stand-ins don't reproduce it (lib/README.md), so only its class is compared.
             shown = "throws " + e.getClass().getName() + (e instanceof NullPointerException ? "" : ": " + e.getMessage());
         }
-        System.out.println(key + " -> " + shown);
+        OUT.println(key + " -> " + shown);
     }
 }

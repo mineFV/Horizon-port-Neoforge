@@ -38,6 +38,14 @@ final class StandIns {
     record Run(List<String> lines, String problem) {}
 
     static int run(Path server, PrintStream out, PrintStream err) throws IOException {
+        return run(server, null, null, out, err);
+    }
+
+    /**
+     * horizonSrc: Horizon's source, whose NeoForge oracle (`dump`'s) runs the probe as a mod in the server, the game's
+     * registries filled: its answers are compared with the stand-ins' too. Null: the probe runs outside only.
+     */
+    static int run(Path server, Path horizonSrc, String python, PrintStream out, PrintStream err) throws IOException {
         List<Path> jars = Dump.classpath(server);
         Map<String, ClassData> model = Library.classes();
         Map<String, ClassData> outside = JavaWorld.outside(jars);
@@ -78,11 +86,81 @@ final class StandIns {
             if (differ > 20) out.println("problem: and " + (differ - 20) + " more differences");
             if (differ == 0) out.println("ok: the game and the stand-ins give the same " + game.lines().size() + " answers to the probe");
             problems += differ;
+            if (horizonSrc != null) problems += inServer(server, horizonSrc, python, cp, work, ours.lines(), out);
             out.println("Ran the game's classes from " + jars.size() + " jars in " + server + " as a library, to observe their answers: no server, no world, no mod.");
             return problems == 0 ? 0 : 1;
         } finally {
             delete(work);
         }
+    }
+
+    static final String SERVER_MOD = "probe/server/horizonneo/probe/InServer.java", SERVER_TOML = "probe/server/META-INF/neoforge.mods.toml";
+
+    /**
+     * The probe as a mod (probe/server/), run in the server by `dump`'s path: its answers, from horizon-probe.txt where
+     * the oracle's server runs, against the stand-ins'. How many differ (1 when it couldn't run).
+     */
+    private static int inServer(Path server, Path horizonSrc, String python, String cp, Path work, List<String> ours, PrintStream out) throws IOException {
+        Path dir = work.resolve("in-server"), classes = dir.resolve("classes");
+        Files.createDirectories(classes.resolve("META-INF"));
+        List<String> sources = new ArrayList<>();
+        for (String probe : new ArrayList<>(PROBES) {{ add(SERVER_MOD); }}) {
+            Path src = dir.resolve("src").resolve(probe.substring(probe.lastIndexOf('/') + 1));
+            Files.createDirectories(src.getParent());
+            try (InputStream in = StandIns.class.getResourceAsStream("/" + probe)) {
+                if (in == null) throw new IOException("this tool's jar doesn't carry " + probe);
+                Files.copy(in, src);
+            }
+            sources.add(src.toString());
+        }
+        try (InputStream in = StandIns.class.getResourceAsStream("/" + SERVER_TOML)) {
+            if (in == null) throw new IOException("this tool's jar doesn't carry " + SERVER_TOML);
+            Files.copy(in, classes.resolve("META-INF/neoforge.mods.toml"));
+        }
+        JavaCompiler javac = ToolProvider.getSystemJavaCompiler();
+        ByteArrayOutputStream said = new ByteArrayOutputStream();
+        List<String> args = new ArrayList<>(List.of("--release", "21", "-proc:none", "-nowarn", "-cp", cp, "-d", classes.toString()));
+        args.addAll(sources);
+        if (javac == null || javac.run(null, said, said, args.toArray(String[]::new)) != 0) {
+            out.println("problem: the probe doesn't compile as a mod against the server's jars: " + firstLine(said.toString(StandardCharsets.UTF_8)));
+            return 1;
+        }
+        Path jar = dir.resolve("horizonprobe.jar");
+        try (java.io.OutputStream file = Files.newOutputStream(jar); java.util.jar.JarOutputStream j = new java.util.jar.JarOutputStream(file);
+             Stream<Path> s = Files.walk(classes)) {
+            for (Path p : s.filter(Files::isRegularFile).sorted().toList()) {
+                j.putNextEntry(new java.util.jar.JarEntry(classes.relativize(p).toString().replace('\\', '/')));
+                Files.copy(p, j);
+                j.closeEntry();
+            }
+        }
+        Path answers = horizonSrc.toAbsolutePath().normalize().resolve(Dump.HOME).resolve("runs").resolve("export").resolve("horizon-probe.txt");
+        Files.deleteIfExists(answers);
+        ByteArrayOutputStream dumpSaid = new ByteArrayOutputStream();
+        ModJar mod = ModJar.open(jar);
+        int exit;
+        try (PrintStream quiet = new PrintStream(dumpSaid, true, StandardCharsets.UTF_8)) {
+            exit = Dump.run(mod, NeoForgeFrontend.read(mod), new Dump.Options(server, horizonSrc, dir.resolve("facts.json"), python), quiet, quiet);
+        } catch (ModsToml.Invalid e) {
+            throw new IOException("the probe's neoforge.mods.toml doesn't read: " + e.getMessage());
+        }
+        if (exit != 0 || !Files.isRegularFile(answers)) {
+            out.println("problem: the probe didn't run in the server (dump's exit " + exit + "):");
+            dumpSaid.toString(StandardCharsets.UTF_8).lines().skip(Math.max(0, dumpSaid.toString(StandardCharsets.UTF_8).lines().count() - 15)).forEach(l -> out.println("  " + l));
+            return 1;
+        }
+        List<String> game = Files.readAllLines(answers, StandardCharsets.UTF_8);
+        Files.deleteIfExists(answers);
+        int differ = 0;
+        for (int i = 0; i < Math.max(game.size(), ours.size()); i++) {
+            String g = i < game.size() ? game.get(i) : "(nothing)";
+            String o = i < ours.size() ? ours.get(i) : "(nothing)";
+            if (g.equals(o)) continue;
+            if (differ++ < 20) out.println("problem: in a server, the game gives `" + g + "`, the stand-ins `" + o + "`");
+        }
+        if (differ > 20) out.println("problem: and " + (differ - 20) + " more differences in the server");
+        if (differ == 0) out.println("ok: in a NeoForge server, the game and the stand-ins give the same " + game.size() + " answers to the probe");
+        return differ;
     }
 
     /** The model's classes, out of this tool's jar, as a folder a JVM runs them from. */

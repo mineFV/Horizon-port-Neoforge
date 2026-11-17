@@ -1,0 +1,9 @@
+# horizon-port-neoforge's probe, as a NeoForge mod: it observes the game in a server (`standins --horizon-src`).
+modLoader = "javafml"
+loaderVersion = "[1,)"
+license = "MIT"
+
+[[mods]]
+modId = "horizonprobe"
+version = "1.0.0"
+displayName = "horizon-port-neoforge's probe"
