@@ -50,6 +50,7 @@ public final class GameProbe {
         EquipProbe.run();
         RegistryProbe.run();
         ModProbe.run();
+        LogProbe.run();
         // What needs the game started: in a server only (InServer gives "server").
         if (args.length > 0 && args[0].equals("server")) {
             ItemProbe.run();
@@ -57,6 +58,7 @@ public final class GameProbe {
             CapabilityProbe.run();
             TextProbe.run();
             TagProbe.run();
+            LogProbe.levels();
         }
     }
 

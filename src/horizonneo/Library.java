@@ -107,6 +107,16 @@ final class Library {
                         Ok(if t == 0 { None } else { jclass_object(t) })
                     }
                     """)),
+            Map.entry("com/mojang/logging/HorizonLog.write(Ljava/lang/String;Ljava/lang/String;)V", new Native("jnative_horizon_log", """
+                    /// HorizonLog.write: a log line of the mod's, to Horizon's output (the standard error), with its level.
+                    #[allow(dead_code)]
+                    fn jnative_horizon_log(level: Ref, text: Ref) -> JR<()> {
+                        let level = String::from_utf16_lossy(&jstring_units(&level)?);
+                        let text = String::from_utf16_lossy(&jstring_units(&text)?);
+                        eprintln!("[{}] {}", level, text);
+                        Ok(())
+                    }
+                    """)),
             Map.entry("java/lang/Object.hashCode()I", new Native("jnative_object_hash_code", """
                     /// Object.hashCode: the object's identity, a non-negative int as the JVM gives (its value is its own).
                     #[allow(dead_code)]
