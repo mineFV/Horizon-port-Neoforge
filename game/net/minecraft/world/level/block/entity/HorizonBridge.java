@@ -44,7 +44,7 @@ public final class HorizonBridge {
 
     /** The mod's event bus, which its constructor is given: registering on it has nothing to do here (DeferredRegister). */
     public static net.neoforged.bus.api.IEventBus bus() {
-        return new HorizonBus();
+        return new net.neoforged.bus.api.HorizonEventBus();
     }
 
     public static Level level() {
@@ -218,10 +218,6 @@ public final class HorizonBridge {
     /** A list's or an array's element at i (an array's as a tag of its kind). */
     public static Tag at(Tag listOrArray, int i) {
         return ((CollectionTag<?>) listOrArray).get(i);
-    }
-
-    /** The mod's event bus: the interface's supertypes alone (an addListener on it isn't translated). */
-    static final class HorizonBus implements net.neoforged.bus.api.IEventBus {
     }
 
     /** What the bridge gives a block entity's load and save: the game's registries aren't read. */
