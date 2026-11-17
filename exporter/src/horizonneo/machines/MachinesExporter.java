@@ -135,7 +135,42 @@ public final class MachinesExporter {
         o.add("blocks", blocks);
         // What the stand-ins' Object methods must answer for the game's objects (game/README.md): a level's text.
         o.addProperty("level_text", String.valueOf(level));
+        o.add("game_ids", gameIds());
         return o;
+    }
+
+    /**
+     * The game's ids the stand-ins are given (HorizonRegistries.known): its fluids and component types, and its items'
+     * components, written as horizon-port-neoforge's probe writes them (probe/server/InServer.java).
+     */
+    static JsonObject gameIds() {
+        JsonObject o = new JsonObject();
+        o.addProperty("fluid", String.join(",", new TreeSet<>(BuiltInRegistries.FLUID.keySet().stream().map(ResourceLocation::toString).toList())));
+        o.addProperty("component", String.join(",", new TreeSet<>(BuiltInRegistries.DATA_COMPONENT_TYPE.keySet().stream().map(ResourceLocation::toString).toList())));
+        List<String> items = new java.util.ArrayList<>();
+        for (net.minecraft.world.item.Item item : BuiltInRegistries.ITEM) {
+            String id = BuiltInRegistries.ITEM.getKey(item).toString();
+            if (id.startsWith("minecraft:")) items.add(id + "=" + components(item.components()));
+        }
+        o.addProperty("components", String.join(";", items));
+        return o;
+    }
+
+    /** An item's components: type:value in their order, a value the stand-ins model, else "other" once at the end. */
+    static String components(net.minecraft.core.component.DataComponentMap map) {
+        List<String> parts = new java.util.ArrayList<>();
+        boolean other = false;
+        for (net.minecraft.core.component.TypedDataComponent<?> typed : map) {
+            String key = BuiltInRegistries.DATA_COMPONENT_TYPE.getKey(typed.type()).getPath();
+            Object v = typed.value();
+            if (v instanceof Integer n && Set.of("max_stack_size", "max_damage", "damage", "repair_cost").contains(key)) parts.add(key + ":" + n);
+            else if (v instanceof net.minecraft.world.item.Rarity rarity) parts.add(key + ":" + rarity.getSerializedName());
+            else if (v == net.minecraft.world.item.component.ItemLore.EMPTY || v == net.minecraft.world.item.enchantment.ItemEnchantments.EMPTY
+                    || v == net.minecraft.world.item.component.ItemAttributeModifiers.EMPTY) parts.add(key + ":empty");
+            else other = true;
+        }
+        if (other) parts.add("other");
+        return String.join(",", parts);
     }
 
     /**

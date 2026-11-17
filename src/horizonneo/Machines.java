@@ -68,11 +68,20 @@ final class Machines {
         return m;
     }
 
-    /** The game's item ids Port put in the machines from the facts (`vanilla_items`); null without them. */
-    static List<String> vanillaItems(Map<String, Object> machines) {
-        if (!(machines.get("vanilla_items") instanceof List<?> list)) return null;
-        List<String> out = new ArrayList<>();
-        for (Object o : list) if (o instanceof String s) out.add(s);
+    /**
+     * What the bridge gives the stand-ins of the game's ids (HorizonRegistries.known), by registry: its items, from the
+     * facts (`vanilla_items`, which Port puts in the machines), and its fluids, component types and items' components,
+     * from the machines file (`game_ids`, which a dump since 2026-11-17 writes). A registry left out isn't given.
+     */
+    static Map<String, String> given(Map<String, Object> machines) {
+        Map<String, String> out = new LinkedHashMap<>();
+        if (machines.get("vanilla_items") instanceof List<?> list) {
+            List<String> items = new ArrayList<>();
+            for (Object o : list) if (o instanceof String s) items.add(s);
+            out.put("item", String.join(",", items));
+        }
+        Map<String, Object> ids = Json.object(machines.get("game_ids"));
+        if (ids != null) for (String k : List.of("fluid", "component", "components")) if (Json.text(ids, k) != null) out.put(k, Json.text(ids, k));
         return out;
     }
 
@@ -136,7 +145,7 @@ final class Machines {
             });
             bridgeModule = module + "_bridge";
             Files.writeString(mod.resolve("java.rs"), java.rust(), StandardCharsets.UTF_8);
-            Files.writeString(mod.resolve("bridge.rs"), BridgeRust.module("super::" + module + "_java", info != null ? info : ModInfo.minimal(modId), functions, vanillaItems(machines)), StandardCharsets.UTF_8);
+            Files.writeString(mod.resolve("bridge.rs"), BridgeRust.module("super::" + module + "_java", info != null ? info : ModInfo.minimal(modId), functions, given(machines)), StandardCharsets.UTF_8);
         }
         for (String name : HOOKS) {
             Body body = name.equals("block_entity_tick") && !bridged.isEmpty() ? bridgedTick(bridged, bridgeModule, blocks) : body(name, blocks, notes);

@@ -5,22 +5,48 @@ import net.minecraft.world.level.material.Fluids;
 import net.neoforged.neoforge.common.MutableDataComponentHolder;
 
 /**
- * The stand-in for NeoForge's FluidStack: a fluid and an amount, observed in a server (`standins --horizon-src`).
- * Data components aren't modelled.
+ * The stand-in for NeoForge's FluidStack: a fluid, an amount and components (none of the fluid's own: what the stack
+ * set), observed in a server (`standins --horizon-src`).
  */
 public final class FluidStack implements MutableDataComponentHolder {
     public static final FluidStack EMPTY = new FluidStack((Void) null);
 
     private final Fluid fluid;
     private int amount;
+    private final net.minecraft.core.component.PatchedDataComponentMap components;
 
     private FluidStack(Void nothing) {
         this.fluid = null;
+        this.components = new net.minecraft.core.component.PatchedDataComponentMap(net.minecraft.core.component.DataComponentMap.EMPTY);
     }
 
     public FluidStack(Fluid fluid, int amount) {
+        this(fluid, amount, new net.minecraft.core.component.PatchedDataComponentMap(net.minecraft.core.component.DataComponentMap.EMPTY));
+    }
+
+    private FluidStack(Fluid fluid, int amount, net.minecraft.core.component.PatchedDataComponentMap components) {
         this.fluid = fluid;
         this.amount = amount;
+        this.components = components;
+    }
+
+    @Override
+    public net.minecraft.core.component.DataComponentMap getComponents() {
+        return components;
+    }
+
+    public net.minecraft.core.component.DataComponentPatch getComponentsPatch() {
+        return isEmpty() ? net.minecraft.core.component.DataComponentPatch.EMPTY : components.asPatch();
+    }
+
+    @Override
+    public <T> T set(net.minecraft.core.component.DataComponentType<? super T> type, T value) {
+        return components.set(type, value);
+    }
+
+    @Override
+    public <T> T remove(net.minecraft.core.component.DataComponentType<? extends T> type) {
+        return components.remove(type);
     }
 
     public boolean isEmpty() {
@@ -48,7 +74,7 @@ public final class FluidStack implements MutableDataComponentHolder {
     }
 
     public FluidStack copy() {
-        return isEmpty() ? EMPTY : new FluidStack(fluid, amount);
+        return isEmpty() ? EMPTY : new FluidStack(fluid, amount, components.copy());
     }
 
     public FluidStack copyWithAmount(int n) {
@@ -67,11 +93,13 @@ public final class FluidStack implements MutableDataComponentHolder {
     }
 
     public static boolean isSameFluidSameComponents(FluidStack a, FluidStack b) {
-        return a.getFluid() == b.getFluid();
+        if (a.getFluid() != b.getFluid()) return false;
+        return a.isEmpty() && b.isEmpty() || a.getComponentsPatch().equals(b.getComponentsPatch());
     }
 
+    /** Only whether two are equal was observed (a fluid's hash is its identity's). */
     public static int hashFluidAndComponents(FluidStack stack) {
-        return stack == null ? 0 : 31 * (31 + stack.getFluid().hashCode());
+        return stack == null ? 0 : 31 * (31 + stack.getFluid().hashCode()) + stack.getComponentsPatch().hashCode();
     }
 
     public net.minecraft.core.Holder<Fluid> getFluidHolder() {
@@ -84,6 +112,8 @@ public final class FluidStack implements MutableDataComponentHolder {
         net.minecraft.nbt.CompoundTag tag = new net.minecraft.nbt.CompoundTag();
         tag.putString("id", String.valueOf(getFluid().horizonId()));
         tag.putInt("amount", getAmount());
+        net.minecraft.core.component.DataComponentPatch patch = getComponentsPatch();
+        if (!patch.isEmpty()) tag.put("components", net.minecraft.core.component.HorizonComponentCodecs.encode(patch));
         return tag;
     }
 

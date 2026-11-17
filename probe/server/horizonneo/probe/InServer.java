@@ -18,6 +18,7 @@ import net.neoforged.neoforge.event.server.ServerStartedEvent;
 @Mod("horizonprobe")
 public final class InServer {
     public InServer(IEventBus bus) {
+        ComponentProbe.ITEMS.register(bus);
         NeoForge.EVENT_BUS.addListener(EventPriority.HIGHEST, (ServerStartedEvent event) -> {
             GameProbe.REGISTRIES = event.getServer().registryAccess();
             run();
@@ -31,10 +32,36 @@ public final class InServer {
             java.util.List<String> fluids = new java.util.ArrayList<>();
             for (net.minecraft.resources.ResourceLocation id : net.minecraft.core.registries.BuiltInRegistries.FLUID.keySet()) fluids.add(id.toString());
             java.util.Collections.sort(fluids);
-            Files.writeString(Path.of("horizon-ids.txt"), "fluid " + String.join(",", fluids) + "\n", StandardCharsets.UTF_8);
+            java.util.List<String> components = new java.util.ArrayList<>();
+            for (net.minecraft.resources.ResourceLocation id : net.minecraft.core.registries.BuiltInRegistries.DATA_COMPONENT_TYPE.keySet()) components.add(id.toString());
+            java.util.Collections.sort(components);
+            java.util.List<String> items = new java.util.ArrayList<>();
+            for (net.minecraft.world.item.Item item : net.minecraft.core.registries.BuiltInRegistries.ITEM) {
+                String id = net.minecraft.core.registries.BuiltInRegistries.ITEM.getKey(item).toString();
+                if (id.startsWith("minecraft:")) items.add(id + "=" + horizonneo.probe.InServer.components(item.components()));
+            }
+            Files.writeString(Path.of("horizon-ids.txt"), "fluid " + String.join(",", fluids) + "\ncomponent " + String.join(",", components)
+                    + "\ncomponents " + String.join(";", items) + "\n", StandardCharsets.UTF_8);
         } catch (Exception ignored) {
             // The file's absence tells it.
         }
+    }
+
+    /** An item's components as HorizonRegistries.known("components") takes them: type:value, in their order. */
+    static String components(net.minecraft.core.component.DataComponentMap map) {
+        java.util.List<String> parts = new java.util.ArrayList<>();
+        boolean other = false;
+        for (net.minecraft.core.component.TypedDataComponent<?> typed : map) {
+            String key = net.minecraft.core.registries.BuiltInRegistries.DATA_COMPONENT_TYPE.getKey(typed.type()).getPath();
+            Object v = typed.value();
+            if (v instanceof Integer n && java.util.Set.of("max_stack_size", "max_damage", "damage", "repair_cost").contains(key)) parts.add(key + ":" + n);
+            else if (v instanceof net.minecraft.world.item.Rarity rarity) parts.add(key + ":" + rarity.getSerializedName());
+            else if (v == net.minecraft.world.item.component.ItemLore.EMPTY || v == net.minecraft.world.item.enchantment.ItemEnchantments.EMPTY
+                    || v == net.minecraft.world.item.component.ItemAttributeModifiers.EMPTY) parts.add(key + ":empty");
+            else other = true;
+        }
+        if (other) parts.add("other");
+        return String.join(",", parts);
     }
 
     static void run() {

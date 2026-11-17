@@ -50,6 +50,7 @@ public final class HorizonRegistries {
             if (other == null) {
                 other = new net.minecraft.world.item.Item(new net.minecraft.world.item.Item.Properties());
                 other.horizonRegistered(location);
+                other.horizonGiven(given(id));
                 ITEMS.put(id, other);
             }
             return other;
@@ -77,9 +78,63 @@ public final class HorizonRegistries {
     public static synchronized void known(String registry, String ids) {
         java.util.Set<String> set = new java.util.HashSet<>();
         for (String id : ids.split(",")) if (!id.isEmpty()) set.add(id);
-        if (registry.equals("item")) knownItems = set;
+        if (registry.equals("components")) {
+            given = new HashMap<>();
+            for (String entry : ids.split(";")) {
+                int eq = entry.indexOf('=');
+                if (eq > 0) given.put(entry.substring(0, eq), entry.substring(eq + 1));
+            }
+            for (Map.Entry<String, net.minecraft.world.item.Item> e : ITEMS.entrySet()) e.getValue().horizonGiven(given(e.getKey()));
+            return;
+        }
+        if (registry.equals("component")) knownComponents = set;
+        else if (registry.equals("item")) knownItems = set;
         else if (registry.equals("fluid")) knownFluids = set;
         else throw new IllegalArgumentException(registry);
+    }
+
+    private static Map<String, String> given;
+    private static java.util.Set<String> knownComponents;
+
+    /** Whether the game has a component type of this id (given: "component"). */
+    public static boolean knownComponent(String id) {
+        java.util.Set<String> known;
+        synchronized (HorizonRegistries.class) {
+            known = knownComponents;
+        }
+        if (known == null) throw new IllegalStateException("the game's component ids weren't given (HorizonRegistries.known)");
+        return known.contains(id);
+    }
+
+    /**
+     * The components of the game's item of an id, as given ("components": "id=type:value,...;..." in their order, a
+     * value an int, a rarity's name or "empty" for an empty lore, enchantments or modifiers, and "other" when it has
+     * one more that isn't modelled).
+     */
+    private static net.minecraft.core.component.DataComponentMap given(String id) {
+        String text = given == null ? null : given.get(id);
+        if (text == null) return new net.minecraft.core.component.HorizonGivenComponents(id, null, false);
+        Map<net.minecraft.core.component.DataComponentType<?>, Object> values = new java.util.LinkedHashMap<>();
+        boolean complete = true;
+        for (String part : text.split(",")) {
+            if (part.isEmpty()) continue;
+            int colon = part.indexOf(':');
+            String key = colon < 0 ? part : part.substring(0, colon), value = colon < 0 ? "" : part.substring(colon + 1);
+            switch (key) {
+                case "max_stack_size" -> values.put(net.minecraft.core.component.DataComponents.MAX_STACK_SIZE, Integer.parseInt(value));
+                case "max_damage" -> values.put(net.minecraft.core.component.DataComponents.MAX_DAMAGE, Integer.parseInt(value));
+                case "damage" -> values.put(net.minecraft.core.component.DataComponents.DAMAGE, Integer.parseInt(value));
+                case "repair_cost" -> values.put(net.minecraft.core.component.DataComponents.REPAIR_COST, Integer.parseInt(value));
+                case "rarity" -> {
+                    for (net.minecraft.world.item.Rarity r : net.minecraft.world.item.Rarity.values()) if (r.getSerializedName().equals(value)) values.put(net.minecraft.core.component.DataComponents.RARITY, r);
+                }
+                case "lore" -> values.put(net.minecraft.core.component.DataComponents.LORE, net.minecraft.world.item.component.ItemLore.EMPTY);
+                case "enchantments" -> values.put(net.minecraft.core.component.DataComponents.ENCHANTMENTS, net.minecraft.world.item.enchantment.ItemEnchantments.EMPTY);
+                case "attribute_modifiers" -> values.put(net.minecraft.core.component.DataComponents.ATTRIBUTE_MODIFIERS, net.minecraft.world.item.component.ItemAttributeModifiers.EMPTY);
+                default -> complete = false;
+            }
+        }
+        return new net.minecraft.core.component.HorizonGivenComponents(id, values, complete);
     }
 
     /** The item registered under an id (the mod's own or the game's); null when there is none. */
@@ -126,6 +181,7 @@ public final class HorizonRegistries {
         }
         if (made instanceof net.minecraft.world.level.block.Block block) block.horizonRegistered(key.location());
         if (made instanceof net.minecraft.world.item.Item item) item.horizonRegistered(key.location());
+        if (made instanceof net.minecraft.core.component.DataComponentType<?> type) net.minecraft.core.component.DataComponentType.horizonRegistered(type, key.location());
         return made;
     }
 }

@@ -6,17 +6,19 @@ import net.neoforged.neoforge.common.MutableDataComponentHolder;
 import net.neoforged.neoforge.common.extensions.IItemStackExtension;
 
 /**
- * The stand-in for the game's ItemStack: an item and a count, observed in a server (`standins --horizon-src`). Data
- * components aren't modelled: a stack's are its item's defaults.
+ * The stand-in for the game's ItemStack: an item, a count and its components (the item's, and what the stack changed of
+ * them), observed in a server (`standins --horizon-src`).
  */
 public final class ItemStack implements DataComponentHolder, MutableDataComponentHolder, IItemStackExtension {
     public static final ItemStack EMPTY = new ItemStack((Void) null);
 
     private final Item item;
     private int count;
+    private final net.minecraft.core.component.PatchedDataComponentMap components;
 
     private ItemStack(Void nothing) {
         this.item = null;
+        this.components = new net.minecraft.core.component.PatchedDataComponentMap(net.minecraft.core.component.DataComponentMap.EMPTY);
     }
 
     public ItemStack(ItemLike item) {
@@ -24,8 +26,81 @@ public final class ItemStack implements DataComponentHolder, MutableDataComponen
     }
 
     public ItemStack(ItemLike item, int count) {
-        this.item = (Item) item;
+        this((Item) item, count, new net.minecraft.core.component.PatchedDataComponentMap(((Item) item).components()));
+    }
+
+    public ItemStack(net.minecraft.core.Holder<Item> item) {
+        this(item.value(), 1);
+    }
+
+    public ItemStack(net.minecraft.core.Holder<Item> item, int count) {
+        this(item.value(), count);
+    }
+
+    public ItemStack(net.minecraft.core.Holder<Item> item, int count, net.minecraft.core.component.DataComponentPatch patch) {
+        this(item.value(), count);
+        components.applyPatch(patch);
+    }
+
+    private ItemStack(Item item, int count, net.minecraft.core.component.PatchedDataComponentMap components) {
+        this.item = item;
         this.count = count;
+        this.components = components;
+    }
+
+    @Override
+    public net.minecraft.core.component.DataComponentMap getComponents() {
+        return isEmpty() ? net.minecraft.core.component.DataComponentMap.EMPTY : components;
+    }
+
+    public net.minecraft.core.component.DataComponentMap getPrototype() {
+        return isEmpty() ? net.minecraft.core.component.DataComponentMap.EMPTY : getItem().components();
+    }
+
+    public net.minecraft.core.component.DataComponentPatch getComponentsPatch() {
+        return isEmpty() ? net.minecraft.core.component.DataComponentPatch.EMPTY : components.asPatch();
+    }
+
+    @Override
+    public <T> T set(net.minecraft.core.component.DataComponentType<? super T> type, T value) {
+        return components.set(type, value);
+    }
+
+    @Override
+    public <T> T remove(net.minecraft.core.component.DataComponentType<? extends T> type) {
+        return components.remove(type);
+    }
+
+    public void applyComponents(net.minecraft.core.component.DataComponentPatch patch) {
+        components.applyPatch(patch);
+    }
+
+    public int getMaxStackSize() {
+        return getItem().getMaxStackSize(this);
+    }
+
+    public boolean isStackable() {
+        return getMaxStackSize() > 1 && (!isDamageableItem() || !isDamaged());
+    }
+
+    public boolean isDamageableItem() {
+        return has(net.minecraft.core.component.DataComponents.MAX_DAMAGE) && has(net.minecraft.core.component.DataComponents.DAMAGE);
+    }
+
+    public boolean isDamaged() {
+        return isDamageableItem() && getItem().isDamaged(this);
+    }
+
+    public int getDamageValue() {
+        return getItem().getDamage(this);
+    }
+
+    public void setDamageValue(int damage) {
+        getItem().setDamage(this, damage);
+    }
+
+    public int getMaxDamage() {
+        return getItem().getMaxDamage(this);
     }
 
     public boolean isEmpty() {
@@ -60,7 +135,7 @@ public final class ItemStack implements DataComponentHolder, MutableDataComponen
     }
 
     public ItemStack copy() {
-        return isEmpty() ? EMPTY : new ItemStack(item, count);
+        return isEmpty() ? EMPTY : new ItemStack(item, count, components.copy());
     }
 
     public ItemStack copyWithCount(int n) {
@@ -79,11 +154,13 @@ public final class ItemStack implements DataComponentHolder, MutableDataComponen
     }
 
     public static boolean isSameItemSameComponents(ItemStack a, ItemStack b) {
-        return a.getItem() == b.getItem();
+        if (a.getItem() != b.getItem()) return false;
+        return a.isEmpty() && b.isEmpty() || a.getComponentsPatch().equals(b.getComponentsPatch());
     }
 
+    /** Only whether two are equal was observed (an item's hash is its identity's). */
     public static int hashItemAndComponents(ItemStack stack) {
-        return stack == null ? 0 : 31 * (31 + stack.getItem().hashCode());
+        return stack == null ? 0 : 31 * (31 + stack.getItem().hashCode()) + stack.getComponentsPatch().hashCode();
     }
 
     public net.minecraft.core.Holder<Item> getItemHolder() {
@@ -101,6 +178,8 @@ public final class ItemStack implements DataComponentHolder, MutableDataComponen
         net.minecraft.nbt.CompoundTag tag = new net.minecraft.nbt.CompoundTag();
         tag.putString("id", String.valueOf(getItem()));
         tag.putInt("count", n);
+        net.minecraft.core.component.DataComponentPatch patch = getComponentsPatch();
+        if (!patch.isEmpty()) tag.put("components", net.minecraft.core.component.HorizonComponentCodecs.encode(patch));
         return tag;
     }
 
@@ -121,7 +200,11 @@ public final class ItemStack implements DataComponentHolder, MutableDataComponen
         if (item == null || item == Items.AIR) return java.util.Optional.empty();
         int count = c.contains("count", 99) ? c.getInt("count") : 1;
         if (count < 1 || count > 99) count = 1;
-        return java.util.Optional.of(new ItemStack(item, count));
+        ItemStack stack = new ItemStack(item, count);
+        if (c.contains("components")) {
+            stack.applyComponents(net.minecraft.core.component.HorizonComponentCodecs.decode(c.get("components")));
+        }
+        return java.util.Optional.of(stack);
     }
 
     public static ItemStack parseOptional(net.minecraft.core.HolderLookup.Provider registries, net.minecraft.nbt.CompoundTag tag) {

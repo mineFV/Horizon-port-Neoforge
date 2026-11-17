@@ -79,18 +79,25 @@ final class BridgeRust {
      */
     static final String FLUIDS = "minecraft:empty,minecraft:flowing_lava,minecraft:flowing_water,minecraft:lava,minecraft:water";
 
-    /** As module(java, info, f, items), the game's item ids not given: what needs them (ItemStack.parse) throws. */
+    /** As module(java, info, f, given), the game's ids not given but its fluids': what needs them (ItemStack.parse) throws. */
     static String module(String java, ModInfo info, Map<String, String> f) {
-        return module(java, info, f, null);
+        return module(java, info, f, Map.of());
     }
 
     /**
      * The module's text. java: the translation's module, as the bridge module names it (`super::port_x_java`); info:
-     * the mod's metadata; items: the game's item ids, as `dump` read them (the facts' vanilla_items), null when unknown.
+     * the mod's metadata; given: the game's ids, by registry, as `dump` read them (Machines.given); its fluids are
+     * these observed (FLUIDS) when not given.
      */
-    static String module(String java, ModInfo info, Map<String, String> f, List<String> items) {
-        String given = "{known}(text(\"fluid\"), text(" + Machines.rust(FLUIDS) + ")).map_err(|e| j::jdescribe(&e))?;";
-        if (items != null) given += "\n    {known}(text(\"item\"), text(" + Machines.rust(String.join(",", items)) + ")).map_err(|e| j::jdescribe(&e))?;";
+    static String module(String java, ModInfo info, Map<String, String> f, Map<String, String> ids) {
+        Map<String, String> all = new java.util.LinkedHashMap<>();
+        all.put("fluid", FLUIDS);
+        all.putAll(ids);
+        StringBuilder given = new StringBuilder();
+        for (Map.Entry<String, String> e : all.entrySet()) {
+            if (given.length() > 0) given.append("\n    ");
+            given.append("{known}(text(").append(Machines.rust(e.getKey())).append("), text(").append(Machines.rust(e.getValue())).append(")).map_err(|e| j::jdescribe(&e))?;");
+        }
         String t = TEMPLATE.replace("{GIVEN}", given).replace("{JAVA}", java).replace("{MOD}", info.id())
                 .replace("{MOD_ID_TEXT}", Machines.rust(info.id())).replace("{MOD_VERSION_TEXT}", Machines.rust(info.version()))
                 .replace("{MOD_NAME_TEXT}", Machines.rust(info.name()));

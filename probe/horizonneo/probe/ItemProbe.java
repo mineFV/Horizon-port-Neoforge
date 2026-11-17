@@ -17,11 +17,16 @@ final class ItemProbe {
      * which isn't the game's: absent in a server, where the registries have them): here, those the questions name
      * that the game has ("minecraft:nope" isn't one).
      */
+    /** The game's components of the items the questions name, as horizon-ids.txt has them (InServer.ids). */
+    static final String COMPONENTS = "minecraft:air=max_stack_size:64,lore:empty,enchantments:empty,repair_cost:0,attribute_modifiers:empty,rarity:common;minecraft:stone=max_stack_size:64,lore:empty,enchantments:empty,repair_cost:0,attribute_modifiers:empty,rarity:common;minecraft:diamond=max_stack_size:64,lore:empty,enchantments:empty,repair_cost:0,attribute_modifiers:empty,rarity:common;minecraft:diamond_sword=repair_cost:0,lore:empty,max_damage:1561,damage:0,rarity:common,enchantments:empty,max_stack_size:1,other";
+
     private static void given() {
         try {
             java.lang.reflect.Method known = Class.forName("net.neoforged.neoforge.registries.HorizonRegistries").getMethod("known", String.class, String.class);
             known.invoke(null, "item", "minecraft:air,minecraft:stone,minecraft:diamond,minecraft:diamond_sword");
             known.invoke(null, "fluid", "minecraft:empty,minecraft:water,minecraft:lava");
+            known.invoke(null, "component", "minecraft:max_stack_size,minecraft:max_damage,minecraft:damage,minecraft:repair_cost,minecraft:lore,minecraft:enchantments,minecraft:attribute_modifiers,minecraft:rarity");
+            known.invoke(null, "components", COMPONENTS);
         } catch (ClassNotFoundException e) {
             // The game's own classes: nothing to give.
         } catch (ReflectiveOperationException e) {

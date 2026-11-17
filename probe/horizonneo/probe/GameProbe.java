@@ -51,7 +51,10 @@ public final class GameProbe {
         RegistryProbe.run();
         ModProbe.run();
         // What needs the game started: in a server only (InServer gives "server").
-        if (args.length > 0 && args[0].equals("server")) ItemProbe.run();
+        if (args.length > 0 && args[0].equals("server")) {
+            ItemProbe.run();
+            ComponentProbe.run();
+        }
     }
 
     static void directions() {

@@ -65,6 +65,22 @@ final class MachinesTest {
         c.yes("a hook point without the parameter a helper sets isn't used", String.valueOf(Machines.unusable(hook, ticks.uses())).contains("no parameter `ticks`"));
 
         c.same("Rust strings are quoted", "\"a\\\"b\"", Machines.rust("a\"b"));
+        // The game's ids dump read (the facts' items, the machines file's game_ids) are what the bridge gives the
+        // stand-ins before the mod loads; the fluids observed are given when the machines file has none.
+        Map<String, Object> machines = new LinkedHashMap<>();
+        machines.put("vanilla_items", List.of("minecraft:air", "minecraft:stone"));
+        machines.put("game_ids", Map.of("component", "minecraft:damage", "components", "minecraft:stone=max_stack_size:64,other"));
+        Map<String, String> given = Machines.given(machines);
+        c.same("items from the facts", "minecraft:air,minecraft:stone", given.get("item"));
+        c.same("components from the machines file", "minecraft:stone=max_stack_size:64,other", given.get("components"));
+        c.same("no fluids there", null, given.get("fluid"));
+        Map<String, String> f = new LinkedHashMap<>();
+        for (String[] m : BridgeRust.NEEDED) f.put(m[0], "f_" + m[0]);
+        String module = BridgeRust.module("super::java", ModInfo.minimal("m"), f, given);
+        c.yes("the bridge gives the items", module.contains("j::f_known(text(\"item\"), text(\"minecraft:air,minecraft:stone\"))"));
+        c.yes("and the items' components", module.contains("j::f_known(text(\"components\"), text(\"minecraft:stone=max_stack_size:64,other\"))"));
+        c.yes("and the fluids observed", module.contains("j::f_known(text(\"fluid\"), text(" + Machines.rust(BridgeRust.FLUIDS) + "))"));
+        c.same("nothing given without the machines file's ids", Map.of(), Machines.given(Map.of()));
         System.exit(c.done());
     }
 

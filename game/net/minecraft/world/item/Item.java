@@ -8,7 +8,29 @@ import net.neoforged.neoforge.common.extensions.IItemExtension;
 public class Item implements FeatureElement, ItemLike, IItemExtension {
     private net.minecraft.resources.ResourceLocation horizonId;
 
-    public Item(Properties properties) {}
+    private net.minecraft.core.component.DataComponentMap components;
+
+    public Item(Properties properties) {
+        this.components = properties.buildAndValidateComponents();
+    }
+
+    public net.minecraft.core.component.DataComponentMap components() {
+        return components;
+    }
+
+    /** Observed: itself. */
+    public Item asItem() {
+        return this;
+    }
+
+    public int getDefaultMaxStackSize() {
+        return components.getOrDefault(net.minecraft.core.component.DataComponents.MAX_STACK_SIZE, 1);
+    }
+
+    /** HorizonRegistries': the components of an item of the game's, as given. Not the game's API. */
+    public void horizonGiven(net.minecraft.core.component.DataComponentMap given) {
+        this.components = given;
+    }
 
     private net.minecraft.core.Holder.Reference<Item> holder;
 
@@ -34,8 +56,42 @@ public class Item implements FeatureElement, ItemLike, IItemExtension {
         this.horizonId = id;
     }
 
-    /** The stand-in for Item.Properties: a builder (what it sets isn't read yet). */
+    /**
+     * The stand-in for Item.Properties: the item's components, from those every item has (observed, `standins
+     * --horizon-src`); its other settings aren't modelled.
+     */
     public static class Properties implements net.neoforged.neoforge.common.extensions.IItemPropertiesExtensions {
+        private final net.minecraft.core.component.DataComponentMap.Builder components =
+                net.minecraft.core.component.DataComponentMap.builder().addAll(net.minecraft.core.component.DataComponents.COMMON_ITEM_COMPONENTS);
+
         public Properties() {}
+
+        public Properties stacksTo(int n) {
+            return component(net.minecraft.core.component.DataComponents.MAX_STACK_SIZE, n);
+        }
+
+        public Properties rarity(net.minecraft.world.item.Rarity rarity) {
+            return component(net.minecraft.core.component.DataComponents.RARITY, rarity);
+        }
+
+        public Properties durability(int n) {
+            component(net.minecraft.core.component.DataComponents.MAX_DAMAGE, n);
+            component(net.minecraft.core.component.DataComponents.MAX_STACK_SIZE, 1);
+            component(net.minecraft.core.component.DataComponents.DAMAGE, 0);
+            return this;
+        }
+
+        public <T> Properties component(net.minecraft.core.component.DataComponentType<T> type, T value) {
+            components.set(type, value);
+            return this;
+        }
+
+        net.minecraft.core.component.DataComponentMap buildAndValidateComponents() {
+            net.minecraft.core.component.DataComponentMap m = components.build();
+            if (m.has(net.minecraft.core.component.DataComponents.DAMAGE) && m.getOrDefault(net.minecraft.core.component.DataComponents.MAX_STACK_SIZE, 1) > 1) {
+                throw new IllegalStateException("Item cannot have both durability and be stackable");
+            }
+            return m;
+        }
     }
 }

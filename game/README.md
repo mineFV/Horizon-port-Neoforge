@@ -36,6 +36,14 @@ and NbtUtils' positions), ids (net/minecraft/resources/ResourceLocation, with it
 maps equipment slots (net/minecraft/world/entity/EquipmentSlot, but limit), points in doubles (net/minecraft/world/phys/Vec3, but xRot, yRot and zRot, and Position) and Mth's arithmetic (not its sine, cosine and atan2, which the game reads from tables built with Math.sin
 and Math.asin, nor its random numbers). They cover what Mekanism calls of them, but for the members below.
 
+Items' data components (net/minecraft/core/component, 2026-11-17): their types (those every item has, and an item's
+durability), maps, patches, a stack's and an item's (from its properties), set, taken out and compared as a server does,
+and written to and read from NBT for the types whose codec is a number's; other codecs are kept as objects of no
+behaviour. The game's own items' components are given (HorizonRegistries.known: `dump`'s machines file, `game_ids`):
+where an item of the game's has a type that isn't modelled, what lists its types says it can't. A map of eight types or
+more iterates, in the game, in its types' identity hashes' order, which changes from run to run: here, in the order
+they were set.
+
 What isn't here, and what it costs: BlockPos's getCenter, betweenClosed and codecs, Direction's getRotation and
 codecs, MutableBlockPos's other setters, NBT's codecs (NbtOps), its readers and writers (DataOutput, visitors),
 TagType, ResourceLocation's codecs and its readers (StringReader), ByIdMap.sparse. A call to one isn't translated; and when a virtual call through a wider type (Object, List...) may reach
