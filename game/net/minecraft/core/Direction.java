@@ -15,6 +15,10 @@ public enum Direction implements StringRepresentable {
     WEST(-1, 0, 0, "west", Axis.X, AxisDirection.NEGATIVE, 1),
     EAST(1, 0, 0, "east", Axis.X, AxisDirection.POSITIVE, 3);
 
+    // The game's codecs: built as objects that don't run yet (HorizonCodecs, HorizonStreamCodecs).
+    public static final net.minecraft.network.codec.StreamCodec<Object, Direction> STREAM_CODEC = new net.minecraft.network.codec.HorizonStreamCodecs.Opaque<>("Direction.STREAM_CODEC");
+
+
     private static final Direction[] BY_3D = values();
 
     private final int stepX;

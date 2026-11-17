@@ -8,6 +8,10 @@ import net.minecraft.ResourceLocationException;
  * its language keys.
  */
 public final class ResourceLocation implements Comparable<ResourceLocation> {
+    // The game's codecs: built as objects that don't run yet (HorizonCodecs, HorizonStreamCodecs).
+    public static final com.mojang.serialization.Codec<ResourceLocation> CODEC = com.mojang.serialization.HorizonCodecs.game("ResourceLocation.CODEC");
+    public static final net.minecraft.network.codec.StreamCodec<Object, ResourceLocation> STREAM_CODEC = new net.minecraft.network.codec.HorizonStreamCodecs.Opaque<>("ResourceLocation.STREAM_CODEC");
+
     public static final char NAMESPACE_SEPARATOR = ':';
     public static final String DEFAULT_NAMESPACE = "minecraft";
     public static final String REALMS_NAMESPACE = "realms";

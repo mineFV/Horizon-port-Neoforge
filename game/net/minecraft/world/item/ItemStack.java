@@ -12,6 +12,17 @@ import net.neoforged.neoforge.common.extensions.IItemStackExtension;
 public final class ItemStack implements DataComponentHolder, MutableDataComponentHolder, IItemStackExtension {
     public static final ItemStack EMPTY = new ItemStack((Void) null);
 
+    // The game's codecs: built as objects that don't run yet (HorizonCodecs, HorizonStreamCodecs).
+    public static final com.mojang.serialization.Codec<ItemStack> CODEC = com.mojang.serialization.HorizonCodecs.game("ItemStack.CODEC");
+    public static final com.mojang.serialization.Codec<ItemStack> OPTIONAL_CODEC = com.mojang.serialization.HorizonCodecs.game("ItemStack.OPTIONAL_CODEC");
+    public static final com.mojang.serialization.Codec<ItemStack> SINGLE_ITEM_CODEC = com.mojang.serialization.HorizonCodecs.game("ItemStack.SINGLE_ITEM_CODEC");
+    public static final com.mojang.serialization.Codec<ItemStack> STRICT_CODEC = com.mojang.serialization.HorizonCodecs.game("ItemStack.STRICT_CODEC");
+    public static final com.mojang.serialization.Codec<ItemStack> SIMPLE_ITEM_CODEC = com.mojang.serialization.HorizonCodecs.game("ItemStack.SIMPLE_ITEM_CODEC");
+    public static final net.minecraft.network.codec.StreamCodec<Object, ItemStack> STREAM_CODEC = new net.minecraft.network.codec.HorizonStreamCodecs.Opaque<>("ItemStack.STREAM_CODEC");
+    public static final net.minecraft.network.codec.StreamCodec<Object, ItemStack> OPTIONAL_STREAM_CODEC = new net.minecraft.network.codec.HorizonStreamCodecs.Opaque<>("ItemStack.OPTIONAL_STREAM_CODEC");
+    public static final net.minecraft.network.codec.StreamCodec<Object, java.util.List<ItemStack>> LIST_STREAM_CODEC = new net.minecraft.network.codec.HorizonStreamCodecs.Opaque<>("ItemStack.LIST_STREAM_CODEC");
+    public static final net.minecraft.network.codec.StreamCodec<Object, java.util.List<ItemStack>> OPTIONAL_LIST_STREAM_CODEC = new net.minecraft.network.codec.HorizonStreamCodecs.Opaque<>("ItemStack.OPTIONAL_LIST_STREAM_CODEC");
+
     private final Item item;
     private int count;
     private final net.minecraft.core.component.PatchedDataComponentMap components;

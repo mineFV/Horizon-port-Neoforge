@@ -13,6 +13,9 @@ import java.util.UUID;
  * order), written with its keys sorted, read with a default for a missing key or another kind.
  */
 public class CompoundTag implements Tag {
+    // The game's codecs: built as objects that don't run yet (HorizonCodecs, HorizonStreamCodecs).
+    public static final com.mojang.serialization.Codec<CompoundTag> CODEC = com.mojang.serialization.HorizonCodecs.game("CompoundTag.CODEC");
+
     private final Map<String, Tag> tags;
 
     public CompoundTag() {

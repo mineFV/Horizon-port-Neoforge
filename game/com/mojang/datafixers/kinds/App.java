@@ -1,5 +1,5 @@
 package com.mojang.datafixers.kinds;
 
-/** The stand-in for the game's App: its supertypes alone (game/README.md, "What isn't here"). */
-public interface App {
+/** The stand-in for DataFixerUpper's App: a value of a type constructor (a RecordCodecBuilder, a DataResult...). */
+public interface App<F extends K1, A> {
 }

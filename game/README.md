@@ -64,6 +64,13 @@ bridge (HorizonTags): every tag holding one of the mod's values, the "c" ones an
 Holder's members (keys, isBound, the is() of each kind, getRegisteredName, getKey), observed. A holder's tags come in
 their ids' order, where the game's change from run to run. Data maps (getData) say they aren't modelled.
 
+Codecs (com/mojang/serialization, com/mojang/datafixers, 2026-11-18): DataFixerUpper's, built as the game builds them
+and keeping what they are made of (HorizonCodecs: fields, lists, maps, dispatches, records of getters and their
+constructor, which RecordCodecBuilder runs at once as the game does), their texts observed (a lambda's and an identity
+hash's parts change from run to run); DataResult, Lifecycle and Codec.checkRange whole. They don't encode nor decode
+yet: a call to that isn't translated. The network's codecs (StreamCodec, ByteBufCodecs) are objects that say the
+network isn't modelled if run; the game's codec fields (ItemStack.CODEC...) are codecs of no structure, by name.
+
 What isn't here, and what it costs: BlockPos's getCenter, betweenClosed and codecs, Direction's getRotation and
 codecs, MutableBlockPos's other setters, NBT's codecs (NbtOps), its readers and writers (DataOutput, visitors),
 TagType, ResourceLocation's codecs and its readers (StringReader), ByIdMap.sparse. A call to one isn't translated; and when a virtual call through a wider type (Object, List...) may reach

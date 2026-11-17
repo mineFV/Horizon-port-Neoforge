@@ -7,6 +7,10 @@ package net.minecraft.core;
  * is observed (`standins`, probe/).
  */
 public class BlockPos extends Vec3i {
+    // The game's codecs: built as objects that don't run yet (HorizonCodecs, HorizonStreamCodecs).
+    public static final com.mojang.serialization.Codec<BlockPos> CODEC = com.mojang.serialization.HorizonCodecs.game("BlockPos.CODEC");
+    public static final net.minecraft.network.codec.StreamCodec<Object, BlockPos> STREAM_CODEC = new net.minecraft.network.codec.HorizonStreamCodecs.Opaque<>("BlockPos.STREAM_CODEC");
+
     /** Observed: a BlockPos of its own, not Vec3i.ZERO. */
     public static final BlockPos ZERO = new BlockPos(0, 0, 0);
 

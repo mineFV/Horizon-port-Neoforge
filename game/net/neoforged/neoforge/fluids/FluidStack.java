@@ -11,6 +11,12 @@ import net.neoforged.neoforge.common.MutableDataComponentHolder;
 public final class FluidStack implements MutableDataComponentHolder {
     public static final FluidStack EMPTY = new FluidStack((Void) null);
 
+    // The game's codecs: built as objects that don't run yet (HorizonCodecs, HorizonStreamCodecs).
+    public static final com.mojang.serialization.Codec<FluidStack> CODEC = com.mojang.serialization.HorizonCodecs.game("FluidStack.CODEC");
+    public static final com.mojang.serialization.Codec<FluidStack> OPTIONAL_CODEC = com.mojang.serialization.HorizonCodecs.game("FluidStack.OPTIONAL_CODEC");
+    public static final net.minecraft.network.codec.StreamCodec<Object, FluidStack> STREAM_CODEC = new net.minecraft.network.codec.HorizonStreamCodecs.Opaque<>("FluidStack.STREAM_CODEC");
+    public static final net.minecraft.network.codec.StreamCodec<Object, FluidStack> OPTIONAL_STREAM_CODEC = new net.minecraft.network.codec.HorizonStreamCodecs.Opaque<>("FluidStack.OPTIONAL_STREAM_CODEC");
+
     private final Fluid fluid;
     private int amount;
     private final net.minecraft.core.component.PatchedDataComponentMap components;

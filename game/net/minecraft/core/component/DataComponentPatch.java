@@ -11,6 +11,10 @@ import java.util.Set;
  */
 public final class DataComponentPatch {
     public static final DataComponentPatch EMPTY = new DataComponentPatch(new LinkedHashMap<>());
+    // The game's codecs: built as objects that don't run yet (HorizonCodecs, HorizonStreamCodecs).
+    public static final com.mojang.serialization.Codec<DataComponentPatch> CODEC = com.mojang.serialization.HorizonCodecs.game("DataComponentPatch.CODEC");
+    public static final net.minecraft.network.codec.StreamCodec<Object, DataComponentPatch> STREAM_CODEC = new net.minecraft.network.codec.HorizonStreamCodecs.Opaque<>("DataComponentPatch.STREAM_CODEC");
+
 
     final Map<DataComponentType<?>, Optional<?>> map;
 
