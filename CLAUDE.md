@@ -311,8 +311,9 @@ Say so rather than assume it works:
   run `dump` against a stand-in for the oracle, never a server;
 - a block declared with state properties of its own, a state light table or shape tables has passed
   `cargo horizon-mod check`, never Horizon's loader: Mekanism's 136 such blocks haven't been loaded in the game;
-- the bridge (2026-11-16): the Counter test mod runs through it in the tests (its bridge compiled as edition 2024
-  against a stand-in for Horizon's NBT): never built into Horizon, never loaded in the game. Its bundle is in
+- the bridge: the Counter test mod was built by the launcher into Horizon and played by the maintainer (2026-11-17):
+  its block blinks lit every 20 ticks and its count goes on, its own Java translated and run through the bridge. That
+  is one made-up mod: no real mod has run through the bridge yet. Its bundle is in
   `essais/counter/bundle` (dump, port --facts, pack). The mod's Java runs on a thread of its own: what it asks of the world
   (HorizonWorld.ask: a position's state as "id[key=value,...]" for Level.getBlockState; a property set for
   Level.setBlock) goes to the ticking thread, which answers from `game` (no `unsafe`, which Horizon forbids). Only
