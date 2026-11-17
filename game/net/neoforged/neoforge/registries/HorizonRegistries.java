@@ -150,8 +150,10 @@ public final class HorizonRegistries {
         return known.contains(id) ? item(id) : null;
     }
 
-    /** The fluid of an id, the game's (a mod's own fluids aren't modelled yet); null when there is none. */
+    /** The fluid registered under an id (the mod's own, else the game's); null when there is none. */
     public static net.minecraft.world.level.material.Fluid knownFluid(String id) {
+        Object own = get(ResourceKey.create(net.minecraft.core.registries.Registries.FLUID, net.minecraft.resources.ResourceLocation.parse(id)));
+        if (own instanceof net.minecraft.world.level.material.Fluid fluid) return fluid;
         java.util.Set<String> known;
         synchronized (HorizonRegistries.class) {
             known = knownFluids;
