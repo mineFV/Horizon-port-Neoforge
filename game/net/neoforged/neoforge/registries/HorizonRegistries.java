@@ -80,6 +80,14 @@ public final class HorizonRegistries {
     public static synchronized void known(String registry, String ids) {
         java.util.Set<String> set = new java.util.HashSet<>();
         for (String id : ids.split(",")) if (!id.isEmpty()) set.add(id);
+        if (registry.startsWith("tags_")) {
+            net.minecraft.tags.HorizonTags.given(registry.substring(5), ids, registry.equals("tags_fluid"));
+            return;
+        }
+        if (registry.equals("namespaces")) {
+            net.minecraft.tags.HorizonTags.namespaces(ids);
+            return;
+        }
         if (registry.equals("components")) {
             given = new HashMap<>();
             for (String entry : ids.split(";")) {

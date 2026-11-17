@@ -58,6 +58,12 @@ its block's, given with the game's items' components). A translation's text is t
 only what was given (HorizonLanguage): Horizon's language isn't reached yet, so a key not given says so. Not here: click
 and hover events, fonts, the other kinds of contents (keybinds, scores, selectors, NBT), visiting a text, its JSON.
 
+Tags (net/minecraft/tags, 2026-11-17): TagKey (one for each), what holds a value as `dump`'s facts list it, given by the
+bridge (HorizonTags): every tag holding one of the mod's values, the "c" ones and the mod's own whole, the fluids' all
+(the machines file's game_ids). A value of the game's in another of the game's tags can't be answered, and says so.
+Holder's members (keys, isBound, the is() of each kind, getRegisteredName, getKey), observed. A holder's tags come in
+their ids' order, where the game's change from run to run. Data maps (getData) say they aren't modelled.
+
 What isn't here, and what it costs: BlockPos's getCenter, betweenClosed and codecs, Direction's getRotation and
 codecs, MutableBlockPos's other setters, NBT's codecs (NbtOps), its readers and writers (DataOutput, visitors),
 TagType, ResourceLocation's codecs and its readers (StringReader), ByIdMap.sparse. A call to one isn't translated; and when a virtual call through a wider type (Object, List...) may reach

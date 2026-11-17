@@ -153,6 +153,16 @@ public final class MachinesExporter {
             if (id.startsWith("minecraft:")) items.add(id + "=" + components(item.components()) + name(item, id));
         }
         o.addProperty("components", String.join(";", items));
+        // The fluids' tags, whole: the facts list blocks' and items' only.
+        List<String> fluidTags = new java.util.ArrayList<>();
+        BuiltInRegistries.FLUID.getTags().forEach(pair -> {
+            List<String> members = new java.util.ArrayList<>();
+            for (var holder : pair.getSecond()) members.add(holder.unwrapKey().orElseThrow().location().toString());
+            java.util.Collections.sort(members);
+            fluidTags.add(pair.getFirst().location() + "=" + String.join(",", members));
+        });
+        java.util.Collections.sort(fluidTags);
+        o.addProperty("tags_fluid", String.join(";", fluidTags));
         return o;
     }
 

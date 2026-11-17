@@ -81,6 +81,14 @@ final class MachinesTest {
         c.yes("and the items' components", module.contains("j::f_known(text(\"components\"), text(\"minecraft:stone=max_stack_size:64,other\"))"));
         c.yes("and the fluids observed", module.contains("j::f_known(text(\"fluid\"), text(" + Machines.rust(BridgeRust.FLUIDS) + "))"));
         c.same("nothing given without the machines file's ids", Map.of(), Machines.given(Map.of()));
+        // The facts' tags (those holding the mod's values, and the "c" ones) and namespaces, as Port puts them in.
+        Map<String, Object> tagged = new LinkedHashMap<>();
+        tagged.put("tags", Map.of("item", new java.util.TreeMap<>(Map.of("c:ingots/osmium", List.of("m:ingot"), "minecraft:beacon_payment_items", List.of("m:ingot")))));
+        tagged.put("namespaces", List.of("m"));
+        Map<String, String> tags = Machines.given(tagged);
+        c.same("the items' tags", "c:ingots/osmium=m:ingot;minecraft:beacon_payment_items=m:ingot", tags.get("tags_item"));
+        c.same("no blocks' tags there", null, tags.get("tags_block"));
+        c.same("the mod's namespaces", "m", tags.get("namespaces"));
         System.exit(c.done());
     }
 

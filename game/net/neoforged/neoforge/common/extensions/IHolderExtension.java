@@ -1,5 +1,8 @@
 package net.neoforged.neoforge.common.extensions;
 
-/** The stand-in for the game's IHolderExtension: its supertypes alone (game/README.md, "What isn't here"). */
+/** The stand-in for NeoForge's IHolderExtension: a holder's key (observed, `standins --horizon-src`). */
 public interface IHolderExtension<T> extends net.neoforged.neoforge.registries.datamaps.IWithData<T> {
+    default net.minecraft.resources.ResourceKey<T> getKey() {
+        return ((net.minecraft.core.Holder<T>) this).unwrapKey().orElse(null);
+    }
 }

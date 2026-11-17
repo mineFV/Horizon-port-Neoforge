@@ -71,7 +71,8 @@ final class Machines {
     /**
      * What the bridge gives the stand-ins of the game's ids (HorizonRegistries.known), by registry: its items, from the
      * facts (`vanilla_items`, which Port puts in the machines), and its fluids, component types and items' components,
-     * from the machines file (`game_ids`, which a dump since 2026-11-17 writes). A registry left out isn't given.
+     * from the machines file (`game_ids`, which a dump since 2026-11-17 writes); the blocks' and items' tags and the mod's
+     * namespaces from the facts (`tags`, `namespaces`), the fluids' tags from `game_ids`. A registry left out isn't given.
      */
     static Map<String, String> given(Map<String, Object> machines) {
         Map<String, String> out = new LinkedHashMap<>();
@@ -81,7 +82,23 @@ final class Machines {
             out.put("item", String.join(",", items));
         }
         Map<String, Object> ids = Json.object(machines.get("game_ids"));
-        if (ids != null) for (String k : List.of("fluid", "component", "components")) if (Json.text(ids, k) != null) out.put(k, Json.text(ids, k));
+        for (String k : List.of("fluid", "component", "components", "tags_fluid")) if (Json.text(ids, k) != null) out.put(k, Json.text(ids, k));
+        Map<String, Object> tags = Json.object(machines.get("tags"));
+        for (String kind : List.of("block", "item")) {
+            if (!tags.containsKey(kind)) continue;
+            List<String> entries = new ArrayList<>();
+            Json.object(tags.get(kind)).forEach((tag, members) -> {
+                List<String> m = new ArrayList<>();
+                for (Object o : Json.array(members)) if (o instanceof String s) m.add(s);
+                entries.add(tag + "=" + String.join(",", m));
+            });
+            out.put("tags_" + kind, String.join(";", entries));
+        }
+        if (machines.get("namespaces") instanceof List<?> list) {
+            List<String> ns = new ArrayList<>();
+            for (Object o : list) if (o instanceof String s) ns.add(s);
+            out.put("namespaces", String.join(",", ns));
+        }
         return out;
     }
 

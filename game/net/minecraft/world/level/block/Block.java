@@ -36,6 +36,14 @@ public class Block extends BlockBehaviour implements ItemLike, IBlockExtension {
     }
 
     /** HorizonWorld's: the id this block was registered under. Not the game's API. */
+    private net.minecraft.core.Holder.Reference<Block> holder;
+
+    /** Its holder: one for each block, its key the block registry's and its id. */
+    public net.minecraft.core.Holder.Reference<Block> builtInRegistryHolder() {
+        if (holder == null) holder = new net.minecraft.core.Holder.Reference<>(net.minecraft.resources.ResourceKey.create(net.minecraft.core.registries.Registries.BLOCK, horizonId), this);
+        return holder;
+    }
+
     private String descriptionId;
 
     /** Observed: "block." then its id, its path's slashes as dots. */

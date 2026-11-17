@@ -6,6 +6,29 @@ import net.neoforged.neoforge.common.extensions.IHolderExtension;
 public interface Holder<T> extends IHolderExtension<T> {
     T value();
 
+    boolean isBound();
+
+    boolean is(net.minecraft.resources.ResourceLocation id);
+
+    boolean is(net.minecraft.resources.ResourceKey<T> key);
+
+    boolean is(java.util.function.Predicate<net.minecraft.resources.ResourceKey<T>> test);
+
+    boolean is(Holder<T> other);
+
+    java.util.Optional<net.minecraft.resources.ResourceKey<T>> unwrapKey();
+
+    /** Observed (`standins --horizon-src`): its key's id, else "[unregistered]". */
+    default String getRegisteredName() {
+        return unwrapKey().map(k -> k.location().toString()).orElse("[unregistered]");
+    }
+
+    /** Whether its value is in a tag, as the tags were given (HorizonTags). */
+    boolean is(net.minecraft.tags.TagKey<T> tag);
+
+    /** The tags its value is in, as given (HorizonTags), by their ids' order: the game's order changes from run to run. */
+    java.util.stream.Stream<net.minecraft.tags.TagKey<T>> tags();
+
     /** The stand-in for Holder.Reference: a registered value with its key. */
     class Reference<T> implements Holder<T> {
         private final net.minecraft.resources.ResourceKey<T> key;
@@ -26,8 +49,46 @@ public interface Holder<T> extends IHolderExtension<T> {
             return value;
         }
 
+        @Override
         public boolean is(net.minecraft.resources.ResourceLocation id) {
             return key.location().equals(id);
+        }
+
+        @Override
+        public boolean isBound() {
+            return value != null;
+        }
+
+        @Override
+        public boolean is(net.minecraft.resources.ResourceKey<T> other) {
+            return key == other;
+        }
+
+        @Override
+        public boolean is(java.util.function.Predicate<net.minecraft.resources.ResourceKey<T>> test) {
+            return test.test(key);
+        }
+
+        /** Observed: whether it is that holder (a DeferredHolder of it is too: its key's). */
+        @Override
+        public boolean is(Holder<T> other) {
+            return this == other || other instanceof net.neoforged.neoforge.registries.DeferredHolder<?, ?> d && d.getKey() == key;
+        }
+
+        @Override
+        public java.util.Optional<net.minecraft.resources.ResourceKey<T>> unwrapKey() {
+            return java.util.Optional.of(key);
+        }
+
+        @Override
+        public boolean is(net.minecraft.tags.TagKey<T> tag) {
+            return net.minecraft.tags.HorizonTags.is(key, tag);
+        }
+
+        @Override
+        @SuppressWarnings({"unchecked", "rawtypes"})
+        public java.util.stream.Stream<net.minecraft.tags.TagKey<T>> tags() {
+            return (java.util.stream.Stream) net.minecraft.tags.HorizonTags.tags(key).stream();
         }
 
         /** Observed in a server (`standins --horizon-src`): "Reference{" key "=" value "}". */

@@ -56,6 +56,7 @@ public final class GameProbe {
             ComponentProbe.run();
             CapabilityProbe.run();
             TextProbe.run();
+            TagProbe.run();
         }
     }
 

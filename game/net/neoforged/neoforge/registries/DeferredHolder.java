@@ -30,6 +30,49 @@ public class DeferredHolder<R, T extends R> implements Holder<R>, Supplier<T> {
         return get();
     }
 
+    @Override
+    public boolean isBound() {
+        return HorizonRegistries.get(key) != null;
+    }
+
+    @Override
+    public boolean is(ResourceLocation id) {
+        return key.location().equals(id);
+    }
+
+    @Override
+    public boolean is(ResourceKey<R> other) {
+        return key == other;
+    }
+
+    @Override
+    public boolean is(java.util.function.Predicate<ResourceKey<R>> test) {
+        return test.test(key);
+    }
+
+    /** Observed: a holder of its key (its value's own, or another DeferredHolder). */
+    @Override
+    public boolean is(Holder<R> other) {
+        return other instanceof Holder.Reference<R> r ? r.key() == key : other instanceof DeferredHolder<?, ?> d && d.key == key;
+    }
+
+    @Override
+    public java.util.Optional<ResourceKey<R>> unwrapKey() {
+        return java.util.Optional.of(key);
+    }
+
+    /** Its key's value's (the game's goes to the registry's holder of its key). */
+    @Override
+    public boolean is(net.minecraft.tags.TagKey<R> tag) {
+        return net.minecraft.tags.HorizonTags.is(key, tag);
+    }
+
+    @Override
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    public java.util.stream.Stream<net.minecraft.tags.TagKey<R>> tags() {
+        return (java.util.stream.Stream) net.minecraft.tags.HorizonTags.tags(key).stream();
+    }
+
     public ResourceLocation getId() {
         return key.location();
     }

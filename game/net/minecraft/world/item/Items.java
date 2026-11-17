@@ -7,6 +7,7 @@ public class Items {
     public static final Item AIR = HorizonRegistries.item("minecraft:air");
     public static final Item STONE = HorizonRegistries.item("minecraft:stone");
     public static final Item DIAMOND = HorizonRegistries.item("minecraft:diamond");
+    public static final Item EMERALD = HorizonRegistries.item("minecraft:emerald");
     public static final Item DIAMOND_SWORD = HorizonRegistries.item("minecraft:diamond_sword");
 
     private Items() {}

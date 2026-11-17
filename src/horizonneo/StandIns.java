@@ -31,7 +31,7 @@ final class StandIns {
             "probe/horizonneo/probe/IdProbe.java", "probe/horizonneo/probe/MthProbe.java",
             "probe/horizonneo/probe/VecProbe.java",
             "probe/horizonneo/probe/EquipProbe.java",
-            "probe/horizonneo/probe/RegistryProbe.java", "probe/horizonneo/probe/ComponentProbe.java", "probe/horizonneo/probe/CapabilityProbe.java", "probe/horizonneo/probe/TextProbe.java",
+            "probe/horizonneo/probe/RegistryProbe.java", "probe/horizonneo/probe/ComponentProbe.java", "probe/horizonneo/probe/CapabilityProbe.java", "probe/horizonneo/probe/TextProbe.java", "probe/horizonneo/probe/TagProbe.java",
             "probe/horizonneo/probe/ModProbe.java",
             "probe/horizonneo/probe/ItemProbe.java");
 
@@ -105,6 +105,9 @@ final class StandIns {
 
     static final String SERVER_MOD = "probe/server/horizonneo/probe/InServer.java", SERVER_TOML = "probe/server/META-INF/neoforge.mods.toml";
 
+    /** The probe mod's data (its tags), at their paths under probe/server/. */
+    static final List<String> SERVER_DATA = List.of("data/horizonprobe/tags/item/probed.json", "data/horizonprobe/tags/block/blocks.json");
+
     /**
      * The probe as a mod (probe/server/), run in the server by `dump`'s path: its answers, from horizon-probe.txt where
      * the oracle's server runs, against the stand-ins'. How many differ (1 when it couldn't run).
@@ -121,6 +124,13 @@ final class StandIns {
                 Files.copy(in, src);
             }
             sources.add(src.toString());
+        }
+        for (String data : SERVER_DATA) {
+            try (InputStream in = StandIns.class.getResourceAsStream("/probe/server/" + data)) {
+                if (in == null) throw new IOException("this tool's jar doesn't carry probe/server/" + data);
+                Files.createDirectories(classes.resolve(data).getParent());
+                Files.copy(in, classes.resolve(data));
+            }
         }
         try (InputStream in = StandIns.class.getResourceAsStream("/" + SERVER_TOML)) {
             if (in == null) throw new IOException("this tool's jar doesn't carry " + SERVER_TOML);

@@ -46,6 +46,10 @@ public abstract class BlockBehaviour implements FeatureElement {
             return owner;
         }
 
+        public boolean is(net.minecraft.tags.TagKey<Block> tag) {
+            return getBlock().builtInRegistryHolder().is(tag);
+        }
+
         public boolean is(Block block) {
             return owner == block;
         }

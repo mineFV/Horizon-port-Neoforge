@@ -93,6 +93,14 @@ public final class ItemStack implements DataComponentHolder, MutableDataComponen
         return getItem().getName(this);
     }
 
+    public boolean is(net.minecraft.tags.TagKey<Item> tag) {
+        return getItemHolder().is(tag);
+    }
+
+    public java.util.stream.Stream<net.minecraft.tags.TagKey<Item>> getTags() {
+        return getItemHolder().tags();
+    }
+
     public int getMaxStackSize() {
         return getItem().getMaxStackSize(this);
     }

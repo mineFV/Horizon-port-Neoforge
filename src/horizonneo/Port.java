@@ -161,6 +161,9 @@ final class Port {
             throw new IOException(facts + " isn't JSON: " + e.getMessage());
         }
         if (read instanceof Map<?, ?> f && f.get("vanilla_items") instanceof List<?> items) machines.put("vanilla_items", items);
+        // Its tags (those holding one of the mod's values, and the "c" ones) and its namespaces: the bridge gives them too.
+        if (read instanceof Map<?, ?> f && f.get("tags") instanceof Map<?, ?> tags) machines.put("tags", tags);
+        if (read instanceof Map<?, ?> f && f.get("namespaces") instanceof List<?> namespaces) machines.put("namespaces", namespaces);
         return machines;
     }
 
