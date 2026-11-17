@@ -60,6 +60,7 @@ public final class GameProbe {
             TextProbe.run();
             TagProbe.run();
             LogProbe.levels();
+            BuiltInProbe.run();
         }
     }
 

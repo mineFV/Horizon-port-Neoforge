@@ -24,6 +24,7 @@ final class ItemProbe {
         try {
             java.lang.reflect.Method known = Class.forName("net.neoforged.neoforge.registries.HorizonRegistries").getMethod("known", String.class, String.class);
             known.invoke(null, "item", "minecraft:air,minecraft:stone,minecraft:diamond,minecraft:diamond_sword");
+            known.invoke(null, "block", "minecraft:air,minecraft:stone");
             known.invoke(null, "fluid", "minecraft:empty,minecraft:water,minecraft:lava");
             known.invoke(null, "component", "minecraft:max_stack_size,minecraft:max_damage,minecraft:damage,minecraft:repair_cost,minecraft:lore,minecraft:enchantments,minecraft:attribute_modifiers,minecraft:rarity");
             known.invoke(null, "components", COMPONENTS);

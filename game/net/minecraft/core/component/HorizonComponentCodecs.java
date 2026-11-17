@@ -76,6 +76,11 @@ public final class HorizonComponentCodecs {
         return map.isEmpty() ? DataComponentPatch.EMPTY : new DataComponentPatch(map);
     }
 
+    /** The component type of an id: the game's modelled one, the mod's own; null when the game has none; the game's others say they aren't modelled. */
+    public static DataComponentType<?> type(net.minecraft.resources.ResourceLocation id) {
+        return byId(id);
+    }
+
     private static DataComponentType<?> byId(net.minecraft.resources.ResourceLocation id) {
         DataComponentType<?>[] game = {DataComponents.MAX_STACK_SIZE, DataComponents.MAX_DAMAGE, DataComponents.DAMAGE, DataComponents.LORE,
             DataComponents.ENCHANTMENTS, DataComponents.REPAIR_COST, DataComponents.ATTRIBUTE_MODIFIERS, DataComponents.RARITY};

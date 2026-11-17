@@ -164,6 +164,8 @@ final class Port {
         // Its tags (those holding one of the mod's values, and the "c" ones) and its namespaces: the bridge gives them too.
         if (read instanceof Map<?, ?> f && f.get("tags") instanceof Map<?, ?> tags) machines.put("tags", tags);
         if (read instanceof Map<?, ?> f && f.get("namespaces") instanceof List<?> namespaces) machines.put("namespaces", namespaces);
+        // Every block's id (the facts read every registered block): the game's registry of blocks.
+        if (read instanceof Map<?, ?> f && f.get("blocks") instanceof Map<?, ?> factBlocks) machines.put("block_ids", new ArrayList<>(factBlocks.keySet()));
         return machines;
     }
 

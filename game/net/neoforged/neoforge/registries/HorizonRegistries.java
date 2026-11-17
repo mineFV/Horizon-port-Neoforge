@@ -13,6 +13,8 @@ import net.minecraft.resources.ResourceKey;
 public final class HorizonRegistries {
     private static final Map<ResourceKey<?>, Supplier<?>> SUPPLIERS = new HashMap<>();
     private static final Map<ResourceKey<?>, Object> VALUES = new HashMap<>();
+    /** The key of each value made, by identity. */
+    private static final Map<Object, ResourceKey<?>> KEYS = new java.util.IdentityHashMap<>();
 
     private HorizonRegistries() {}
 
@@ -102,6 +104,7 @@ public final class HorizonRegistries {
             return;
         }
         if (registry.equals("component")) knownComponents = set;
+        else if (registry.equals("block")) knownBlocks = set;
         else if (registry.equals("item")) knownItems = set;
         else if (registry.equals("fluid")) knownFluids = set;
         else throw new IllegalArgumentException(registry);
@@ -163,6 +166,40 @@ public final class HorizonRegistries {
         return null;
     }
 
+    private static java.util.Set<String> knownBlocks;
+    private static final Map<ResourceKey<?>, net.minecraft.core.Holder.Reference<?>> HOLDERS = new HashMap<>();
+
+    /** The one holder of a key's value, for values that don't keep theirs (all but items, blocks and fluids). */
+    @SuppressWarnings("unchecked")
+    public static synchronized <T> net.minecraft.core.Holder.Reference<T> holder(ResourceKey<?> key, T value) {
+        return (net.minecraft.core.Holder.Reference<T>) HOLDERS.computeIfAbsent(key, k -> new net.minecraft.core.Holder.Reference<>((ResourceKey<T>) k, value));
+    }
+
+    /** The id a value was registered under: the mod's registrations', else an item's, a block's, a fluid's or a component type's own; null when none. */
+    public static net.minecraft.resources.ResourceLocation idOf(Object value) {
+        synchronized (HorizonRegistries.class) {
+            ResourceKey<?> key = KEYS.get(value);
+            if (key != null) return key.location();
+        }
+        if (value instanceof net.minecraft.world.item.Item item) return item.horizonId();
+        if (value instanceof net.minecraft.world.level.block.Block block) return block.horizonId();
+        if (value instanceof net.minecraft.world.level.material.Fluid fluid) return fluid.horizonId();
+        if (value instanceof net.minecraft.core.component.DataComponentType<?> type) return net.minecraft.core.component.DataComponentType.horizonId(type);
+        return null;
+    }
+
+    /** The block registered under an id (the mod's own or the game's, as given: "block"); null when there is none. */
+    public static net.minecraft.world.level.block.Block knownBlock(String id) {
+        Object own = get(ResourceKey.create(net.minecraft.core.registries.Registries.BLOCK, net.minecraft.resources.ResourceLocation.parse(id)));
+        if (own instanceof net.minecraft.world.level.block.Block block) return block;
+        java.util.Set<String> known;
+        synchronized (HorizonRegistries.class) {
+            known = knownBlocks;
+        }
+        if (known == null) throw new IllegalStateException("the game's block ids weren't given (HorizonRegistries.known)");
+        return known.contains(id) ? block(id) : null;
+    }
+
     /** The item registered under an id (the mod's own or the game's); null when there is none. */
     public static net.minecraft.world.item.Item knownItem(String id) {
         net.minecraft.resources.ResourceLocation location = net.minecraft.resources.ResourceLocation.parse(id);
@@ -206,6 +243,7 @@ public final class HorizonRegistries {
             Object value = VALUES.get(key);
             if (value != null) return value;
             VALUES.put(key, made);
+            KEYS.put(made, key);
         }
         if (made instanceof net.minecraft.world.level.block.Block block) block.horizonRegistered(key.location());
         if (made instanceof net.minecraft.world.item.Item item) item.horizonRegistered(key.location());

@@ -94,6 +94,11 @@ final class Machines {
             });
             out.put("tags_" + kind, String.join(";", entries));
         }
+        if (machines.get("block_ids") instanceof List<?> blockIds) {
+            List<String> blocks = new ArrayList<>();
+            for (Object o : blockIds) if (o instanceof String s) blocks.add(s);
+            out.put("block", String.join(",", blocks));
+        }
         if (machines.get("namespaces") instanceof List<?> list) {
             List<String> ns = new ArrayList<>();
             for (Object o : list) if (o instanceof String s) ns.add(s);

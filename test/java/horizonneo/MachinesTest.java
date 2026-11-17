@@ -85,10 +85,12 @@ final class MachinesTest {
         Map<String, Object> tagged = new LinkedHashMap<>();
         tagged.put("tags", Map.of("item", new java.util.TreeMap<>(Map.of("c:ingots/osmium", List.of("m:ingot"), "minecraft:beacon_payment_items", List.of("m:ingot")))));
         tagged.put("namespaces", List.of("m"));
+        tagged.put("block_ids", List.of("minecraft:air", "m:press"));
         Map<String, String> tags = Machines.given(tagged);
         c.same("the items' tags", "c:ingots/osmium=m:ingot;minecraft:beacon_payment_items=m:ingot", tags.get("tags_item"));
         c.same("no blocks' tags there", null, tags.get("tags_block"));
         c.same("the mod's namespaces", "m", tags.get("namespaces"));
+        c.same("every block's id", "minecraft:air,m:press", tags.get("block"));
         System.exit(c.done());
     }
 
