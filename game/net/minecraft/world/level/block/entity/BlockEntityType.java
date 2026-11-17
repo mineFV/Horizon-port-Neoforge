@@ -19,6 +19,10 @@ public class BlockEntityType<T extends BlockEntity> {
         return factory.create(pos, state);
     }
 
+    public Set<Block> getValidBlocks() {
+        return validBlocks;
+    }
+
     public boolean isValid(BlockState state) {
         return validBlocks.contains(state.getBlock());
     }

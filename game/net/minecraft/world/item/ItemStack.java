@@ -75,6 +75,15 @@ public final class ItemStack implements DataComponentHolder, MutableDataComponen
         components.applyPatch(patch);
     }
 
+    public boolean is(Item item) {
+        return getItem() == item;
+    }
+
+    /** Observed (`standins --horizon-src`): whether the holder's value is its item (its own holder, a DeferredHolder of it). */
+    public boolean is(net.minecraft.core.Holder<Item> holder) {
+        return holder.value() == getItem();
+    }
+
     public int getMaxStackSize() {
         return getItem().getMaxStackSize(this);
     }

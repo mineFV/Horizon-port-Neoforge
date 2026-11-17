@@ -57,6 +57,11 @@ public final class HorizonBridge {
         HorizonRegistries.known(registry, ids);
     }
 
+    /** Fires RegisterCapabilitiesEvent on the mod's bus, once it is loaded, as NeoForge does after its registries. */
+    public static void capabilities(net.neoforged.bus.api.IEventBus bus) {
+        bus.post(net.neoforged.neoforge.capabilities.HorizonCapabilities.event());
+    }
+
     public static Level level() {
         return LEVEL;
     }

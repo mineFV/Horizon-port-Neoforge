@@ -71,12 +71,33 @@ public final class HorizonEventBus implements IEventBus {
         registered.remove(target);
     }
 
-    /** Not modelled: firing needs each listener's event class, which isn't known here. */
+    /**
+     * The event to each listener of its class, by priority (HIGHEST first), then in the order they were added. A listener
+     * given without its event's class has its lambda's: the class its site instantiates its parameter to, as NeoForge
+     * reads it. Not modelled, and refused: cancelling an event, and the objects registered (their @SubscribeEvent methods).
+     */
     @Override
-    public native <T extends Event> T post(T event);
+    public <T extends Event> T post(T event) {
+        for (EventPriority priority : EventPriority.values()) post(priority, event);
+        return event;
+    }
 
     @Override
-    public native <T extends Event> T post(EventPriority priority, T event);
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    public <T extends Event> T post(EventPriority priority, T event) {
+        if (event instanceof ICancellableEvent) throw new UnsupportedOperationException("cancelling an event isn't modelled (horizon-port-neoforge)");
+        if (!registered.isEmpty()) throw new UnsupportedOperationException("the listeners of objects registered on a bus aren't modelled (horizon-port-neoforge)");
+        for (Listener l : new ArrayList<>(listeners)) {
+            if (l.priority() != priority) continue;
+            Class<?> type = l.type() != null ? l.type() : eventType(l.consumer());
+            if (type == null) throw new IllegalStateException("the event class of a listener given without it isn't known (horizon-port-neoforge)");
+            if (type.isInstance(event)) ((Consumer) l.consumer()).accept(event);
+        }
+        return event;
+    }
+
+    /** A lambda's first parameter's class, as its site instantiates it; null for any other object (the translation's). */
+    static native Class<?> eventType(Object listener);
 
     @Override
     public void start() {}

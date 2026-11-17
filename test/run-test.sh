@@ -940,7 +940,7 @@ else
 fi
 says "$OUT" "Nothing was compiled or run"
 # The game's stand-ins (game/), translated with the mod where it reaches them.
-says "$OUT" "Stand-ins for the game: 159 classes, not checked against the game's (no --server)."
+says "$OUT" "Stand-ins for the game: 177 classes, not checked against the game's (no --server)."
 says "$TR/out/translation.md" '- `com.example.numbers.Places.keys(I)Ljava/lang/String;` as `places__keys`'
 says "$TR/out/translated.rs" '/// `net.minecraft.core.Vec3i.compareTo(Lnet/minecraft/core/Vec3i;)I`, translated from its bytecode.'
 says "$TR/out/translated.rs" 'pub fn numbers__collatz(mut l0: i64) -> JR<i64> {'
@@ -990,7 +990,7 @@ exits 0 tool translate "$B/jars/gamey.jar" --server "$TR/server" --out "$TR/game
 says "$OUT" "Read: the supertypes of 4 classes of the game, NeoForge and their libraries, from 1 jars in"
 # Each stand-in checked against the server's class: one whose interfaces differ, one that would inherit a method the
 # game's declares, are left out.
-says "$OUT" "Stand-ins for the game: 157 classes, checked against the game's."
+says "$OUT" "Stand-ins for the game: 175 classes, checked against the game's."
 says "$OUT" "- left out: net.minecraft.core.Vec3i: its superclass or interfaces aren't the game's"
 says "$OUT" "- left out: net.minecraft.core.BlockPos: the game's class declares getX()I, which the stand-in would take from net.minecraft.core.Vec3i"
 says "$TR/gamey-out/translation.md" "- left out: net.minecraft.core.Vec3i"
@@ -1043,7 +1043,7 @@ for v in same upper; do
   jar --create --file "$SI/$v/libraries/net/neoforged/neoforge/21.1.1/neoforge-21.1.1-server.jar" -C "$SI/$v-classes" .
 done
 exits 0 tool standins --server "$SI/same"
-says "$OUT" "ok: the 159 stand-ins have the supertypes and the methods of the server's classes"
+says "$OUT" "ok: the 177 stand-ins have the supertypes and the methods of the server's classes"
 says "$OUT" "ok: the game and the stand-ins give the same 20784 answers to the probe"
 says "$OUT" "no server, no world, no mod"
 no_file logs
@@ -1073,7 +1073,7 @@ javac --release 21 -cp "build/model:$BR/stubs" -d "$BR/classes" $(find testmod/c
 cp -r testmod/counter/resources/. "$BR/jar/"
 jar --create --file "$B/jars/counter.jar" -C "$BR/jar" . -C "$BR/classes" com
 exits 0 tool translate "$B/jars/counter.jar" --out "$BR/out" --bridge super::java
-says "$OUT" "counter.jar: 16 of 16 methods translated from their bytecode"
+says "$OUT" "counter.jar: 18 of 18 methods translated from their bytecode"
 says "$OUT" "bridge.rs, Horizon's side of the bridge, which reaches the translation as super::java."
 says "$BR/out/translated.rs" "pub fn jexport_mod(bus: Ref, container: Ref) -> JR<Ref> {"
 says "$BR/out/bridge.rs" "use super::java as j;"
@@ -1087,10 +1087,11 @@ if command -v rustc > /dev/null; then
     echo "  ok: the bridge compiles (edition 2024, as Horizon's)"
     lacks "$BR/rustc.txt" "warning"
     "$BR/check" > "$BR/ran.txt" 2> "$BR/said.txt"
-    # A new block entity: 45 ticks, 2 seconds; Horizon's own key kept.
-    says "$BR/ran.txt" 'new: 45 changes; below=String(JavaString([66, 108, 111, 99, 107, 123, 109, 105, 110, 101, 99, 114, 97, 102, 116, 58, 115, 116, 111, 110, 101, 125])) horizon=Int(7) seconds=Long(2) ticks=Int(45)'
+    # A new block entity: 45 ticks, 2 seconds; Horizon's own key kept; the capabilities registered once, by the mod's
+    # listener given as a method reference (HorizonEventBus.post, the lambda's event class).
+    says "$BR/ran.txt" 'new: 45 changes; below=String(JavaString([66, 108, 111, 99, 107, 123, 109, 105, 110, 101, 99, 114, 97, 102, 116, 58, 115, 116, 111, 110, 101, 125])) capabilities=Int(1) horizon=Int(7) seconds=Long(2) ticks=Int(45)'
     # Loaded elsewhere from that compound: it goes on counting.
-    says "$BR/ran.txt" 'loaded: below=String(JavaString([66, 108, 111, 99, 107, 123, 109, 105, 110, 101, 99, 114, 97, 102, 116, 58, 97, 105, 114, 125])) horizon=Int(7) seconds=Long(3) ticks=Int(70)'
+    says "$BR/ran.txt" 'loaded: below=String(JavaString([66, 108, 111, 99, 107, 123, 109, 105, 110, 101, 99, 114, 97, 102, 116, 58, 97, 105, 114, 125])) capabilities=Int(1) horizon=Int(7) seconds=Long(3) ticks=Int(70)'
     # Its compound changed by something else: made again from it.
     says "$BR/ran.txt" "seconds=Long(2) ticks=Int(1005)"
     # Each tick, the state there (the ticker gets the world's); each second, the block below and the state again, then

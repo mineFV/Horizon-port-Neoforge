@@ -25,6 +25,7 @@ final class BridgeRust {
             new String[] {"bus", "()Lnet/neoforged/bus/api/IEventBus;"},
             new String[] {"container", "(Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Lnet/neoforged/bus/api/IEventBus;)Lnet/neoforged/fml/ModContainer;"},
             new String[] {"known", "(Ljava/lang/String;Ljava/lang/String;)V"},
+            new String[] {"capabilities", "(Lnet/neoforged/bus/api/IEventBus;)V"},
             new String[] {"make", "(Ljava/lang/String;III)Lnet/minecraft/world/level/block/entity/BlockEntity;"},
             new String[] {"ticker", "(Lnet/minecraft/world/level/block/entity/BlockEntity;)Lnet/minecraft/world/level/block/entity/BlockEntityTicker;"},
             new String[] {"tickWith", "(Lnet/minecraft/world/level/block/entity/BlockEntityTicker;Lnet/minecraft/world/level/block/entity/BlockEntity;)V"},
@@ -153,7 +154,8 @@ final class BridgeRust {
                 {GIVEN}
                 let bus = {bus}().map_err(|e| j::jdescribe(&e))?;
                 let container = {container}(text({MOD_ID_TEXT}), text({MOD_VERSION_TEXT}), text({MOD_NAME_TEXT}), bus.clone()).map_err(|e| j::jdescribe(&e))?;
-                j::jexport_mod(bus, container).map(|_| ()).map_err(|e| j::jdescribe(&e))
+                j::jexport_mod(bus.clone(), container).map_err(|e| j::jdescribe(&e))?;
+                {capabilities}(bus).map_err(|e| j::jdescribe(&e))
             });
 
             // The mod's Java runs on a thread of its own. What it asks of the world (HorizonWorld.ask) goes to the thread

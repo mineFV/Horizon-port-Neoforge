@@ -45,5 +45,6 @@ public class CounterBlockEntity extends BlockEntity {
         tag.putInt("ticks", ticks);
         tag.putLong("seconds", seconds);
         tag.putString("below", below);
+        tag.putInt("capabilities", Counter.capabilities);
     }
 }

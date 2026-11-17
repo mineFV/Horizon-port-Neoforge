@@ -98,6 +98,15 @@ final class Library {
                         Ok(JWORLD.get().and_then(|ask| ask(&units)).map(|answer| jstring_of(&answer)).unwrap_or(None))
                     }
                     """)),
+            Map.entry("net/neoforged/bus/api/HorizonEventBus.eventType(Ljava/lang/Object;)Ljava/lang/Class;", new Native("jnative_horizon_event_type", """
+                    /// HorizonEventBus.eventType: a lambda's first parameter's class, as its site instantiates it (what
+                    /// NeoForge's bus reads of a listener given without its event's class); null for any other object.
+                    #[allow(dead_code)]
+                    fn jnative_horizon_event_type(listener: Ref) -> JR<Ref> {
+                        let t = jlambda_first_parameter(jobj(&listener)?.class);
+                        Ok(if t == 0 { None } else { jclass_object(t) })
+                    }
+                    """)),
             Map.entry("java/lang/Object.hashCode()I", new Native("jnative_object_hash_code", """
                     /// Object.hashCode: the object's identity, a non-negative int as the JVM gives (its value is its own).
                     #[allow(dead_code)]

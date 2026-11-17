@@ -54,6 +54,7 @@ public final class GameProbe {
         if (args.length > 0 && args[0].equals("server")) {
             ItemProbe.run();
             ComponentProbe.run();
+            CapabilityProbe.run();
         }
     }
 

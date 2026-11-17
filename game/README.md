@@ -44,6 +44,14 @@ where an item of the game's has a type that isn't modelled, what lists its types
 more iterates, in the game, in its types' identity hashes' order, which changes from run to run: here, in the order
 they were set.
 
+Capabilities (net/neoforged/neoforge/capabilities, 2026-11-17): one for each name and kind, NeoForge's own (energy,
+fluids, items; their blocks' proxyable), and their providers for blocks, block entity types and items, asked in the
+order they were registered. RegisterCapabilitiesEvent is fired on the mod's bus once the mod is loaded
+(HorizonBridge.capabilities); the bus (HorizonEventBus.post) gives an event to each listener of its class, a listener
+given without its class having its lambda's, as NeoForge reads it. Not here: entities, a block entity found at a
+position (a block capability asked without one), a block's item, cancelling an event, the @SubscribeEvent methods of
+objects registered on a bus.
+
 What isn't here, and what it costs: BlockPos's getCenter, betweenClosed and codecs, Direction's getRotation and
 codecs, MutableBlockPos's other setters, NBT's codecs (NbtOps), its readers and writers (DataOutput, visitors),
 TagType, ResourceLocation's codecs and its readers (StringReader), ByIdMap.sparse. A call to one isn't translated; and when a virtual call through a wider type (Object, List...) may reach

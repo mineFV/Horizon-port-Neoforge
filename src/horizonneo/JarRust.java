@@ -289,6 +289,15 @@ final class JarRust {
 
     // ---- what each method needs, until nothing changes ----
 
+    /** A lambda's first parameter's class, as its site instantiates it; null when it has none or it isn't a class. */
+    static String lambdaFirstParameter(JavaWorld world, String key) {
+        ClassData.LambdaSite site = world.lambdas.get(key);
+        if (site == null || site.instantiated() == null) return null;
+        List<String> params = ClassData.parameters(site.instantiated());
+        if (params.isEmpty() || !params.get(0).startsWith("L")) return null;
+        return JavaWorld.type(params.get(0));
+    }
+
     /**
      * What the translated methods instantiate: classes and arrays they make, lambda sites they reach; tests: the
      * type tests' answers over them, by type, asked once per set.
@@ -786,6 +795,8 @@ final class JarRust {
                     if (component.length() > 1) todo.add(JavaWorld.type(component));
                 } else if (t.startsWith(JavaWorld.LAMBDA)) {
                     todo.add(world.lambdaInterface(t));
+                    String first = lambdaFirstParameter(world, t);
+                    if (first != null) todo.add(first);
                 } else {
                     ClassData c = world.knownClass(t);
                     if (c == null) continue;
@@ -828,6 +839,12 @@ final class JarRust {
                 String can = canonicalName(t);
                 if (can != null) canonical.append("        ").append(id).append(" => Some(").append(MethodRust.rustText(can)).append("),\n");
             }
+            StringBuilder lambdaFirst = new StringBuilder();
+            for (Map.Entry<String, Integer> e : ids.entrySet()) {
+                if (!e.getKey().startsWith(JavaWorld.LAMBDA)) continue;
+                String first = lambdaFirstParameter(world, e.getKey());
+                if (first != null) lambdaFirst.append("        ").append(e.getValue()).append(" => ").append(world.id(first)).append(",\n");
+            }
             StringBuilder primitives = new StringBuilder();
             for (char k : JavaWorld.PRIMITIVES.toCharArray()) primitives.append("        b'").append(k).append("' => ").append(world.id(JavaWorld.PRIMITIVE + k)).append(",\n");
             StringBuilder enums = new StringBuilder();
@@ -849,6 +866,7 @@ final class JarRust {
                     + "\n/// 1: an interface, 2: an enum's own class, 4: an array, 8: a primitive type or void.\n#[allow(dead_code)]\nfn jclass_flags(c: u32) -> i32 {\n    match c {\n" + flags + "        _ => 0,\n    }\n}\n"
                     + "\n/// getSimpleName.\n#[allow(dead_code)]\nfn jclass_simple(c: u32) -> &'static str {\n    match c {\n" + simple + "        _ => \"?\",\n    }\n}\n"
                     + "\n/// getCanonicalName (None for a local or anonymous class, a lambda's).\n#[allow(dead_code)]\nfn jclass_canonical(c: u32) -> Option<&'static str> {\n    match c {\n" + canonical + "        _ => None,\n    }\n}\n"
+                    + "\n/// A lambda's first parameter's type, as its site instantiates it (0: none, or not a class): what NeoForge's bus\n/// reads of a listener given without its event's class.\n#[allow(dead_code)]\nfn jlambda_first_parameter(c: u32) -> u32 {\n    match c {\n" + lambdaFirst + "        _ => 0,\n    }\n}\n"
                     + "\n/// The id of a primitive type or void, from its descriptor.\n#[allow(dead_code)]\nfn jclass_primitive(descriptor: i32) -> u32 {\n    match descriptor as u8 {\n" + primitives + "        _ => 0,\n    }\n}\n"
                     + "\n/// An enum's values(), from its class's id; null for any other type.\n#[allow(dead_code)]\nfn jenum_values(c: u32) -> JR<Ref> {\n    match c {\n" + enums + "        _ => Ok(None),\n    }\n}\n"
                     + """
