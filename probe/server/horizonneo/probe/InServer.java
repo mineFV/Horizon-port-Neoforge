@@ -24,7 +24,7 @@ public final class InServer {
     static void run() {
         try (PrintStream out = new PrintStream(Files.newOutputStream(Path.of("horizon-probe.txt")), true, StandardCharsets.UTF_8)) {
             GameProbe.OUT = out;
-            GameProbe.main(new String[0]);
+            GameProbe.main(new String[] {"server"});
         } catch (Throwable e) {
             try {
                 Files.writeString(Path.of("horizon-probe.txt"), "failed: " + e, StandardCharsets.UTF_8);

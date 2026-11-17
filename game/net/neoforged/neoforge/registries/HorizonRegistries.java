@@ -37,6 +37,36 @@ public final class HorizonRegistries {
         }
     }
 
+    private static final Map<String, net.minecraft.world.item.Item> ITEMS = new HashMap<>();
+    private static final Map<String, net.minecraft.world.level.material.Fluid> FLUIDS = new HashMap<>();
+
+    /** The item registered under an id: the mod's own, else one made for that id (the game's), the same each time. */
+    public static net.minecraft.world.item.Item item(String id) {
+        net.minecraft.resources.ResourceLocation location = net.minecraft.resources.ResourceLocation.parse(id);
+        Object own = get(ResourceKey.create(net.minecraft.core.registries.Registries.ITEM, location));
+        if (own instanceof net.minecraft.world.item.Item item) return item;
+        synchronized (HorizonRegistries.class) {
+            net.minecraft.world.item.Item other = ITEMS.get(id);
+            if (other == null) {
+                other = new net.minecraft.world.item.Item(new net.minecraft.world.item.Item.Properties());
+                other.horizonRegistered(location);
+                ITEMS.put(id, other);
+            }
+            return other;
+        }
+    }
+
+    /** The fluid of an id, made once (the game's: a mod's own fluids aren't modelled yet). */
+    public static synchronized net.minecraft.world.level.material.Fluid fluid(String id) {
+        net.minecraft.world.level.material.Fluid f = FLUIDS.get(id);
+        if (f == null) {
+            f = new net.minecraft.world.level.material.Fluid() {};
+            f.horizonRegistered(net.minecraft.resources.ResourceLocation.parse(id));
+            FLUIDS.put(id, f);
+        }
+        return f;
+    }
+
     static synchronized void add(ResourceKey<?> key, Supplier<?> supplier) {
         SUPPLIERS.put(key, supplier);
     }
@@ -57,6 +87,7 @@ public final class HorizonRegistries {
             VALUES.put(key, made);
         }
         if (made instanceof net.minecraft.world.level.block.Block block) block.horizonRegistered(key.location());
+        if (made instanceof net.minecraft.world.item.Item item) item.horizonRegistered(key.location());
         return made;
     }
 }

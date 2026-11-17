@@ -32,7 +32,8 @@ final class StandIns {
             "probe/horizonneo/probe/VecProbe.java",
             "probe/horizonneo/probe/EquipProbe.java",
             "probe/horizonneo/probe/RegistryProbe.java",
-            "probe/horizonneo/probe/ModProbe.java");
+            "probe/horizonneo/probe/ModProbe.java",
+            "probe/horizonneo/probe/ItemProbe.java");
 
     /** A run of the probe: what it printed, or why it couldn't run. */
     record Run(List<String> lines, String problem) {}
@@ -86,7 +87,15 @@ final class StandIns {
             if (differ > 20) out.println("problem: and " + (differ - 20) + " more differences");
             if (differ == 0) out.println("ok: the game and the stand-ins give the same " + game.lines().size() + " answers to the probe");
             problems += differ;
-            if (horizonSrc != null) problems += inServer(server, horizonSrc, python, cp, work, ours.lines(), out);
+            if (horizonSrc != null) {
+                Run oursInServer = probe(work.resolve("ours-server"), modelDir.toString(), List.of("server"));
+                if (oursInServer.problem() != null) {
+                    out.println("problem: the probe's server questions don't run against the stand-ins: " + oursInServer.problem());
+                    problems++;
+                } else {
+                    problems += inServer(server, horizonSrc, python, cp, work, oursInServer.lines(), out);
+                }
+            }
             out.println("Ran the game's classes from " + jars.size() + " jars in " + server + " as a library, to observe their answers: no server, no world, no mod.");
             return problems == 0 ? 0 : 1;
         } finally {
@@ -149,8 +158,8 @@ final class StandIns {
             dumpSaid.toString(StandardCharsets.UTF_8).lines().skip(Math.max(0, dumpSaid.toString(StandardCharsets.UTF_8).lines().count() - 15)).forEach(l -> out.println("  " + l));
             return 1;
         }
+        // Kept where the server ran (Horizon's .local, git-ignored) until the next run: the game's answers, to read.
         List<String> game = Files.readAllLines(answers, StandardCharsets.UTF_8);
-        Files.deleteIfExists(answers);
         int differ = 0;
         for (int i = 0; i < Math.max(game.size(), ours.size()); i++) {
             String g = i < game.size() ? game.get(i) : "(nothing)";
@@ -169,7 +178,7 @@ final class StandIns {
             if (index == null) throw new IOException("this tool's jar carries no model (build it with build.sh)");
             for (String line : new String(index.readAllBytes(), StandardCharsets.UTF_8).split("\n")) {
                 String name = line.strip();
-                if (name.isEmpty() || !Library.standIn(name)) continue;
+                if (name.isEmpty() || !(Library.standIn(name) || Library.bridge(name))) continue;
                 try (InputStream in = StandIns.class.getResourceAsStream("/model/" + name)) {
                     if (in == null) throw new IOException("the model's " + name + " is missing from this tool's jar");
                     Path to = dir.resolve(name);
@@ -182,6 +191,11 @@ final class StandIns {
 
     /** Compiles the probe against cp into dir, runs it with cp, and returns what it printed. */
     static Run probe(Path dir, String cp) throws IOException {
+        return probe(dir, cp, List.of());
+    }
+
+    /** As probe(dir, cp), the probe given these arguments ("server": what needs the game started too). */
+    static Run probe(Path dir, String cp, List<String> probeArgs) throws IOException {
         Path classes = dir.resolve("classes");
         Files.createDirectories(classes);
         List<String> sources = new ArrayList<>();
@@ -204,7 +218,9 @@ final class StandIns {
         }
         String jvm = ProcessHandle.current().info().command().orElse("java");
         Path printed = dir.resolve("out.txt"), errors = dir.resolve("err.txt");
-        Process p = new ProcessBuilder(jvm, "-cp", classes + java.io.File.pathSeparator + cp, "horizonneo.probe.GameProbe")
+        List<String> command = new ArrayList<>(List.of(jvm, "-cp", classes + java.io.File.pathSeparator + cp, "horizonneo.probe.GameProbe"));
+        command.addAll(probeArgs);
+        Process p = new ProcessBuilder(command)
                 // In its own folder: the game's logger writes logs/ where it runs, which is deleted with it.
                 .directory(dir.toFile()).redirectOutput(printed.toFile()).redirectError(errors.toFile()).start();
         try {
