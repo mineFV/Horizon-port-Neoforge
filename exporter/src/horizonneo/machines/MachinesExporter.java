@@ -150,10 +150,16 @@ public final class MachinesExporter {
         List<String> items = new java.util.ArrayList<>();
         for (net.minecraft.world.item.Item item : BuiltInRegistries.ITEM) {
             String id = BuiltInRegistries.ITEM.getKey(item).toString();
-            if (id.startsWith("minecraft:")) items.add(id + "=" + components(item.components()));
+            if (id.startsWith("minecraft:")) items.add(id + "=" + components(item.components()) + name(item, id));
         }
         o.addProperty("components", String.join(";", items));
         return o;
+    }
+
+    /** ",name:" and an item's description id, when it isn't "item." and its id (a block's item's is its block's). */
+    static String name(net.minecraft.world.item.Item item, String id) {
+        String own = "item." + id.replace(':', '.').replace('/', '.');
+        return item.getDescriptionId().equals(own) ? "" : ",name:" + item.getDescriptionId();
     }
 
     /** An item's components: type:value in their order, a value the stand-ins model, else "other" once at the end. */
@@ -165,6 +171,7 @@ public final class MachinesExporter {
             Object v = typed.value();
             if (v instanceof Integer n && Set.of("max_stack_size", "max_damage", "damage", "repair_cost").contains(key)) parts.add(key + ":" + n);
             else if (v instanceof net.minecraft.world.item.Rarity rarity) parts.add(key + ":" + rarity.getSerializedName());
+            else if (v == net.minecraft.util.Unit.INSTANCE && key.equals("fire_resistant")) parts.add(key);
             else if (v == net.minecraft.world.item.component.ItemLore.EMPTY || v == net.minecraft.world.item.enchantment.ItemEnchantments.EMPTY
                     || v == net.minecraft.world.item.component.ItemAttributeModifiers.EMPTY) parts.add(key + ":empty");
             else other = true;

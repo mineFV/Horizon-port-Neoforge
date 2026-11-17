@@ -36,6 +36,18 @@ public class Block extends BlockBehaviour implements ItemLike, IBlockExtension {
     }
 
     /** HorizonWorld's: the id this block was registered under. Not the game's API. */
+    private String descriptionId;
+
+    /** Observed: "block." then its id, its path's slashes as dots. */
+    public String getDescriptionId() {
+        if (descriptionId == null) descriptionId = "block." + horizonId.getNamespace() + "." + horizonId.getPath().replace('/', '.');
+        return descriptionId;
+    }
+
+    public net.minecraft.network.chat.MutableComponent getName() {
+        return net.minecraft.network.chat.Component.translatable(getDescriptionId());
+    }
+
     public net.minecraft.resources.ResourceLocation horizonId() {
         return horizonId;
     }

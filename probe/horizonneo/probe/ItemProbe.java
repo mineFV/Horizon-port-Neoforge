@@ -18,7 +18,7 @@ final class ItemProbe {
      * that the game has ("minecraft:nope" isn't one).
      */
     /** The game's components of the items the questions name, as horizon-ids.txt has them (InServer.ids). */
-    static final String COMPONENTS = "minecraft:air=max_stack_size:64,lore:empty,enchantments:empty,repair_cost:0,attribute_modifiers:empty,rarity:common;minecraft:stone=max_stack_size:64,lore:empty,enchantments:empty,repair_cost:0,attribute_modifiers:empty,rarity:common;minecraft:diamond=max_stack_size:64,lore:empty,enchantments:empty,repair_cost:0,attribute_modifiers:empty,rarity:common;minecraft:diamond_sword=repair_cost:0,lore:empty,max_damage:1561,damage:0,rarity:common,enchantments:empty,max_stack_size:1,other";
+    static final String COMPONENTS = "minecraft:air=max_stack_size:64,lore:empty,enchantments:empty,repair_cost:0,attribute_modifiers:empty,rarity:common,name:block.minecraft.air;minecraft:stone=max_stack_size:64,lore:empty,enchantments:empty,repair_cost:0,attribute_modifiers:empty,rarity:common,name:block.minecraft.stone;minecraft:diamond=max_stack_size:64,lore:empty,enchantments:empty,repair_cost:0,attribute_modifiers:empty,rarity:common;minecraft:diamond_sword=rarity:common,damage:0,repair_cost:0,enchantments:empty,lore:empty,max_damage:1561,max_stack_size:1,other";
 
     private static void given() {
         try {

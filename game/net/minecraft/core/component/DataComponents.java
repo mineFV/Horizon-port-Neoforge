@@ -20,6 +20,7 @@ public class DataComponents {
     public static final DataComponentType<Integer> REPAIR_COST = register("repair_cost");
     public static final DataComponentType<ItemAttributeModifiers> ATTRIBUTE_MODIFIERS = register("attribute_modifiers");
     public static final DataComponentType<Rarity> RARITY = register("rarity");
+    public static final DataComponentType<net.minecraft.util.Unit> FIRE_RESISTANT = register("fire_resistant");
 
     /** Observed in a server: their types and values, in this order. */
     public static final DataComponentMap COMMON_ITEM_COMPONENTS = DataComponentMap.builder()

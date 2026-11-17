@@ -52,6 +52,12 @@ given without its class having its lambda's, as NeoForge reads it. Not here: ent
 position (a block capability asked without one), a block's item, cancelling an event, the @SubscribeEvent methods of
 objects registered on a bus.
 
+Texts (net/minecraft/network/chat, 2026-11-17): literal and translated texts, their styles (colour and formats), their
+texts, equality and plain text (getString), observed; items' and blocks' names (description ids: a block's item's is
+its block's, given with the game's items' components). A translation's text is the language's (Language), which holds
+only what was given (HorizonLanguage): Horizon's language isn't reached yet, so a key not given says so. Not here: click
+and hover events, fonts, the other kinds of contents (keybinds, scores, selectors, NBT), visiting a text, its JSON.
+
 What isn't here, and what it costs: BlockPos's getCenter, betweenClosed and codecs, Direction's getRotation and
 codecs, MutableBlockPos's other setters, NBT's codecs (NbtOps), its readers and writers (DataOutput, visitors),
 TagType, ResourceLocation's codecs and its readers (StringReader), ByIdMap.sparse. A call to one isn't translated; and when a virtual call through a wider type (Object, List...) may reach

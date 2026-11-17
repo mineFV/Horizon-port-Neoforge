@@ -51,6 +51,8 @@ public final class HorizonRegistries {
                 other = new net.minecraft.world.item.Item(new net.minecraft.world.item.Item.Properties());
                 other.horizonRegistered(location);
                 other.horizonGiven(given(id));
+                String name = givenName(id);
+                if (name != null) other.horizonGivenName(name);
                 ITEMS.put(id, other);
             }
             return other;
@@ -84,7 +86,11 @@ public final class HorizonRegistries {
                 int eq = entry.indexOf('=');
                 if (eq > 0) given.put(entry.substring(0, eq), entry.substring(eq + 1));
             }
-            for (Map.Entry<String, net.minecraft.world.item.Item> e : ITEMS.entrySet()) e.getValue().horizonGiven(given(e.getKey()));
+            for (Map.Entry<String, net.minecraft.world.item.Item> e : ITEMS.entrySet()) {
+                e.getValue().horizonGiven(given(e.getKey()));
+                String name = givenName(e.getKey());
+                if (name != null) e.getValue().horizonGivenName(name);
+            }
             return;
         }
         if (registry.equals("component")) knownComponents = set;
@@ -128,6 +134,10 @@ public final class HorizonRegistries {
                 case "rarity" -> {
                     for (net.minecraft.world.item.Rarity r : net.minecraft.world.item.Rarity.values()) if (r.getSerializedName().equals(value)) values.put(net.minecraft.core.component.DataComponents.RARITY, r);
                 }
+                case "fire_resistant" -> values.put(net.minecraft.core.component.DataComponents.FIRE_RESISTANT, net.minecraft.util.Unit.INSTANCE);
+                case "name" -> {
+                    // Its description id: not a component (givenName).
+                }
                 case "lore" -> values.put(net.minecraft.core.component.DataComponents.LORE, net.minecraft.world.item.component.ItemLore.EMPTY);
                 case "enchantments" -> values.put(net.minecraft.core.component.DataComponents.ENCHANTMENTS, net.minecraft.world.item.enchantment.ItemEnchantments.EMPTY);
                 case "attribute_modifiers" -> values.put(net.minecraft.core.component.DataComponents.ATTRIBUTE_MODIFIERS, net.minecraft.world.item.component.ItemAttributeModifiers.EMPTY);
@@ -135,6 +145,14 @@ public final class HorizonRegistries {
             }
         }
         return new net.minecraft.core.component.HorizonGivenComponents(id, values, complete);
+    }
+
+    /** The description id given for the game's item of an id ("name:..." among its components), when it isn't its own. */
+    private static String givenName(String id) {
+        String text = given == null ? null : given.get(id);
+        if (text == null) return null;
+        for (String part : text.split(",")) if (part.startsWith("name:")) return part.substring(5);
+        return null;
     }
 
     /** The item registered under an id (the mod's own or the game's); null when there is none. */

@@ -10,12 +10,43 @@ public class Item implements FeatureElement, ItemLike, IItemExtension {
 
     private net.minecraft.core.component.DataComponentMap components;
 
+    private final boolean canRepair;
+    private final Item craftingRemainingItem;
+
     public Item(Properties properties) {
         this.components = properties.buildAndValidateComponents();
+        this.canRepair = properties.canRepair;
+        this.craftingRemainingItem = properties.craftingRemainingItem;
+    }
+
+    /** Observed (`standins --horizon-src`): unless its properties said setNoRepair, whether a stack of it can be damaged. */
+    @Override
+    public boolean isRepairable(ItemStack stack) {
+        return canRepair && stack.isDamageableItem();
     }
 
     public net.minecraft.core.component.DataComponentMap components() {
         return components;
+    }
+
+    private String descriptionId;
+
+    /** Observed: "item." then its id, its path's slashes as dots. */
+    public String getDescriptionId() {
+        if (descriptionId == null) descriptionId = "item." + horizonId.getNamespace() + "." + horizonId.getPath().replace('/', '.');
+        return descriptionId;
+    }
+
+    public String getDescriptionId(ItemStack stack) {
+        return getDescriptionId();
+    }
+
+    public net.minecraft.network.chat.Component getDescription() {
+        return net.minecraft.network.chat.Component.translatable(getDescriptionId());
+    }
+
+    public net.minecraft.network.chat.Component getName(ItemStack stack) {
+        return net.minecraft.network.chat.Component.translatable(getDescriptionId(stack));
     }
 
     /** Observed: itself. */
@@ -30,6 +61,11 @@ public class Item implements FeatureElement, ItemLike, IItemExtension {
     /** HorizonRegistries': the components of an item of the game's, as given. Not the game's API. */
     public void horizonGiven(net.minecraft.core.component.DataComponentMap given) {
         this.components = given;
+    }
+
+    /** HorizonRegistries': the description id of an item of the game's when it isn't its own (a block's item's). Not the game's API. */
+    public void horizonGivenName(String descriptionId) {
+        this.descriptionId = descriptionId;
     }
 
     private net.minecraft.core.Holder.Reference<Item> holder;
@@ -64,7 +100,24 @@ public class Item implements FeatureElement, ItemLike, IItemExtension {
         private final net.minecraft.core.component.DataComponentMap.Builder components =
                 net.minecraft.core.component.DataComponentMap.builder().addAll(net.minecraft.core.component.DataComponents.COMMON_ITEM_COMPONENTS);
 
+        boolean canRepair = true;
+        Item craftingRemainingItem;
+
         public Properties() {}
+
+        public Properties setNoRepair() {
+            canRepair = false;
+            return this;
+        }
+
+        public Properties fireResistant() {
+            return component(net.minecraft.core.component.DataComponents.FIRE_RESISTANT, net.minecraft.util.Unit.INSTANCE);
+        }
+
+        public Properties craftRemainder(Item item) {
+            craftingRemainingItem = item;
+            return this;
+        }
 
         public Properties stacksTo(int n) {
             return component(net.minecraft.core.component.DataComponents.MAX_STACK_SIZE, n);

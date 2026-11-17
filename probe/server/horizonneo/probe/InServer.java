@@ -40,13 +40,19 @@ public final class InServer {
             java.util.List<String> items = new java.util.ArrayList<>();
             for (net.minecraft.world.item.Item item : net.minecraft.core.registries.BuiltInRegistries.ITEM) {
                 String id = net.minecraft.core.registries.BuiltInRegistries.ITEM.getKey(item).toString();
-                if (id.startsWith("minecraft:")) items.add(id + "=" + horizonneo.probe.InServer.components(item.components()));
+                if (id.startsWith("minecraft:")) items.add(id + "=" + horizonneo.probe.InServer.components(item.components()) + name(item, id));
             }
             Files.writeString(Path.of("horizon-ids.txt"), "fluid " + String.join(",", fluids) + "\ncomponent " + String.join(",", components)
                     + "\ncomponents " + String.join(";", items) + "\n", StandardCharsets.UTF_8);
         } catch (Exception ignored) {
             // The file's absence tells it.
         }
+    }
+
+    /** ",name:" and an item's description id, when it isn't "item." and its id (a block's item's is its block's). */
+    static String name(net.minecraft.world.item.Item item, String id) {
+        String own = "item." + id.replace(':', '.').replace('/', '.');
+        return item.getDescriptionId().equals(own) ? "" : ",name:" + item.getDescriptionId();
     }
 
     /** An item's components as HorizonRegistries.known("components") takes them: type:value, in their order. */
@@ -58,6 +64,7 @@ public final class InServer {
             Object v = typed.value();
             if (v instanceof Integer n && java.util.Set.of("max_stack_size", "max_damage", "damage", "repair_cost").contains(key)) parts.add(key + ":" + n);
             else if (v instanceof net.minecraft.world.item.Rarity rarity) parts.add(key + ":" + rarity.getSerializedName());
+            else if (v == net.minecraft.util.Unit.INSTANCE && key.equals("fire_resistant")) parts.add(key);
             else if (v == net.minecraft.world.item.component.ItemLore.EMPTY || v == net.minecraft.world.item.enchantment.ItemEnchantments.EMPTY
                     || v == net.minecraft.world.item.component.ItemAttributeModifiers.EMPTY) parts.add(key + ":empty");
             else other = true;

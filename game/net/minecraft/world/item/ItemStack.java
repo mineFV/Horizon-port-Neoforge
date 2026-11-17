@@ -84,6 +84,15 @@ public final class ItemStack implements DataComponentHolder, MutableDataComponen
         return holder.value() == getItem();
     }
 
+    /**
+     * Its item's name for it (observed: no custom name nor item name among the modelled components). Where its
+     * components aren't all modelled, a name among them can't be ruled out: listing them says so.
+     */
+    public net.minecraft.network.chat.Component getHoverName() {
+        getComponents().keySet();
+        return getItem().getName(this);
+    }
+
     public int getMaxStackSize() {
         return getItem().getMaxStackSize(this);
     }

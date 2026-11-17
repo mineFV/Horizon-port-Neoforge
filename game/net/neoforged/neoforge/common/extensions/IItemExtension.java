@@ -8,6 +8,8 @@ import net.minecraft.world.item.ItemStack;
  * (observed with an item overriding them, `standins --horizon-src`).
  */
 public interface IItemExtension {
+    boolean isRepairable(ItemStack stack);
+
     default int getMaxStackSize(ItemStack stack) {
         return stack.getOrDefault(DataComponents.MAX_STACK_SIZE, 1);
     }

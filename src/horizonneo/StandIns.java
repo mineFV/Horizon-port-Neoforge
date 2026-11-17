@@ -31,7 +31,7 @@ final class StandIns {
             "probe/horizonneo/probe/IdProbe.java", "probe/horizonneo/probe/MthProbe.java",
             "probe/horizonneo/probe/VecProbe.java",
             "probe/horizonneo/probe/EquipProbe.java",
-            "probe/horizonneo/probe/RegistryProbe.java", "probe/horizonneo/probe/ComponentProbe.java", "probe/horizonneo/probe/CapabilityProbe.java",
+            "probe/horizonneo/probe/RegistryProbe.java", "probe/horizonneo/probe/ComponentProbe.java", "probe/horizonneo/probe/CapabilityProbe.java", "probe/horizonneo/probe/TextProbe.java",
             "probe/horizonneo/probe/ModProbe.java",
             "probe/horizonneo/probe/ItemProbe.java");
 

@@ -30,6 +30,7 @@ final class ComponentProbe {
     static final DeferredHolder<Item, Item> STACK16 = ITEMS.register("stack16", () -> new Item(new Item.Properties().stacksTo(16)));
     static final DeferredHolder<Item, Item> DURABLE = ITEMS.register("durable", () -> new Item(new Item.Properties().durability(100)));
     static final DeferredHolder<Item, Item> EPIC = ITEMS.register("epic", () -> new Item(new Item.Properties().component(DataComponents.RARITY, Rarity.EPIC).stacksTo(1)));
+    static final DeferredHolder<Item, Item> TOUGH = ITEMS.register("tough", () -> new Item(new Item.Properties().fireResistant().durability(30).setNoRepair().craftRemainder(Items.DIAMOND)));
     static final DeferredHolder<Item, Item> RARE = ITEMS.register("rare", () -> new Item(new Item.Properties().rarity(Rarity.RARE).stacksTo(5).rarity(Rarity.UNCOMMON)));
     static final DeferredHolder<Item, Item> CUSTOM = ITEMS.register("custom", () -> new Item(new Item.Properties().durability(60)) {
         @Override
@@ -69,7 +70,10 @@ final class ComponentProbe {
         p("component map copied", () -> DataComponentMap.builder().addAll(DataComponents.COMMON_ITEM_COMPONENTS).set(DataComponents.REPAIR_COST, 4).build());
 
         p("component levels", () -> ItemEnchantments.EMPTY.getLevel(null) + " " + (Items.DIAMOND.asItem() == Items.DIAMOND) + " " + (PLAIN.get().asItem() == PLAIN.get()));
-        Item[] items = {Items.AIR, Items.DIAMOND, Items.STONE, PLAIN.get(), STACK16.get(), DURABLE.get(), EPIC.get(), CUSTOM.get(), RARE.get()};
+        p("component repair", () -> TOUGH.get().isRepairable(new ItemStack(TOUGH.get())) + " " + DURABLE.get().isRepairable(new ItemStack(DURABLE.get())) + " "
+                + PLAIN.get().isRepairable(new ItemStack(PLAIN.get())) + " " + new ItemStack(TOUGH.get()).has(DataComponents.FIRE_RESISTANT) + " " + new ItemStack(TOUGH.get()).get(DataComponents.FIRE_RESISTANT)
+                + " " + DataComponents.FIRE_RESISTANT);
+        Item[] items = {Items.AIR, Items.DIAMOND, Items.STONE, PLAIN.get(), STACK16.get(), DURABLE.get(), EPIC.get(), CUSTOM.get(), RARE.get(), TOUGH.get()};
         // A map of eight types or more iterates in its types' identity hashes' order, which changes from run to run: the
         // types are sorted.
         for (Item item : items) {
