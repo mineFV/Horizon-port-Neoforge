@@ -10,6 +10,19 @@ public class Item implements FeatureElement, ItemLike, IItemExtension {
 
     public Item(Properties properties) {}
 
+    private net.minecraft.core.Holder.Reference<Item> holder;
+
+    /** Its holder: one for each item, its key the item registry's and its id (observed). */
+    public net.minecraft.core.Holder.Reference<Item> builtInRegistryHolder() {
+        if (holder == null) holder = new net.minecraft.core.Holder.Reference<>(net.minecraft.resources.ResourceKey.create(net.minecraft.core.registries.Registries.ITEM, horizonId), this);
+        return holder;
+    }
+
+    /** HorizonRegistries' and ItemStack's: its id. Not the game's API. */
+    public net.minecraft.resources.ResourceLocation horizonId() {
+        return horizonId;
+    }
+
     /** Observed in a server (`standins --horizon-src`): its id. */
     @Override
     public String toString() {

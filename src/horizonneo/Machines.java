@@ -68,6 +68,14 @@ final class Machines {
         return m;
     }
 
+    /** The game's item ids Port put in the machines from the facts (`vanilla_items`); null without them. */
+    static List<String> vanillaItems(Map<String, Object> machines) {
+        if (!(machines.get("vanilla_items") instanceof List<?> list)) return null;
+        List<String> out = new ArrayList<>();
+        for (Object o : list) if (o instanceof String s) out.add(s);
+        return out;
+    }
+
     /** Writes the helpers and their injections into the bundle's mod folder, and the hooks API they need. */
     static Made apply(Path mod, String modId, Map<String, Object> machines, EventTable table) throws IOException {
         return apply(mod, modId, machines, table, null);
@@ -128,7 +136,7 @@ final class Machines {
             });
             bridgeModule = module + "_bridge";
             Files.writeString(mod.resolve("java.rs"), java.rust(), StandardCharsets.UTF_8);
-            Files.writeString(mod.resolve("bridge.rs"), BridgeRust.module("super::" + module + "_java", info != null ? info : ModInfo.minimal(modId), functions), StandardCharsets.UTF_8);
+            Files.writeString(mod.resolve("bridge.rs"), BridgeRust.module("super::" + module + "_java", info != null ? info : ModInfo.minimal(modId), functions, vanillaItems(machines)), StandardCharsets.UTF_8);
         }
         for (String name : HOOKS) {
             Body body = name.equals("block_entity_tick") && !bridged.isEmpty() ? bridgedTick(bridged, bridgeModule, blocks) : body(name, blocks, notes);

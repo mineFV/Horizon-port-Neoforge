@@ -153,6 +153,14 @@ final class Port {
         Map<String, String> ticks = Tickers.all(machines, JarRust.classes(jar));
         Map<String, Object> blocks = Json.object(machines.get("blocks"));
         ticks.forEach((id, tick) -> Json.object(blocks.get(id)).put("tick", tick));
+        // The game's item ids, from the facts: the bridge gives them to the stand-ins (ItemStack.parse).
+        Object read;
+        try {
+            read = Json.parse(Files.readString(facts, StandardCharsets.UTF_8));
+        } catch (Json.Invalid e) {
+            throw new IOException(facts + " isn't JSON: " + e.getMessage());
+        }
+        if (read instanceof Map<?, ?> f && f.get("vanilla_items") instanceof List<?> items) machines.put("vanilla_items", items);
         return machines;
     }
 

@@ -18,7 +18,23 @@ import net.neoforged.neoforge.event.server.ServerStartedEvent;
 @Mod("horizonprobe")
 public final class InServer {
     public InServer(IEventBus bus) {
-        NeoForge.EVENT_BUS.addListener(EventPriority.HIGHEST, (ServerStartedEvent event) -> run());
+        NeoForge.EVENT_BUS.addListener(EventPriority.HIGHEST, (ServerStartedEvent event) -> {
+            GameProbe.REGISTRIES = event.getServer().registryAccess();
+            run();
+            ids();
+        });
+    }
+
+    /** The game's fluid ids, which `dump`'s facts don't have, to horizon-ids.txt: the bridge gives them to the stand-ins. */
+    static void ids() {
+        try {
+            java.util.List<String> fluids = new java.util.ArrayList<>();
+            for (net.minecraft.resources.ResourceLocation id : net.minecraft.core.registries.BuiltInRegistries.FLUID.keySet()) fluids.add(id.toString());
+            java.util.Collections.sort(fluids);
+            Files.writeString(Path.of("horizon-ids.txt"), "fluid " + String.join(",", fluids) + "\n", StandardCharsets.UTF_8);
+        } catch (Exception ignored) {
+            // The file's absence tells it.
+        }
     }
 
     static void run() {

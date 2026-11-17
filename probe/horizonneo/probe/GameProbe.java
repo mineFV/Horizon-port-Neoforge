@@ -17,6 +17,9 @@ public final class GameProbe {
     /** Where the answers go: standard output, or InServer's file in a server. */
     static java.io.PrintStream OUT = System.out;
 
+    /** The game's registries, which saving a stack is given: the server's (InServer); null for the stand-ins'. */
+    static net.minecraft.core.HolderLookup.Provider REGISTRIES;
+
     static final int MAX = Integer.MAX_VALUE, MIN = Integer.MIN_VALUE;
     static final int[][] PLACES = {
         {0, 0, 0}, {1, 2, 3}, {-1, -2, -3}, {5, 64, -7}, {3, 64, -7}, {5, 60, -7}, {5, 64, 9},

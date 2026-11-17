@@ -52,6 +52,11 @@ public final class HorizonBridge {
         return new net.neoforged.fml.HorizonModContainer(modId, version, displayName, bus);
     }
 
+    /** The game's ids of a registry ("item", "fluid"), comma-separated, given before the mod loads (HorizonRegistries.known). */
+    public static void known(String registry, String ids) {
+        HorizonRegistries.known(registry, ids);
+    }
+
     public static Level level() {
         return LEVEL;
     }

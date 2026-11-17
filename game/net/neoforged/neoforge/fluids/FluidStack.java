@@ -74,6 +74,38 @@ public final class FluidStack implements MutableDataComponentHolder {
         return stack == null ? 0 : 31 * (31 + stack.getFluid().hashCode());
     }
 
+    public net.minecraft.core.Holder<Fluid> getFluidHolder() {
+        return getFluid().builtInRegistryHolder();
+    }
+
+    /** Observed in a server (`standins --horizon-src`): {amount, id}; an empty stack can't be written. */
+    public net.minecraft.nbt.Tag save(net.minecraft.core.HolderLookup.Provider registries) {
+        if (isEmpty()) throw new IllegalStateException("Cannot encode empty FluidStack");
+        net.minecraft.nbt.CompoundTag tag = new net.minecraft.nbt.CompoundTag();
+        tag.putString("id", String.valueOf(getFluid().horizonId()));
+        tag.putInt("amount", getAmount());
+        return tag;
+    }
+
+    public net.minecraft.nbt.Tag saveOptional(net.minecraft.core.HolderLookup.Provider registries) {
+        return isEmpty() ? new net.minecraft.nbt.CompoundTag() : save(registries);
+    }
+
+    /** Observed: a compound with a known fluid's id that isn't empty, and an amount above 0 (else none). */
+    public static java.util.Optional<FluidStack> parse(net.minecraft.core.HolderLookup.Provider registries, net.minecraft.nbt.Tag tag) {
+        if (!(tag instanceof net.minecraft.nbt.CompoundTag c) || !c.contains("id", 8) || !c.contains("amount", 99)) return java.util.Optional.empty();
+        net.minecraft.resources.ResourceLocation id = net.minecraft.resources.ResourceLocation.tryParse(c.getString("id"));
+        if (id == null) return java.util.Optional.empty();
+        Fluid fluid = net.neoforged.neoforge.registries.HorizonRegistries.knownFluid(id.toString());
+        int amount = c.getInt("amount");
+        if (fluid == null || fluid == Fluids.EMPTY || amount <= 0) return java.util.Optional.empty();
+        return java.util.Optional.of(new FluidStack(fluid, amount));
+    }
+
+    public static FluidStack parseOptional(net.minecraft.core.HolderLookup.Provider registries, net.minecraft.nbt.CompoundTag tag) {
+        return tag.isEmpty() ? EMPTY : parse(registries, tag).orElse(EMPTY);
+    }
+
     @Override
     public String toString() {
         return getAmount() + " " + getFluid().horizonId();

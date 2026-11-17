@@ -67,6 +67,44 @@ public final class HorizonRegistries {
         return f;
     }
 
+    private static java.util.Set<String> knownItems;
+    private static java.util.Set<String> knownFluids;
+
+    /**
+     * The game's ids of a registry ("item" or "fluid"), comma-separated, as `dump` read them in NeoForge: the bridge
+     * gives them before the mod loads (the facts' vanilla_items), the stand-ins' probe gives its own. Not the game's API.
+     */
+    public static synchronized void known(String registry, String ids) {
+        java.util.Set<String> set = new java.util.HashSet<>();
+        for (String id : ids.split(",")) if (!id.isEmpty()) set.add(id);
+        if (registry.equals("item")) knownItems = set;
+        else if (registry.equals("fluid")) knownFluids = set;
+        else throw new IllegalArgumentException(registry);
+    }
+
+    /** The item registered under an id (the mod's own or the game's); null when there is none. */
+    public static net.minecraft.world.item.Item knownItem(String id) {
+        net.minecraft.resources.ResourceLocation location = net.minecraft.resources.ResourceLocation.parse(id);
+        Object own = get(ResourceKey.create(net.minecraft.core.registries.Registries.ITEM, location));
+        if (own instanceof net.minecraft.world.item.Item item) return item;
+        java.util.Set<String> known;
+        synchronized (HorizonRegistries.class) {
+            known = knownItems;
+        }
+        if (known == null) throw new IllegalStateException("the game's item ids weren't given (HorizonRegistries.known)");
+        return known.contains(id) ? item(id) : null;
+    }
+
+    /** The fluid of an id, the game's (a mod's own fluids aren't modelled yet); null when there is none. */
+    public static net.minecraft.world.level.material.Fluid knownFluid(String id) {
+        java.util.Set<String> known;
+        synchronized (HorizonRegistries.class) {
+            known = knownFluids;
+        }
+        if (known == null) throw new IllegalStateException("the game's fluid ids weren't given (HorizonRegistries.known)");
+        return known.contains(id) ? fluid(id) : null;
+    }
+
     static synchronized void add(ResourceKey<?> key, Supplier<?> supplier) {
         SUPPLIERS.put(key, supplier);
     }

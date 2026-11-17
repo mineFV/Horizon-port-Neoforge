@@ -17,6 +17,14 @@ public abstract class Fluid implements IFluidExtension {
         return horizonId;
     }
 
+    private net.minecraft.core.Holder.Reference<Fluid> holder;
+
+    /** Its holder: one for each fluid, its key the fluid registry's and its id (observed). */
+    public net.minecraft.core.Holder.Reference<Fluid> builtInRegistryHolder() {
+        if (holder == null) holder = new net.minecraft.core.Holder.Reference<>(net.minecraft.resources.ResourceKey.create(net.minecraft.core.registries.Registries.FLUID, horizonId), this);
+        return holder;
+    }
+
     /** Observed in a server (`standins --horizon-src`): see ItemProbe. */
     @Override
     public String toString() {

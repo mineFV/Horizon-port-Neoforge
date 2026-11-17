@@ -24,6 +24,7 @@ final class BridgeRust {
     static final List<String[]> NEEDED = List.of(
             new String[] {"bus", "()Lnet/neoforged/bus/api/IEventBus;"},
             new String[] {"container", "(Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Lnet/neoforged/bus/api/IEventBus;)Lnet/neoforged/fml/ModContainer;"},
+            new String[] {"known", "(Ljava/lang/String;Ljava/lang/String;)V"},
             new String[] {"make", "(Ljava/lang/String;III)Lnet/minecraft/world/level/block/entity/BlockEntity;"},
             new String[] {"ticker", "(Lnet/minecraft/world/level/block/entity/BlockEntity;)Lnet/minecraft/world/level/block/entity/BlockEntityTicker;"},
             new String[] {"tickWith", "(Lnet/minecraft/world/level/block/entity/BlockEntityTicker;Lnet/minecraft/world/level/block/entity/BlockEntity;)V"},
@@ -73,11 +74,24 @@ final class BridgeRust {
     }
 
     /**
-     * The module's text. java: the translation's module, as the bridge module names it (`super::port_x_java`); modId:
-     * for what the module says when something goes wrong.
+     * The game's fluid ids, observed in NeoForge 21.1.266's fluid registry (`standins --horizon-src`, horizon-ids.txt):
+     * `dump`'s facts don't have them.
      */
+    static final String FLUIDS = "minecraft:empty,minecraft:flowing_lava,minecraft:flowing_water,minecraft:lava,minecraft:water";
+
+    /** As module(java, info, f, items), the game's item ids not given: what needs them (ItemStack.parse) throws. */
     static String module(String java, ModInfo info, Map<String, String> f) {
-        String t = TEMPLATE.replace("{JAVA}", java).replace("{MOD}", info.id())
+        return module(java, info, f, null);
+    }
+
+    /**
+     * The module's text. java: the translation's module, as the bridge module names it (`super::port_x_java`); info:
+     * the mod's metadata; items: the game's item ids, as `dump` read them (the facts' vanilla_items), null when unknown.
+     */
+    static String module(String java, ModInfo info, Map<String, String> f, List<String> items) {
+        String given = "{known}(text(\"fluid\"), text(" + Machines.rust(FLUIDS) + ")).map_err(|e| j::jdescribe(&e))?;";
+        if (items != null) given += "\n    {known}(text(\"item\"), text(" + Machines.rust(String.join(",", items)) + ")).map_err(|e| j::jdescribe(&e))?;";
+        String t = TEMPLATE.replace("{GIVEN}", given).replace("{JAVA}", java).replace("{MOD}", info.id())
                 .replace("{MOD_ID_TEXT}", Machines.rust(info.id())).replace("{MOD_VERSION_TEXT}", Machines.rust(info.version()))
                 .replace("{MOD_NAME_TEXT}", Machines.rust(info.name()));
         for (Map.Entry<String, String> e : f.entrySet()) t = t.replace("{" + e.getKey() + "}", "j::" + e.getValue());
@@ -129,6 +143,7 @@ final class BridgeRust {
             /// The mod, loaded once as NeoForge loads it (its object made, given its event bus): its registrations
             /// happen then. What went wrong, if anything.
             static LOADED: LazyLock<Result<(), String>> = LazyLock::new(|| {
+                {GIVEN}
                 let bus = {bus}().map_err(|e| j::jdescribe(&e))?;
                 let container = {container}(text({MOD_ID_TEXT}), text({MOD_VERSION_TEXT}), text({MOD_NAME_TEXT}), bus.clone()).map_err(|e| j::jdescribe(&e))?;
                 j::jexport_mod(bus, container).map(|_| ()).map_err(|e| j::jdescribe(&e))
