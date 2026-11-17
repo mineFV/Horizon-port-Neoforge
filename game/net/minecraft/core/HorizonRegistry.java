@@ -9,17 +9,25 @@ import net.neoforged.neoforge.registries.HorizonRegistries;
  * Not the game's: a registry of BuiltInRegistries. An id's value is the mod's registration, else the game's (items,
  * blocks, fluids and component types, as given: HorizonRegistries); a value's id the one it was registered under. A
  * defaulted registry gives its default for an unknown id and value. The game's values of the other registries (entity
- * types, menus...) aren't modelled, nor the whole of a registry (its keys, entries, size, numbers): asking says so.
+ * types, menus...) aren't modelled, nor the whole of a registry (its keys, entries, size, numbers): asking says so. A
+ * registry the mod made holds its registrations alone (another mod registering in it isn't modelled).
  */
 public final class HorizonRegistry<T> implements DefaultedRegistry<T> {
     private final ResourceKey<?> key;
     private final String kind;
     private final ResourceLocation defaultKey;
+    /** A registry the mod made (RegistryBuilder): what it holds is the mod's registrations alone. */
+    private final boolean own;
 
     public HorizonRegistry(ResourceKey<?> key, ResourceLocation defaultKey) {
+        this(key, defaultKey, false);
+    }
+
+    public HorizonRegistry(ResourceKey<?> key, ResourceLocation defaultKey, boolean own) {
         this.key = key;
         this.kind = key.location().getPath();
         this.defaultKey = defaultKey;
+        this.own = own;
     }
 
     @Override
@@ -33,6 +41,7 @@ public final class HorizonRegistry<T> implements DefaultedRegistry<T> {
         if (id == null) return null;
         Object own = HorizonRegistries.get(ResourceKey.create(key, id));
         if (own != null) return (T) own;
+        if (this.own) return null;
         String text = id.toString();
         return (T) switch (kind) {
             case "item" -> HorizonRegistries.knownItem(text);

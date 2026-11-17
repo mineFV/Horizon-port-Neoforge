@@ -200,6 +200,11 @@ public final class HorizonRegistries {
         return known.contains(id) ? block(id) : null;
     }
 
+    /** A new NewRegistryEvent, for the bridge to fire. Not the game's API. */
+    public static NewRegistryEvent newRegistryEvent() {
+        return new NewRegistryEvent();
+    }
+
     /** The item registered under an id (the mod's own or the game's); null when there is none. */
     public static net.minecraft.world.item.Item knownItem(String id) {
         net.minecraft.resources.ResourceLocation location = net.minecraft.resources.ResourceLocation.parse(id);

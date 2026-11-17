@@ -57,8 +57,12 @@ public final class HorizonBridge {
         HorizonRegistries.known(registry, ids);
     }
 
-    /** Fires RegisterCapabilitiesEvent on the mod's bus, once it is loaded, as NeoForge does after its registries. */
+    /**
+     * Fires on the mod's bus, once it is loaded, what NeoForge fires then: NewRegistryEvent, then (after its registries)
+     * RegisterCapabilitiesEvent. RegisterEvent isn't fired: DeferredRegister registers without it (HorizonRegistries).
+     */
     public static void capabilities(net.neoforged.bus.api.IEventBus bus) {
+        bus.post(net.neoforged.neoforge.registries.HorizonRegistries.newRegistryEvent());
         bus.post(net.neoforged.neoforge.capabilities.HorizonCapabilities.event());
     }
 

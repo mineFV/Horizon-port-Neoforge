@@ -13,6 +13,14 @@ import net.minecraft.world.level.material.Fluids;
 final class BuiltInProbe {
     private BuiltInProbe() {}
 
+    /** A registry of the probe's own, made as a mod makes one, and two entries in it. */
+    static final ResourceKey<net.minecraft.core.Registry<String>> WORDS_KEY = ResourceKey.createRegistryKey(ResourceLocation.parse("horizonprobe:words"));
+    static final net.minecraft.core.Registry<String> WORDS = new net.neoforged.neoforge.registries.RegistryBuilder<>(WORDS_KEY)
+            .defaultKey(ResourceLocation.parse("horizonprobe:none")).sync(true).maxId(100).create();
+    static final net.neoforged.neoforge.registries.DeferredRegister<String> WORD_ENTRIES = net.neoforged.neoforge.registries.DeferredRegister.create(WORDS_KEY, "horizonprobe");
+    static final net.neoforged.neoforge.registries.DeferredHolder<String, String> ALPHA = WORD_ENTRIES.register("alpha", () -> "alpha-value");
+    static final net.neoforged.neoforge.registries.DeferredHolder<String, String> NONE = WORD_ENTRIES.register("none", () -> "none-value");
+
     static void run() {
         ResourceLocation diamond = ResourceLocation.withDefaultNamespace("diamond"), nope = ResourceLocation.withDefaultNamespace("nope");
         ResourceLocation plain = ResourceLocation.parse("horizonprobe:plain");
@@ -32,6 +40,11 @@ final class BuiltInProbe {
         p("registry block", () -> BuiltInRegistries.BLOCK.getKey(CapabilityProbe.BLOCK.get()) + " " + BuiltInRegistries.BLOCK.get(ResourceLocation.withDefaultNamespace("stone"))
                 + " " + BuiltInRegistries.BLOCK.get(nope) + " " + BuiltInRegistries.BLOCK.getDefaultKey() + " " + BuiltInRegistries.BLOCK.containsKey(nope)
                 + " " + BuiltInRegistries.ENTITY_TYPE.getDefaultKey());
+        ResourceLocation alpha = ResourceLocation.parse("horizonprobe:alpha"), other = ResourceLocation.parse("horizonprobe:other");
+        p("registry own", () -> WORDS.get(alpha) + " " + WORDS.get(other) + " " + WORDS.getKey("alpha-value") + " " + WORDS.getKey("stranger") + " " + WORDS.containsKey(alpha)
+                + " " + WORDS.containsKey(other) + " " + WORDS.getOptional(other) + " " + WORDS.key() + " " + WORDS + " " + ALPHA.get() + " " + WORDS.getKeyOrNull("stranger")
+                + " " + WORDS.containsValue("none-value") + " " + WORDS.getResourceKey("alpha-value") + " " + WORDS.getHolder(alpha).map(h -> h.value()).orElse("?")
+                + " " + ((net.minecraft.core.DefaultedRegistry<String>) WORDS).getDefaultKey());
         p("registry components", () -> (BuiltInRegistries.DATA_COMPONENT_TYPE.get(ResourceLocation.withDefaultNamespace("max_stack_size")) == DataComponents.MAX_STACK_SIZE) + " "
                 + BuiltInRegistries.DATA_COMPONENT_TYPE.getKey(DataComponents.DAMAGE) + " " + BuiltInRegistries.DATA_COMPONENT_TYPE.get(nope) + " " + BuiltInRegistries.DATA_COMPONENT_TYPE
                 + " " + BuiltInRegistries.DATA_COMPONENT_TYPE.containsKey(nope) + " " + BuiltInRegistries.DATA_COMPONENT_TYPE.getOptional(nope));

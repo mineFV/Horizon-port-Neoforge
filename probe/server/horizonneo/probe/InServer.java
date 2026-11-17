@@ -20,6 +20,8 @@ public final class InServer {
     public InServer(IEventBus bus) {
         ComponentProbe.ITEMS.register(bus);
         CapabilityProbe.BLOCKS.register(bus);
+        BuiltInProbe.WORD_ENTRIES.register(bus);
+        bus.addListener(net.neoforged.neoforge.registries.NewRegistryEvent.class, e -> e.register(BuiltInProbe.WORDS));
         bus.addListener(net.neoforged.neoforge.capabilities.RegisterCapabilitiesEvent.class, CapabilityProbe::register);
         NeoForge.EVENT_BUS.addListener(EventPriority.HIGHEST, (ServerStartedEvent event) -> {
             GameProbe.REGISTRIES = event.getServer().registryAccess();
