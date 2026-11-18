@@ -6,7 +6,48 @@ import net.neoforged.neoforge.common.extensions.IFluidExtension;
 public abstract class Fluid implements IFluidExtension {
     private net.minecraft.resources.ResourceLocation horizonId;
 
-    protected Fluid() {}
+    protected final net.minecraft.world.level.block.state.StateDefinition<Fluid, FluidState> stateDefinition;
+    private FluidState defaultFluidState;
+
+    protected Fluid() {
+        net.minecraft.world.level.block.state.StateDefinition.Builder<Fluid, FluidState> builder = new net.minecraft.world.level.block.state.StateDefinition.Builder<>(this);
+        createFluidStateDefinition(builder);
+        this.stateDefinition = builder.horizonCreate(FluidState::new);
+        registerDefaultState(stateDefinition.any());
+    }
+
+    protected void createFluidStateDefinition(net.minecraft.world.level.block.state.StateDefinition.Builder<Fluid, FluidState> builder) {}
+
+    protected final void registerDefaultState(FluidState state) {
+        this.defaultFluidState = state;
+    }
+
+    /** Its first state; refused for the game's flowing water and lava, whose level isn't modelled. */
+    public final FluidState defaultFluidState() {
+        if (horizonLevelled()) throw new UnsupportedOperationException("the states of " + this + " aren't modelled: their level (horizon-port-neoforge)");
+        return defaultFluidState;
+    }
+
+    public net.minecraft.world.level.block.state.StateDefinition<Fluid, FluidState> getStateDefinition() {
+        return stateDefinition;
+    }
+
+    /** HorizonRegistries' game fluids: whether its states have a level, which isn't modelled. Not the game's API. */
+    protected boolean horizonLevelled() {
+        return false;
+    }
+
+    protected boolean isEmpty() {
+        return false;
+    }
+
+    public abstract boolean isSource(FluidState state);
+
+    public abstract int getAmount(FluidState state);
+
+    public boolean isSame(Fluid fluid) {
+        return fluid == this;
+    }
 
     /** HorizonRegistries': the id this fluid was registered under. Not the game's API. */
     public void horizonRegistered(net.minecraft.resources.ResourceLocation id) {

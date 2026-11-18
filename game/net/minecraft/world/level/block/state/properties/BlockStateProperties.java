@@ -7,6 +7,7 @@ package net.minecraft.world.level.block.state.properties;
  */
 public class BlockStateProperties {
     public static final BooleanProperty ENABLED = BooleanProperty.create("enabled");
+    public static final BooleanProperty FALLING = BooleanProperty.create("falling");
     public static final BooleanProperty LIT = BooleanProperty.create("lit");
     public static final BooleanProperty POWERED = BooleanProperty.create("powered");
     public static final DirectionProperty FACING = DirectionProperty.create("facing",

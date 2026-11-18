@@ -24,10 +24,13 @@ final class ItemProbe {
         try {
             java.lang.reflect.Method known = Class.forName("net.neoforged.neoforge.registries.HorizonRegistries").getMethod("known", String.class, String.class);
             known.invoke(null, "item", "minecraft:air,minecraft:stone,minecraft:diamond,minecraft:diamond_sword,minecraft:coal,minecraft:stick,minecraft:lava_bucket,minecraft:bucket");
-            known.invoke(null, "block", "minecraft:air,minecraft:stone");
+            known.invoke(null, "block", "minecraft:air,minecraft:stone,minecraft:cave_air,minecraft:void_air");
             known.invoke(null, "fluid", "minecraft:empty,minecraft:flowing_water,minecraft:water,minecraft:flowing_lava,minecraft:lava");
             known.invoke(null, "component", "minecraft:max_stack_size,minecraft:max_damage,minecraft:damage,minecraft:repair_cost,minecraft:lore,minecraft:enchantments,minecraft:attribute_modifiers,minecraft:rarity");
             known.invoke(null, "components", COMPONENTS);
+            // The game's block items among those asked, whole there (`dump`'s item_blocks and block_items).
+            known.invoke(null, "item_blocks", "minecraft:stone=minecraft:stone");
+            known.invoke(null, "block_items", "minecraft:stone=minecraft:stone");
         } catch (ClassNotFoundException e) {
             // The game's own classes: nothing to give.
         } catch (ReflectiveOperationException e) {

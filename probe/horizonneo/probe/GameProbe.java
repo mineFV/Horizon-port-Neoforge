@@ -70,6 +70,7 @@ public final class GameProbe {
             FluidTypeProbe.run();
             EntityTypeProbe.run();
             FuelProbe.run();
+            BlockItemProbe.run();
         }
     }
 

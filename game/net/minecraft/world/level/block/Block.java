@@ -23,10 +23,15 @@ public class Block extends BlockBehaviour implements ItemLike, IBlockExtension {
     /** The properties its states have: none here, a mod's block adds its own. */
     protected void createBlockStateDefinition(net.minecraft.world.level.block.state.StateDefinition.Builder<Block, BlockState> builder) {}
 
-    /** Its item: a block's (BlockItem) isn't modelled yet, refused. */
+    /** Its item (Item.byBlock), else air. */
     @Override
     public net.minecraft.world.item.Item asItem() {
-        throw new UnsupportedOperationException("a block's item isn't modelled yet (horizon-port-neoforge)");
+        return net.minecraft.world.item.Item.byBlock(this);
+    }
+
+    /** Observed: a BlockItem's block, else air. */
+    public static Block byItem(net.minecraft.world.item.Item item) {
+        return item instanceof net.minecraft.world.item.BlockItem blockItem ? blockItem.getBlock() : net.neoforged.neoforge.registries.HorizonRegistries.block("minecraft:air");
     }
 
     protected final void registerDefaultState(BlockState state) {
@@ -73,6 +78,17 @@ public class Block extends BlockBehaviour implements ItemLike, IBlockExtension {
     @Override
     public String toString() {
         return "Block{" + horizonId + "}";
+    }
+
+    private boolean horizonOther;
+
+    /** HorizonRegistries': this block only stands for one of the game's or another mod's, whose properties aren't known. Not the game's API. */
+    public void horizonOther(boolean other) {
+        this.horizonOther = other;
+    }
+
+    public boolean horizonOther() {
+        return horizonOther;
     }
 
     /** HorizonRegistries': the id this block was registered under. Not the game's API. */

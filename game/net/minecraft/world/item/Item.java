@@ -6,6 +6,14 @@ import net.neoforged.neoforge.common.extensions.IItemExtension;
 
 /** The stand-in for the game's Item: its id, given when it is registered (HorizonRegistries). */
 public class Item implements FeatureElement, ItemLike, IItemExtension {
+    /** Each block's item: what a BlockItem registered gives (BlockItem.registerBlocks, HorizonRegistries). */
+    public static final java.util.Map<net.minecraft.world.level.block.Block, Item> BY_BLOCK = new java.util.HashMap<>();
+
+    /** A block's item, else air (observed): the game's blocks' as given, the mod's once its items are all made. */
+    public static Item byBlock(net.minecraft.world.level.block.Block block) {
+        return net.neoforged.neoforge.registries.HorizonRegistries.itemOf(block);
+    }
+
     private net.minecraft.resources.ResourceLocation horizonId;
 
     private net.minecraft.core.component.DataComponentMap components;
@@ -87,6 +95,14 @@ public class Item implements FeatureElement, ItemLike, IItemExtension {
     /** HorizonRegistries': the description id of an item of the game's when it isn't its own (a block's item's). Not the game's API. */
     public void horizonGivenName(String descriptionId) {
         this.descriptionId = descriptionId;
+        this.nameGiven = true;
+    }
+
+    private boolean nameGiven;
+
+    /** BlockItem's: the description id given for an item of the game's, else null. Not the game's API. */
+    protected String horizonGivenName() {
+        return nameGiven ? descriptionId : null;
     }
 
     private net.minecraft.core.Holder.Reference<Item> holder;

@@ -11,7 +11,7 @@ import net.minecraft.resources.ResourceKey;
  * the same object each time, made at another moment (a supplier with effects of its own could tell).
  */
 public final class HorizonRegistries {
-    private static final Map<ResourceKey<?>, Supplier<?>> SUPPLIERS = new HashMap<>();
+    private static final Map<ResourceKey<?>, Supplier<?>> SUPPLIERS = new java.util.LinkedHashMap<>();
     private static final Map<ResourceKey<?>, Object> VALUES = new HashMap<>();
     /** The key of each value made, by identity. */
     private static final Map<Object, ResourceKey<?>> KEYS = new java.util.IdentityHashMap<>();
@@ -33,6 +33,7 @@ public final class HorizonRegistries {
             if (other == null) {
                 other = new net.minecraft.world.level.block.Block(net.minecraft.world.level.block.state.BlockBehaviour.Properties.of());
                 other.horizonRegistered(location);
+                other.horizonOther(true);
                 OTHERS.put(id, other);
             }
             return other;
@@ -50,7 +51,10 @@ public final class HorizonRegistries {
         synchronized (HorizonRegistries.class) {
             net.minecraft.world.item.Item other = ITEMS.get(id);
             if (other == null) {
-                other = new net.minecraft.world.item.Item(new net.minecraft.world.item.Item.Properties());
+                if (itemBlocks == null) throw new IllegalStateException("whether " + id + " is a block's item wasn't given (HorizonRegistries.known: item_blocks)");
+                String blockId = itemBlocks.get(id);
+                other = blockId == null ? new net.minecraft.world.item.Item(new net.minecraft.world.item.Item.Properties())
+                        : new net.minecraft.world.item.BlockItem(block(blockId), new net.minecraft.world.item.Item.Properties());
                 other.horizonRegistered(location);
                 other.horizonGiven(given(id));
                 String name = givenName(id);
@@ -69,15 +73,76 @@ public final class HorizonRegistries {
             // Observed (FluidTypeProbe): the game's water and lava, still and flowing, are FlowingFluids.
             f = switch (id) {
                 case "minecraft:water", "minecraft:flowing_water", "minecraft:lava", "minecraft:flowing_lava" -> new net.minecraft.world.level.material.FlowingFluid() {
+                    // Observed (FluidProbe): a source's states are sources of 8; the flowing ones' have a level, not modelled.
+                    private final boolean flowing = id.contains("flowing_");
+                    private final String kind = id.endsWith("water") ? "water" : "lava";
+
                     @Override
                     public net.neoforged.neoforge.fluids.FluidType getFluidType() {
                         return fluidType(horizonId());
+                    }
+
+                    @Override
+                    protected boolean horizonLevelled() {
+                        return flowing;
+                    }
+
+                    @Override
+                    public net.minecraft.world.level.material.Fluid getSource() {
+                        return fluid("minecraft:" + kind);
+                    }
+
+                    @Override
+                    public net.minecraft.world.level.material.Fluid getFlowing() {
+                        return fluid("minecraft:flowing_" + kind);
+                    }
+
+                    @Override
+                    public boolean isSource(net.minecraft.world.level.material.FluidState state) {
+                        return !flowing;
+                    }
+
+                    @Override
+                    public int getAmount(net.minecraft.world.level.material.FluidState state) {
+                        if (flowing) throw new UnsupportedOperationException("the level of " + this + " isn't modelled (horizon-port-neoforge)");
+                        return 8;
+                    }
+                };
+                case "minecraft:empty" -> new net.minecraft.world.level.material.Fluid() {
+                    @Override
+                    public net.neoforged.neoforge.fluids.FluidType getFluidType() {
+                        return fluidType(horizonId());
+                    }
+
+                    @Override
+                    protected boolean isEmpty() {
+                        return true;
+                    }
+
+                    @Override
+                    public boolean isSource(net.minecraft.world.level.material.FluidState state) {
+                        return false;
+                    }
+
+                    @Override
+                    public int getAmount(net.minecraft.world.level.material.FluidState state) {
+                        return 0;
                     }
                 };
                 default -> new net.minecraft.world.level.material.Fluid() {
                     @Override
                     public net.neoforged.neoforge.fluids.FluidType getFluidType() {
                         return fluidType(horizonId());
+                    }
+
+                    @Override
+                    public boolean isSource(net.minecraft.world.level.material.FluidState state) {
+                        throw new UnsupportedOperationException("the states of " + this + " aren't modelled (horizon-port-neoforge)");
+                    }
+
+                    @Override
+                    public int getAmount(net.minecraft.world.level.material.FluidState state) {
+                        throw new UnsupportedOperationException("the states of " + this + " aren't modelled (horizon-port-neoforge)");
                     }
                 };
             };
@@ -113,6 +178,16 @@ public final class HorizonRegistries {
         }
         if (registry.equals("namespaces")) {
             net.minecraft.tags.HorizonTags.namespaces(ids);
+            return;
+        }
+        if (registry.equals("item_blocks") || registry.equals("block_items")) {
+            Map<String, String> pairs = new HashMap<>();
+            for (String entry : ids.split(";")) {
+                int eq = entry.indexOf('=');
+                if (eq > 0) pairs.put(entry.substring(0, eq), entry.substring(eq + 1));
+            }
+            if (registry.equals("item_blocks")) itemBlocks = pairs;
+            else blockItems = pairs;
             return;
         }
         if (registry.equals("remainders")) {
@@ -301,6 +376,11 @@ public final class HorizonRegistries {
         }
         if (made instanceof net.minecraft.world.level.block.Block block) block.horizonRegistered(key.location());
         if (made instanceof net.minecraft.world.item.Item item) item.horizonRegistered(key.location());
+        if (made instanceof net.minecraft.world.item.BlockItem blockItem) {
+            synchronized (HorizonRegistries.class) {
+                blockItem.registerBlocks(net.minecraft.world.item.Item.BY_BLOCK, blockItem);
+            }
+        }
         if (made instanceof net.minecraft.core.component.DataComponentType<?> type) net.minecraft.core.component.DataComponentType.horizonRegistered(type, key.location());
         return made;
     }
@@ -334,5 +414,62 @@ public final class HorizonRegistries {
         }
         String r = remainders.get(id);
         item.horizonGivenRemainder(r == null ? null : item(r), true);
+    }
+
+    /** The game's items that stand for a block, with it ("item_blocks": "item=block;...", whole), as `dump` read them. */
+    private static Map<String, String> itemBlocks;
+    /** The game's blocks' items ("block_items": "block=item;...", whole: Item.BY_BLOCK's), as `dump` read them. */
+    private static Map<String, String> blockItems;
+    private static boolean makingItems;
+    /** How many values were registered when the mod's items were last all made: none to make while it is the same. */
+    private static int madeAt = -1;
+
+    /**
+     * Item.byBlock's: a block's item, else air. The mod's BlockItems fill Item.BY_BLOCK when they are made, and the
+     * game makes all of them when it registers them: so the mod's items are all made first (once; not while they are
+     * being made). The game's blocks' items are given; another mod's block's isn't known: refused. Not the game's API.
+     */
+    public static net.minecraft.world.item.Item itemOf(net.minecraft.world.level.block.Block block) {
+        synchronized (HorizonRegistries.class) {
+            net.minecraft.world.item.Item item = net.minecraft.world.item.Item.BY_BLOCK.get(block);
+            if (item != null) return item;
+        }
+        if (KEYS.get(block) == null) {
+            String id = block.horizonId().toString();
+            if (!block.horizonId().getNamespace().equals("minecraft"))
+                throw new UnsupportedOperationException("the item of another mod's block " + id + " isn't known (horizon-port-neoforge)");
+            String itemId;
+            synchronized (HorizonRegistries.class) {
+                if (blockItems == null) throw new IllegalStateException("the game's blocks' items weren't given (HorizonRegistries.known: block_items)");
+                itemId = blockItems.get(id);
+            }
+            return item(itemId == null ? "minecraft:air" : itemId);
+        }
+        boolean makeAll;
+        synchronized (HorizonRegistries.class) {
+            makeAll = !makingItems && madeAt != SUPPLIERS.size();
+            if (makeAll) {
+                makingItems = true;
+                madeAt = SUPPLIERS.size();
+            }
+        }
+        if (makeAll) {
+            try {
+                java.util.List<ResourceKey<?>> keys;
+                synchronized (HorizonRegistries.class) {
+                    keys = new java.util.ArrayList<>(SUPPLIERS.keySet());
+                }
+                for (ResourceKey<?> key : keys) if (key.registry().equals(net.minecraft.core.registries.Registries.ITEM.location())) get(key);
+            } finally {
+                synchronized (HorizonRegistries.class) {
+                    makingItems = false;
+                }
+            }
+        }
+        synchronized (HorizonRegistries.class) {
+            net.minecraft.world.item.Item item = net.minecraft.world.item.Item.BY_BLOCK.get(block);
+            if (item != null) return item;
+        }
+        return item("minecraft:air");
     }
 }

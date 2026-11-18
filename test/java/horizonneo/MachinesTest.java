@@ -98,6 +98,11 @@ final class MachinesTest {
         c.same("every block's id", "minecraft:air,m:press", tags.get("block"));
         c.same("the furnace fuels from the machines file", "minecraft:coal=1600;m:pellet=200",
                 Machines.given(Map.of("game_ids", Map.of("furnace_fuels", "minecraft:coal=1600;m:pellet=200"))).get("furnace_fuels"));
+        Map<String, String> blockItems = Machines.given(Map.of("game_ids", Map.of("item_blocks", "minecraft:redstone=minecraft:redstone_wire",
+                "block_items", "minecraft:redstone_wire=minecraft:redstone", "remainders", "minecraft:lava_bucket=minecraft:bucket")));
+        c.same("the game's block items from the machines file", "minecraft:redstone=minecraft:redstone_wire", blockItems.get("item_blocks"));
+        c.same("and its blocks' items", "minecraft:redstone_wire=minecraft:redstone", blockItems.get("block_items"));
+        c.same("and its items' remainders", "minecraft:lava_bucket=minecraft:bucket", blockItems.get("remainders"));
         System.exit(c.done());
     }
 

@@ -141,7 +141,7 @@ public final class MachinesExporter {
 
     /**
      * The game's ids the stand-ins are given (HorizonRegistries.known): its fluids and component types, its items'
-     * components and crafting remainders, and the furnace fuels, written as horizon-port-neoforge's probe writes them (probe/server/InServer.java).
+     * components, crafting remainders and blocks, its blocks' items, and the furnace fuels, written as horizon-port-neoforge's probe writes them (probe/server/InServer.java).
      */
     static JsonObject gameIds() {
         JsonObject o = new JsonObject();
@@ -177,6 +177,20 @@ public final class MachinesExporter {
         }
         java.util.Collections.sort(remainders);
         o.addProperty("remainders", String.join(";", remainders));
+        // The game's items that stand for a block, with it, and its blocks' items (Item.BY_BLOCK), whole.
+        List<String> itemBlocks = new java.util.ArrayList<>(), blockItems = new java.util.ArrayList<>();
+        for (net.minecraft.world.item.Item item : BuiltInRegistries.ITEM) {
+            String id = BuiltInRegistries.ITEM.getKey(item).toString();
+            if (id.startsWith("minecraft:") && item instanceof net.minecraft.world.item.BlockItem blockItem) itemBlocks.add(id + "=" + BuiltInRegistries.BLOCK.getKey(blockItem.getBlock()));
+        }
+        for (var e : net.minecraft.world.item.Item.BY_BLOCK.entrySet()) {
+            String id = BuiltInRegistries.BLOCK.getKey(e.getKey()).toString();
+            if (id.startsWith("minecraft:")) blockItems.add(id + "=" + BuiltInRegistries.ITEM.getKey(e.getValue()));
+        }
+        java.util.Collections.sort(itemBlocks);
+        java.util.Collections.sort(blockItems);
+        o.addProperty("item_blocks", String.join(";", itemBlocks));
+        o.addProperty("block_items", String.join(";", blockItems));
         return o;
     }
 
