@@ -47,6 +47,13 @@ final class FluidTypeProbe {
                     + net.minecraft.core.registries.BuiltInRegistries.FLUID.get(net.minecraft.resources.ResourceLocation.parse("minecraft:flowing_water")).getFluidType() + " "
                     + net.minecraft.core.registries.BuiltInRegistries.FLUID.get(net.minecraft.resources.ResourceLocation.parse("minecraft:flowing_lava")).getFluidType();
         });
+        p("fluid stack names", () -> {
+            net.neoforged.neoforge.fluids.FluidStack w = new net.neoforged.neoforge.fluids.FluidStack(net.minecraft.world.level.material.Fluids.WATER, 5);
+            net.neoforged.neoforge.fluids.FluidStack h = new net.neoforged.neoforge.fluids.FluidStack(net.minecraft.world.level.material.Fluids.LAVA.builtInRegistryHolder(), 3);
+            return w.getHoverName() + " " + h.getHoverName() + " " + net.neoforged.neoforge.fluids.FluidStack.EMPTY.getHoverName() + " " + h + " " + w.isComponentsPatchEmpty()
+                    + " " + w.is(net.minecraft.world.level.material.Fluids.WATER) + " " + w.is(net.minecraft.world.level.material.Fluids.FLOWING_WATER) + " "
+                    + h.is(net.minecraft.world.level.material.Fluids.LAVA.builtInRegistryHolder()) + " " + h.is(net.minecraft.world.level.material.Fluids.WATER.builtInRegistryHolder());
+        });
         p("fluid stack type", () -> {
             net.neoforged.neoforge.fluids.FluidStack s = new net.neoforged.neoforge.fluids.FluidStack(net.minecraft.world.level.material.Fluids.WATER, 5);
             return s.getFluidType() + " " + s.is(net.neoforged.neoforge.common.NeoForgeMod.WATER_TYPE.value()) + " " + s.is(net.neoforged.neoforge.common.NeoForgeMod.LAVA_TYPE.value())

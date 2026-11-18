@@ -27,6 +27,7 @@ public final class InServer {
         }
         ConfigProbe.register(container, bus);
         ComponentProbe.ITEMS.register(bus);
+        EntityTypeProbe.ENTITIES.register(bus);
         CapabilityProbe.BLOCKS.register(bus);
         BuiltInProbe.WORD_ENTRIES.register(bus);
         bus.addListener(net.neoforged.neoforge.registries.NewRegistryEvent.class, e -> e.register(BuiltInProbe.WORDS));

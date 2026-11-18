@@ -9,7 +9,7 @@ import net.minecraft.resources.ResourceLocation;
 public class BuiltInRegistries {
     public static final DefaultedRegistry<net.minecraft.world.level.material.Fluid> FLUID = new HorizonRegistry<>(Registries.FLUID, ResourceLocation.withDefaultNamespace("empty"));
     public static final DefaultedRegistry<net.minecraft.world.level.block.Block> BLOCK = new HorizonRegistry<>(Registries.BLOCK, ResourceLocation.withDefaultNamespace("air"));
-    public static final DefaultedRegistry<Object> ENTITY_TYPE = new HorizonRegistry<>(Registries.ENTITY_TYPE, ResourceLocation.withDefaultNamespace("pig"));
+    public static final DefaultedRegistry<net.minecraft.world.entity.EntityType<?>> ENTITY_TYPE = new HorizonRegistry<>(Registries.ENTITY_TYPE, ResourceLocation.withDefaultNamespace("pig"));
     public static final DefaultedRegistry<net.minecraft.world.item.Item> ITEM = new HorizonRegistry<>(Registries.ITEM, ResourceLocation.withDefaultNamespace("air"));
     public static final Registry<net.minecraft.world.level.block.entity.BlockEntityType<?>> BLOCK_ENTITY_TYPE = new HorizonRegistry<>(Registries.BLOCK_ENTITY_TYPE, null);
     public static final Registry<Object> MENU = new HorizonRegistry<>(Registries.MENU, null);

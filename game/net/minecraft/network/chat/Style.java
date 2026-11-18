@@ -8,7 +8,7 @@ import net.minecraft.ChatFormatting;
  * each set or not. Click and hover events, insertions and fonts aren't modelled. Texts observed (`standins --horizon-src`).
  */
 public class Style {
-    public static final Style EMPTY = new Style(null, null, null, null, null, null);
+    public static final Style EMPTY = new Style(null, null, null, null, null, null, null, null);
 
     final TextColor color;
     final Boolean bold;
@@ -16,19 +16,41 @@ public class Style {
     final Boolean underlined;
     final Boolean strikethrough;
     final Boolean obfuscated;
+    final ClickEvent clickEvent;
+    final HoverEvent hoverEvent;
 
-    private Style(TextColor color, Boolean bold, Boolean italic, Boolean underlined, Boolean strikethrough, Boolean obfuscated) {
+    private Style(TextColor color, Boolean bold, Boolean italic, Boolean underlined, Boolean strikethrough, Boolean obfuscated, ClickEvent clickEvent, HoverEvent hoverEvent) {
         this.color = color;
         this.bold = bold;
         this.italic = italic;
         this.underlined = underlined;
         this.strikethrough = strikethrough;
         this.obfuscated = obfuscated;
+        this.clickEvent = clickEvent;
+        this.hoverEvent = hoverEvent;
     }
 
-    private static Style of(TextColor color, Boolean bold, Boolean italic, Boolean underlined, Boolean strikethrough, Boolean obfuscated) {
-        if (color == null && bold == null && italic == null && underlined == null && strikethrough == null && obfuscated == null) return EMPTY;
-        return new Style(color, bold, italic, underlined, strikethrough, obfuscated);
+    private static Style of(TextColor color, Boolean bold, Boolean italic, Boolean underlined, Boolean strikethrough, Boolean obfuscated, ClickEvent clickEvent,
+            HoverEvent hoverEvent) {
+        if (color == null && bold == null && italic == null && underlined == null && strikethrough == null && obfuscated == null && clickEvent == null
+                && hoverEvent == null) return EMPTY;
+        return new Style(color, bold, italic, underlined, strikethrough, obfuscated, clickEvent, hoverEvent);
+    }
+
+    public ClickEvent getClickEvent() {
+        return clickEvent;
+    }
+
+    public HoverEvent getHoverEvent() {
+        return hoverEvent;
+    }
+
+    public Style withClickEvent(ClickEvent clickEvent) {
+        return Objects.equals(this.clickEvent, clickEvent) ? this : of(color, bold, italic, underlined, strikethrough, obfuscated, clickEvent, hoverEvent);
+    }
+
+    public Style withHoverEvent(HoverEvent hoverEvent) {
+        return Objects.equals(this.hoverEvent, hoverEvent) ? this : of(color, bold, italic, underlined, strikethrough, obfuscated, clickEvent, hoverEvent);
     }
 
     public TextColor getColor() {
@@ -60,7 +82,7 @@ public class Style {
     }
 
     public Style withColor(TextColor color) {
-        return Objects.equals(this.color, color) ? this : of(color, bold, italic, underlined, strikethrough, obfuscated);
+        return Objects.equals(this.color, color) ? this : of(color, bold, italic, underlined, strikethrough, obfuscated, clickEvent, hoverEvent);
     }
 
     public Style withColor(ChatFormatting formatting) {
@@ -72,23 +94,23 @@ public class Style {
     }
 
     public Style withBold(Boolean bold) {
-        return Objects.equals(this.bold, bold) ? this : of(color, bold, italic, underlined, strikethrough, obfuscated);
+        return Objects.equals(this.bold, bold) ? this : of(color, bold, italic, underlined, strikethrough, obfuscated, clickEvent, hoverEvent);
     }
 
     public Style withItalic(Boolean italic) {
-        return Objects.equals(this.italic, italic) ? this : of(color, bold, italic, underlined, strikethrough, obfuscated);
+        return Objects.equals(this.italic, italic) ? this : of(color, bold, italic, underlined, strikethrough, obfuscated, clickEvent, hoverEvent);
     }
 
     public Style withUnderlined(Boolean underlined) {
-        return Objects.equals(this.underlined, underlined) ? this : of(color, bold, italic, underlined, strikethrough, obfuscated);
+        return Objects.equals(this.underlined, underlined) ? this : of(color, bold, italic, underlined, strikethrough, obfuscated, clickEvent, hoverEvent);
     }
 
     public Style withStrikethrough(Boolean strikethrough) {
-        return Objects.equals(this.strikethrough, strikethrough) ? this : of(color, bold, italic, underlined, strikethrough, obfuscated);
+        return Objects.equals(this.strikethrough, strikethrough) ? this : of(color, bold, italic, underlined, strikethrough, obfuscated, clickEvent, hoverEvent);
     }
 
     public Style withObfuscated(Boolean obfuscated) {
-        return Objects.equals(this.obfuscated, obfuscated) ? this : of(color, bold, italic, underlined, strikethrough, obfuscated);
+        return Objects.equals(this.obfuscated, obfuscated) ? this : of(color, bold, italic, underlined, strikethrough, obfuscated, clickEvent, hoverEvent);
     }
 
     /** A format sets its flag; a colour, the colour; RESET, nothing at all. */
@@ -106,7 +128,7 @@ public class Style {
             }
             default -> c = TextColor.fromLegacyFormat(f);
         }
-        return of(c, b, i, u, s, o);
+        return of(c, b, i, u, s, o, clickEvent, hoverEvent);
     }
 
     public Style applyFormats(ChatFormatting... formats) {
@@ -121,7 +143,7 @@ public class Style {
         if (other == EMPTY) return this;
         return of(color != null ? color : other.color, bold != null ? bold : other.bold, italic != null ? italic : other.italic,
                 underlined != null ? underlined : other.underlined, strikethrough != null ? strikethrough : other.strikethrough,
-                obfuscated != null ? obfuscated : other.obfuscated);
+                obfuscated != null ? obfuscated : other.obfuscated, clickEvent != null ? clickEvent : other.clickEvent, hoverEvent != null ? hoverEvent : other.hoverEvent);
     }
 
     @Override
@@ -134,6 +156,8 @@ public class Style {
         field(b, first, "underlined", underlined);
         field(b, first, "strikethrough", strikethrough);
         field(b, first, "obfuscated", obfuscated);
+        field(b, first, "clickEvent", clickEvent);
+        field(b, first, "hoverEvent", hoverEvent);
         return b.append('}').toString();
     }
 
@@ -149,11 +173,12 @@ public class Style {
     @Override
     public boolean equals(Object other) {
         return this == other || other instanceof Style s && Objects.equals(color, s.color) && Objects.equals(bold, s.bold) && Objects.equals(italic, s.italic)
-                && Objects.equals(underlined, s.underlined) && Objects.equals(strikethrough, s.strikethrough) && Objects.equals(obfuscated, s.obfuscated);
+                && Objects.equals(underlined, s.underlined) && Objects.equals(strikethrough, s.strikethrough) && Objects.equals(obfuscated, s.obfuscated)
+                && Objects.equals(clickEvent, s.clickEvent) && Objects.equals(hoverEvent, s.hoverEvent);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(color, bold, italic, underlined, strikethrough, obfuscated);
+        return Objects.hash(color, bold, italic, underlined, strikethrough, obfuscated, clickEvent, hoverEvent, null);
     }
 }

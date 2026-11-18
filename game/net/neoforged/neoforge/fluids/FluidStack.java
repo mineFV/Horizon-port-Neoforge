@@ -112,6 +112,27 @@ public final class FluidStack implements MutableDataComponentHolder {
         return getFluid().getFluidType();
     }
 
+    public FluidStack(net.minecraft.core.Holder<Fluid> fluid, int amount) {
+        this(fluid.value(), amount);
+    }
+
+    /** Observed: its type's description of it. */
+    public net.minecraft.network.chat.Component getHoverName() {
+        return getFluidType().getDescription(this);
+    }
+
+    public boolean isComponentsPatchEmpty() {
+        return getComponentsPatch().isEmpty();
+    }
+
+    public boolean is(Fluid fluid) {
+        return getFluid() == fluid;
+    }
+
+    public boolean is(net.minecraft.core.Holder<Fluid> holder) {
+        return is(holder.value());
+    }
+
     public boolean is(FluidType type) {
         return getFluidType() == type;
     }

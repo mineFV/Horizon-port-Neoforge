@@ -33,6 +33,22 @@ final class TextProbe {
 
     static void run() {
         given();
+        for (net.minecraft.network.chat.ClickEvent.Action a : net.minecraft.network.chat.ClickEvent.Action.values()) {
+            p("click action " + a.ordinal(), () -> a + " " + a.name() + " " + a.getSerializedName() + " " + a.isAllowedFromServer());
+        }
+        p("click event", () -> {
+            net.minecraft.network.chat.ClickEvent e = new net.minecraft.network.chat.ClickEvent(net.minecraft.network.chat.ClickEvent.Action.OPEN_URL, "https://x.y");
+            net.minecraft.network.chat.ClickEvent same = new net.minecraft.network.chat.ClickEvent(net.minecraft.network.chat.ClickEvent.Action.OPEN_URL, "https://x.y");
+            net.minecraft.network.chat.Style s = net.minecraft.network.chat.Style.EMPTY.withBold(true).withClickEvent(e);
+            net.minecraft.network.chat.Style t = net.minecraft.network.chat.Style.EMPTY.withClickEvent(same).withBold(true);
+            return e + " " + e.getAction() + " " + e.getValue() + " " + e.equals(same) + " " + (e.hashCode() == same.hashCode()) + " " + s + " " + s.equals(t) + " "
+                    + (s.hashCode() == t.hashCode()) + " " + (s.getClickEvent() == e) + " " + s.getHoverEvent() + " " + s.withClickEvent(null) + " "
+                    + net.minecraft.network.chat.Style.EMPTY.withClickEvent(e).isEmpty() + " " + net.minecraft.network.chat.Style.EMPTY.withClickEvent(e).withClickEvent(null).isEmpty()
+                    + " " + net.minecraft.network.chat.Style.EMPTY.withItalic(true).applyTo(s) + " " + s.applyFormat(net.minecraft.ChatFormatting.RED)
+                    + " " + s.applyFormat(net.minecraft.ChatFormatting.RESET);
+        });
+        p("style hash", () -> net.minecraft.network.chat.Style.EMPTY.withBold(true).hashCode() + " " + net.minecraft.network.chat.Style.EMPTY.hashCode() + " "
+                + net.minecraft.network.chat.Style.EMPTY.withColor(0x123456).withItalic(false).hashCode());
         for (ChatFormatting f : ChatFormatting.values()) {
             p("formatting " + f.name(), () -> f + " " + f.getChar() + " " + f.getId() + " " + f.isFormat() + " " + f.isColor() + " " + f.getColor() + " " + f.getName() + " "
                     + f.getSerializedName() + " " + TextColor.fromLegacyFormat(f) + " " + (ChatFormatting.getByCode(f.getChar()) == f) + " " + ChatFormatting.getById(f.getId()));
