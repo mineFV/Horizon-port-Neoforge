@@ -62,6 +62,7 @@ public final class GameProbe {
             LogProbe.levels();
             BuiltInProbe.run();
             ConfigProbe.run();
+            ColorProbe.run();
         }
     }
 
