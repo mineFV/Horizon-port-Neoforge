@@ -12,6 +12,11 @@ public class Mth {
     public Mth() {}
 
     /** Observed: the int cast, one less when the cast went up (below MIN it wraps to MAX). */
+    /** Observed (`standins`): start, plus the floor of delta times the distance. */
+    public static int lerpInt(float delta, int start, int end) {
+        return start + floor(delta * (end - start));
+    }
+
     public static int floor(float f) {
         int i = (int) f;
         return f < (float) i ? i - 1 : i;
