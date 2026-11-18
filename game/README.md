@@ -78,6 +78,12 @@ order). Its file, `config/<modid>-<kind>.toml`, is NeoForge's (HorizonConfigToml
 writes it, read and corrected as it reads it, a number out of range its nearest end, a list its valid elements):
 Horizon writes the new file, reads it and hands its text over, again when it changes (API 397).
 
+fastutil (it/unimi/dsi/fastutil, 2026-11-18, decision 5): ObjectOpenHashSet and Object2ObjectOpenHashMap, their open
+hash tables as fastutil's (each key at its mixed hash or the next free slot, removals shifting back, growing and
+shrinking at its load factor), gone through from the last slot to the first, the null key first, and a removal while
+iterating as fastutil's; their texts, hashes, views and Object2ObjectMap's defaults. Observed against fastutil itself.
+Its other collections (primitive keys, linked, array and sorted ones) aren't here yet.
+
 What isn't here, and what it costs: BlockPos's getCenter, betweenClosed and codecs, Direction's getRotation and
 codecs, MutableBlockPos's other setters, NBT's codecs (NbtOps), its readers and writers (DataOutput, visitors),
 TagType, ResourceLocation's codecs and its readers (StringReader), ByIdMap.sparse. A call to one isn't translated; and when a virtual call through a wider type (Object, List...) may reach
