@@ -313,7 +313,7 @@ Say so rather than assume it works:
   `cargo horizon-mod check`, never Horizon's loader: Mekanism's 136 such blocks haven't been loaded in the game;
 - the bridge: the Counter test mod was built by the launcher into Horizon and played by the maintainer (2026-11-17):
   its block blinks lit every 20 ticks and its count goes on, its own Java translated and run through the bridge. That
-  is one made-up mod: no real mod has run through the bridge yet. Its config file (2026-11-18: `config/counter-common.toml`, ticks_per_second) goes through Horizon's API 397 hook points, tested against stand-ins of them, not yet in the game. Its bundle is in
+  is one made-up mod: no real mod has run through the bridge yet. Its config file (2026-11-18: `config/counter-common.toml`, ticks_per_second) goes through Horizon's API 397 hook points: played by the maintainer (2026-11-18), the file written new, and an edit while playing read again at once (ModConfigEvent.Reloading). Its bundle is in
   `essais/counter/bundle` (dump, port --facts, pack). The mod's Java runs on a thread of its own: what it asks of the world
   (HorizonWorld.ask: a position's state as "id[key=value,...]" for Level.getBlockState; a property set for
   Level.setBlock) goes to the ticking thread, which answers from `game` (no `unsafe`, which Horizon forbids). Only
