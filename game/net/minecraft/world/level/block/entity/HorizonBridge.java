@@ -58,11 +58,13 @@ public final class HorizonBridge {
     }
 
     /**
-     * Fires on the mod's bus, once it is loaded, what NeoForge fires then: NewRegistryEvent, then (after its registries)
-     * RegisterCapabilitiesEvent. RegisterEvent isn't fired: DeferredRegister registers without it (HorizonRegistries).
+     * Fires on the mod's bus, once it is loaded, what NeoForge fires then: NewRegistryEvent, its configs' loading
+     * (ModConfigEvent.Loading: the order against the registries' isn't observed), then RegisterCapabilitiesEvent.
+     * RegisterEvent isn't fired: DeferredRegister registers without it (HorizonRegistries).
      */
     public static void capabilities(net.neoforged.bus.api.IEventBus bus) {
         bus.post(net.neoforged.neoforge.registries.HorizonRegistries.newRegistryEvent());
+        if (net.neoforged.fml.ModList.get().horizonOwn() instanceof net.neoforged.fml.HorizonModContainer own && own.getEventBus() == bus) own.horizonLoadConfigs();
         bus.post(net.neoforged.neoforge.capabilities.HorizonCapabilities.event());
     }
 

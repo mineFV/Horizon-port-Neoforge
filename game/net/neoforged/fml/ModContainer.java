@@ -37,12 +37,20 @@ public abstract class ModContainer {
         registered.add(extension);
     }
 
+    private final List<ModConfig> configs = new ArrayList<>();
+
+    /** Observed (`standins --horizon-src`): its file is "<modid>-<type>.toml". */
     public void registerConfig(ModConfig.Type type, IConfigSpec spec) {
-        registered.add(spec);
+        registerConfig(type, spec, getModId() + "-" + type.extension() + ".toml");
     }
 
     public void registerConfig(ModConfig.Type type, IConfigSpec spec, String fileName) {
-        registered.add(spec);
+        configs.add(ModConfig.horizonMake(type, spec, getModId(), fileName));
+    }
+
+    /** The configs registered, in their order: the bridge loads them (HorizonModContainer). Not the game's API. */
+    public List<ModConfig> horizonConfigs() {
+        return configs;
     }
 
     public abstract IEventBus getEventBus();

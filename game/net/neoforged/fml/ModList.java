@@ -21,6 +21,11 @@ public class ModList {
         own = container;
     }
 
+    /** The mod's own container, the bridge's. Not the game's API. */
+    public ModContainer horizonOwn() {
+        return own;
+    }
+
     public boolean isLoaded(String modId) {
         return Set.of("minecraft", "neoforge").contains(modId) || own != null && own.getModId().equals(modId);
     }

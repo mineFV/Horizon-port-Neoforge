@@ -20,6 +20,17 @@ public final class HorizonModContainer extends ModContainer {
         return bus;
     }
 
+    /**
+     * The bridge's: each config the mod registered, loaded (its values their defaults: ModConfigSpec), then
+     * ModConfigEvent.Loading fired for it on the mod's bus, in the order they were registered.
+     */
+    public void horizonLoadConfigs() {
+        for (net.neoforged.fml.config.ModConfig config : horizonConfigs()) {
+            if (config.getSpec() instanceof net.neoforged.neoforge.common.ModConfigSpec spec) spec.horizonLoad();
+            bus.post(new net.neoforged.fml.event.config.ModConfigEvent.Loading(config));
+        }
+    }
+
     /** The mod's info: its namespace is its id. */
     private record Info(String getModId, String getDisplayName, ArtifactVersion getVersion) implements IModInfo {
         @Override

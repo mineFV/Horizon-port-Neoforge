@@ -1,7 +1,10 @@
 package com.example.counter;
 
 import net.neoforged.bus.api.IEventBus;
+import net.neoforged.fml.ModContainer;
 import net.neoforged.fml.common.Mod;
+import net.neoforged.fml.config.ModConfig;
+import net.neoforged.neoforge.common.ModConfigSpec;
 import net.neoforged.neoforge.capabilities.Capabilities;
 import net.neoforged.neoforge.capabilities.RegisterCapabilitiesEvent;
 
@@ -13,7 +16,18 @@ import net.neoforged.neoforge.capabilities.RegisterCapabilitiesEvent;
 public final class Counter {
     public static final String MODID = "counter";
 
-    public Counter(IEventBus bus) {
+    /** Its config: how many ticks a second counts (read each tick, once NeoForge has loaded the config). */
+    static final ModConfigSpec.IntValue TICKS_PER_SECOND;
+    static final ModConfigSpec SPEC;
+
+    static {
+        ModConfigSpec.Builder b = new ModConfigSpec.Builder();
+        TICKS_PER_SECOND = b.comment("Ticks in a second").defineInRange("ticks_per_second", 20, 1, 1000);
+        SPEC = b.build();
+    }
+
+    public Counter(IEventBus bus, ModContainer container) {
+        container.registerConfig(ModConfig.Type.COMMON, SPEC);
         ModBlocks.BLOCKS.register(bus);
         ModBlockEntities.TYPES.register(bus);
         bus.addListener(Counter::capabilities);

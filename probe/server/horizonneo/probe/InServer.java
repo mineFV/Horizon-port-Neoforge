@@ -17,7 +17,8 @@ import net.neoforged.neoforge.event.server.ServerStartedEvent;
  */
 @Mod("horizonprobe")
 public final class InServer {
-    public InServer(IEventBus bus) {
+    public InServer(IEventBus bus, net.neoforged.fml.ModContainer container) {
+        ConfigProbe.register(container, bus);
         ComponentProbe.ITEMS.register(bus);
         CapabilityProbe.BLOCKS.register(bus);
         BuiltInProbe.WORD_ENTRIES.register(bus);

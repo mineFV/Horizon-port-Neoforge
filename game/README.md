@@ -71,6 +71,11 @@ hash's parts change from run to run); DataResult, Lifecycle and Codec.checkRange
 yet: a call to that isn't translated. The network's codecs (StreamCodec, ByteBufCodecs) are objects that say the
 network isn't modelled if run; the game's codec fields (ItemStack.CODEC...) are codecs of no structure, by name.
 
+A mod's config (net/neoforged/neoforge/common/ModConfigSpec, 2026-11-18, decision 3): its values by path, read as
+NeoForge reads them (before loading, an error; once read, the same value until the cache is cleared, set or not), each
+its default once the bridge loads the configs the mod registered (ModConfigEvent.Loading fired for each, in their
+order). The player's values (Horizon's settings, horizon-<modid>.txt) aren't read yet, nor any config file written.
+
 What isn't here, and what it costs: BlockPos's getCenter, betweenClosed and codecs, Direction's getRotation and
 codecs, MutableBlockPos's other setters, NBT's codecs (NbtOps), its readers and writers (DataOutput, visitors),
 TagType, ResourceLocation's codecs and its readers (StringReader), ByIdMap.sparse. A call to one isn't translated; and when a virtual call through a wider type (Object, List...) may reach
