@@ -18,6 +18,13 @@ import net.neoforged.neoforge.event.server.ServerStartedEvent;
 @Mod("horizonprobe")
 public final class InServer {
     public InServer(IEventBus bus, net.neoforged.fml.ModContainer container) {
+        // A config file written before NeoForge reads it: values to read and to correct (ConfigFiles).
+        try {
+            Files.createDirectories(Path.of("config"));
+            Files.writeString(Path.of("config", "horizonprobe-fixed.toml"), ConfigFiles.FIXED_TEXT, StandardCharsets.UTF_8);
+        } catch (java.io.IOException e) {
+            throw new java.io.UncheckedIOException(e);
+        }
         ConfigProbe.register(container, bus);
         ComponentProbe.ITEMS.register(bus);
         CapabilityProbe.BLOCKS.register(bus);

@@ -15,11 +15,14 @@ import java.util.function.Supplier;
  * the player's values in Horizon's settings aren't read yet. Observed (`standins --horizon-src`).
  */
 public class ModConfigSpec implements net.neoforged.fml.config.IConfigSpec {
-    private final List<ConfigValue<?>> values;
+    final List<ConfigValue<?>> values;
+    /** The comments of the levels pushed, by path. */
+    final java.util.Map<List<String>, String> levelComments;
     private boolean loaded;
 
-    private ModConfigSpec(List<ConfigValue<?>> values) {
+    private ModConfigSpec(List<ConfigValue<?>> values, java.util.Map<List<String>, String> levelComments) {
         this.values = values;
+        this.levelComments = levelComments;
     }
 
     @Override
@@ -40,18 +43,36 @@ public class ModConfigSpec implements net.neoforged.fml.config.IConfigSpec {
         for (ConfigValue<?> v : values) v.horizonReset();
     }
 
+    /**
+     * The bridge's: the config loaded from its file's text, as NeoForge reads and corrects it (HorizonConfigToml): a value
+     * missing or not valid is its default. A reload clears what was read. Not the game's API.
+     */
+    public void horizonLoad(String text) {
+        java.util.Map<List<String>, Object> read = HorizonConfigToml.read(text);
+        loaded = true;
+        for (ConfigValue<?> v : values) v.horizonLoad(read == null ? null : read.get(v.path));
+    }
+
+    /** The text NeoForge writes for this config's new file (HorizonConfigToml). Not the game's API. */
+    public String horizonDefaultText() {
+        return HorizonConfigToml.write(this);
+    }
+
     public static class Builder {
         private final List<String> path = new ArrayList<>();
         private final List<ConfigValue<?>> values = new ArrayList<>();
-        private final List<List<String>> defined = new ArrayList<>();
+        private final java.util.Map<List<String>, String> levelComments = new java.util.LinkedHashMap<>();
+        private String comment;
 
         public Builder() {}
 
         public Builder comment(String comment) {
+            this.comment = comment;
             return this;
         }
 
         public Builder comment(String... comment) {
+            this.comment = String.join("\n", comment);
             return this;
         }
 
@@ -69,11 +90,15 @@ public class ModConfigSpec implements net.neoforged.fml.config.IConfigSpec {
 
         public Builder push(String name) {
             for (String part : name.split("\\.")) path.add(part);
+            if (comment != null) levelComments.put(List.copyOf(path), comment);
+            comment = null;
             return this;
         }
 
         public Builder push(List<String> names) {
             path.addAll(names);
+            if (comment != null) levelComments.put(List.copyOf(path), comment);
+            comment = null;
             return this;
         }
 
@@ -96,6 +121,8 @@ public class ModConfigSpec implements net.neoforged.fml.config.IConfigSpec {
 
         /** Observed: a default its validator refuses isn't refused here (a config file holding it would be corrected). */
         private <T, V extends ConfigValue<T>> V add(V value) {
+            value.comment = comment;
+            comment = null;
             values.add(value);
             return value;
         }
@@ -113,15 +140,21 @@ public class ModConfigSpec implements net.neoforged.fml.config.IConfigSpec {
         }
 
         public IntValue defineInRange(String path, int defaultValue, int min, int max) {
-            return add(new IntValue(this, at(path), () -> defaultValue, o -> o instanceof Integer i && i >= min && i <= max));
+            IntValue v = add(new IntValue(this, at(path), () -> defaultValue, o -> o instanceof Integer i && i >= min && i <= max));
+            v.range = new Object[] {min, max};
+            return v;
         }
 
         public LongValue defineInRange(String path, long defaultValue, long min, long max) {
-            return add(new LongValue(this, at(path), () -> defaultValue, o -> o instanceof Long l && l >= min && l <= max));
+            LongValue v = add(new LongValue(this, at(path), () -> defaultValue, o -> o instanceof Long l && l >= min && l <= max));
+            v.range = new Object[] {min, max};
+            return v;
         }
 
         public DoubleValue defineInRange(String path, double defaultValue, double min, double max) {
-            return add(new DoubleValue(this, at(path), () -> defaultValue, o -> o instanceof Double d && d >= min && d <= max));
+            DoubleValue v = add(new DoubleValue(this, at(path), () -> defaultValue, o -> o instanceof Double d && d >= min && d <= max));
+            v.range = new Object[] {min, max};
+            return v;
         }
 
         @SuppressWarnings("unchecked")
@@ -130,15 +163,17 @@ public class ModConfigSpec implements net.neoforged.fml.config.IConfigSpec {
         }
 
         public <T> ConfigValue<List<? extends T>> defineListAllowEmpty(String path, Supplier<List<? extends T>> defaultValue, Supplier<T> newElement, Predicate<Object> elementValidator) {
-            return add(new ConfigValue<>(this, at(path), defaultValue, o -> {
+            ConfigValue<List<? extends T>> v = add(new ConfigValue<>(this, at(path), defaultValue, o -> {
                 if (!(o instanceof List<?> list)) return false;
                 for (Object e : list) if (!elementValidator.test(e)) return false;
                 return true;
             }));
+            v.elementValidator = elementValidator;
+            return v;
         }
 
         public ModConfigSpec build() {
-            ModConfigSpec spec = new ModConfigSpec(List.copyOf(values));
+            ModConfigSpec spec = new ModConfigSpec(List.copyOf(values), new java.util.LinkedHashMap<>(levelComments));
             for (ConfigValue<?> v : values) v.spec = spec;
             return spec;
         }
@@ -150,6 +185,11 @@ public class ModConfigSpec implements net.neoforged.fml.config.IConfigSpec {
         final Supplier<T> defaultValue;
         final Predicate<Object> validator;
         ModConfigSpec spec;
+        String comment;
+        /** A list's elements' validator. */
+        Predicate<Object> elementValidator;
+        /** A ranged value's min and max. */
+        Object[] range;
         private T value;
         private T cached;
 
@@ -162,6 +202,26 @@ public class ModConfigSpec implements net.neoforged.fml.config.IConfigSpec {
 
         void horizonReset() {
             value = defaultValue.get();
+            cached = null;
+        }
+
+        /**
+         * Its value read from a file (HorizonConfigToml's kinds), corrected as NeoForge does (observed): a number out of
+         * its range is the nearest end, a list keeps its valid elements, anything else not valid is its default.
+         */
+        @SuppressWarnings({"unchecked", "rawtypes"})
+        void horizonLoad(Object read) {
+            Object v = HorizonConfigToml.convert(read, defaultValue.get());
+            if (v != null && !validator.test(v) && range != null && v instanceof Comparable c && v.getClass() == range[0].getClass()) {
+                if (c.compareTo(range[0]) < 0) v = range[0];
+                else if (c.compareTo(range[1]) > 0) v = range[1];
+            }
+            if (v instanceof List<?> list && elementValidator != null && !validator.test(v)) {
+                List<Object> kept = new ArrayList<>();
+                for (Object e : list) if (elementValidator.test(e)) kept.add(e);
+                v = kept;
+            }
+            value = v != null && validator.test(v) ? (T) v : defaultValue.get();
             cached = null;
         }
 

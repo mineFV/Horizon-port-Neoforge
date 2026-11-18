@@ -25,7 +25,12 @@ final class BridgeRust {
             new String[] {"bus", "()Lnet/neoforged/bus/api/IEventBus;"},
             new String[] {"container", "(Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Lnet/neoforged/bus/api/IEventBus;)Lnet/neoforged/fml/ModContainer;"},
             new String[] {"known", "(Ljava/lang/String;Ljava/lang/String;)V"},
-            new String[] {"capabilities", "(Lnet/neoforged/bus/api/IEventBus;)V"},
+            new String[] {"capabilities", "(Lnet/neoforged/bus/api/IEventBus;Z)V"},
+            new String[] {"configCount", "()I"},
+            new String[] {"configKind", "(I)Ljava/lang/String;"},
+            new String[] {"configFile", "(I)Ljava/lang/String;"},
+            new String[] {"configText", "(I)Ljava/lang/String;"},
+            new String[] {"configLoad", "(Ljava/lang/String;Ljava/lang/String;Z)Z"},
             new String[] {"make", "(Ljava/lang/String;III)Lnet/minecraft/world/level/block/entity/BlockEntity;"},
             new String[] {"ticker", "(Lnet/minecraft/world/level/block/entity/BlockEntity;)Lnet/minecraft/world/level/block/entity/BlockEntityTicker;"},
             new String[] {"tickWith", "(Lnet/minecraft/world/level/block/entity/BlockEntityTicker;Lnet/minecraft/world/level/block/entity/BlockEntity;)V"},
@@ -82,7 +87,7 @@ final class BridgeRust {
 
     /** As module(java, info, f, given), the game's ids not given but its fluids': what needs them (ItemStack.parse) throws. */
     static String module(String java, ModInfo info, Map<String, String> f) {
-        return module(java, info, f, Map.of());
+        return module(java, info, f, Map.of(), false);
     }
 
     /**
@@ -90,7 +95,7 @@ final class BridgeRust {
      * the mod's metadata; given: the game's ids, by registry, as `dump` read them (Machines.given); its fluids are
      * these observed (FLUIDS) when not given.
      */
-    static String module(String java, ModInfo info, Map<String, String> f, Map<String, String> ids) {
+    static String module(String java, ModInfo info, Map<String, String> f, Map<String, String> ids, boolean configFiles) {
         Map<String, String> all = new java.util.LinkedHashMap<>();
         all.put("fluid", FLUIDS);
         all.putAll(ids);
@@ -99,7 +104,7 @@ final class BridgeRust {
             if (given.length() > 0) given.append("\n    ");
             given.append("{known}(text(").append(Machines.rust(e.getKey())).append("), text(").append(Machines.rust(e.getValue())).append(")).map_err(|e| j::jdescribe(&e))?;");
         }
-        String t = TEMPLATE.replace("{GIVEN}", given).replace("{JAVA}", java).replace("{MOD}", info.id())
+        String t = TEMPLATE.replace("{CONFIG_FILES}", String.valueOf(configFiles)).replace("{GIVEN}", given).replace("{JAVA}", java).replace("{MOD}", info.id())
                 .replace("{MOD_ID_TEXT}", Machines.rust(info.id())).replace("{MOD_VERSION_TEXT}", Machines.rust(info.version()))
                 .replace("{MOD_NAME_TEXT}", Machines.rust(info.name()));
         for (Map.Entry<String, String> e : f.entrySet()) t = t.replace("{" + e.getKey() + "}", "j::" + e.getValue());
@@ -150,12 +155,16 @@ final class BridgeRust {
 
             /// The mod, loaded once as NeoForge loads it (its object made, given its event bus): its registrations
             /// happen then. What went wrong, if anything.
+            /// Whether Horizon hands the mod its config files (`native_register_configs` and `native_config_loading`
+            /// wired): else its configs are loaded as new ones, each value its default, with the mod.
+            const CONFIG_FILES: bool = {CONFIG_FILES};
+
             static LOADED: LazyLock<Result<(), String>> = LazyLock::new(|| {
                 {GIVEN}
                 let bus = {bus}().map_err(|e| j::jdescribe(&e))?;
                 let container = {container}(text({MOD_ID_TEXT}), text({MOD_VERSION_TEXT}), text({MOD_NAME_TEXT}), bus.clone()).map_err(|e| j::jdescribe(&e))?;
                 j::jexport_mod(bus.clone(), container).map_err(|e| j::jdescribe(&e))?;
-                {capabilities}(bus).map_err(|e| j::jdescribe(&e))
+                {capabilities}(bus, !CONFIG_FILES).map_err(|e| j::jdescribe(&e))
             });
 
             // The mod's Java runs on a thread of its own. What it asks of the world (HorizonWorld.ask) goes to the thread
@@ -164,10 +173,10 @@ final class BridgeRust {
             /// What the Java thread tells the ticking thread: a question to the world, or the tick's end.
             enum Told {
                 Ask(Vec<u16>),
-                Done(Option<Compound>),
+                Done(Box<dyn std::any::Any + Send>),
             }
 
-            type Job = Box<dyn FnOnce() -> Option<Compound> + Send>;
+            type Job = Box<dyn FnOnce() -> Box<dyn std::any::Any + Send> + Send>;
 
             struct Thread {
                 jobs: Sender<Job>,
@@ -215,12 +224,68 @@ final class BridgeRust {
             /// One server tick of the block entity `id` at `pos`, which block `block` makes, saved as `nbt`: the compound
             /// to save in its place when the mod changed it. `world` answers what the mod's Java asks of the world.
             pub fn tick(block: &str, id: &str, pos: [i32; 3], nbt: &Compound, world: &mut dyn FnMut(&[u16]) -> Option<Vec<u16>>) -> Option<Compound> {
+                let (block, id, nbt) = (block.to_string(), id.to_string(), nbt.clone());
+                run(move || tick_here(&block, &id, pos, &nbt), world).flatten()
+            }
+
+            /// The configs the mod registers (ModContainer.registerConfig), each its kind ("common", "client", "server",
+            /// "startup"), its file in `config/` and the text of a new one, as NeoForge writes it: the mod is loaded
+            /// first, as when the game starts.
+            pub fn configs() -> Vec<(String, String, String)> {
+                run(configs_here, &mut |_| None).unwrap_or_default()
+            }
+
+            fn configs_here() -> Vec<(String, String, String)> {
+                if let Err(e) = &*LOADED {
+                    said(format!("the mod couldn't be loaded: {}", e));
+                    return Vec::new();
+                }
+                let string = |r: j::JR<j::Ref>| r.ok().and_then(|s| j::jbridge_units(&s)).map(|u| String::from_utf16_lossy(&u));
+                let n = match {configCount}() {
+                    Ok(n) => n,
+                    Err(e) => {
+                        said(format!("the mod's configs couldn't be listed: {}", j::jdescribe(&e)));
+                        return Vec::new();
+                    }
+                };
+                let mut out = Vec::new();
+                for i in 0..n {
+                    match (string({configKind}(i)), string({configFile}(i)), string({configText}(i))) {
+                        (Some(kind), Some(file), Some(text)) => out.push((kind, file, text)),
+                        _ => said(format!("the mod's config {} couldn't be written", i)),
+                    }
+                }
+                out
+            }
+
+            /// A config file of the mod's read (`reloading`: read again after it changed): the mod's values from its
+            /// text, then ModConfigEvent.Loading (or Reloading) on its bus. False when the mod registers no such file.
+            pub fn config(file: &str, content: &str, reloading: bool) -> bool {
+                let (file, content) = (file.to_string(), content.to_string());
+                run(move || config_here(&file, &content, reloading), &mut |_| None).unwrap_or(false)
+            }
+
+            fn config_here(file: &str, content: &str, reloading: bool) -> bool {
+                if let Err(e) = &*LOADED {
+                    said(format!("the mod couldn't be loaded: {}", e));
+                    return false;
+                }
+                match {configLoad}(text(file), text(content), reloading) {
+                    Ok(found) => found,
+                    Err(e) => {
+                        said(format!("its config {} couldn't be read: {}", file, j::jdescribe(&e)));
+                        false
+                    }
+                }
+            }
+
+            /// `job` on the mod's Java thread, `world` answering what it asks: its result, or None when the thread stopped.
+            fn run<R: Send + 'static>(job: impl FnOnce() -> R + Send + 'static, world: &mut dyn FnMut(&[u16]) -> Option<Vec<u16>>) -> Option<R> {
                 let mut thread = lock(&THREAD);
                 if thread.is_none() {
                     *thread = spawn();
                 }
-                let (block, id, nbt) = (block.to_string(), id.to_string(), nbt.clone());
-                let job: Job = Box::new(move || tick_here(&block, &id, pos, &nbt));
+                let job: Job = Box::new(move || Box::new(job()) as Box<dyn std::any::Any + Send>);
                 let result = match thread.as_ref() {
                     None => Err(()),
                     Some(t) => {
@@ -242,9 +307,9 @@ final class BridgeRust {
                     }
                 };
                 match result {
-                    Ok(done) => done,
+                    Ok(done) => done.downcast::<R>().ok().map(|r| *r),
                     Err(()) => {
-                        said("the mod's Java thread stopped: it is started again at the next tick".to_string());
+                        said("the mod's Java thread stopped: it is started again at the next call".to_string());
                         *thread = None;
                         None
                     }

@@ -62,10 +62,39 @@ public final class HorizonBridge {
      * (ModConfigEvent.Loading: the order against the registries' isn't observed), then RegisterCapabilitiesEvent.
      * RegisterEvent isn't fired: DeferredRegister registers without it (HorizonRegistries).
      */
-    public static void capabilities(net.neoforged.bus.api.IEventBus bus) {
+    public static void capabilities(net.neoforged.bus.api.IEventBus bus, boolean loadConfigs) {
         bus.post(net.neoforged.neoforge.registries.HorizonRegistries.newRegistryEvent());
-        if (net.neoforged.fml.ModList.get().horizonOwn() instanceof net.neoforged.fml.HorizonModContainer own && own.getEventBus() == bus) own.horizonLoadConfigs();
+        if (loadConfigs && own() != null) own().horizonLoadConfigs();
         bus.post(net.neoforged.neoforge.capabilities.HorizonCapabilities.event());
+    }
+
+    private static net.neoforged.fml.HorizonModContainer own() {
+        return net.neoforged.fml.ModList.get().horizonOwn() instanceof net.neoforged.fml.HorizonModContainer c ? c : null;
+    }
+
+    // ---- the mod's config files (Horizon's native_register_configs and native_config_loading) ----
+
+    public static int configCount() {
+        return own() == null ? 0 : own().horizonConfigs().size();
+    }
+
+    /** A config's kind, as its file's name has it: "common", "client", "server" or "startup". */
+    public static String configKind(int i) {
+        return own().horizonConfigs().get(i).getType().extension();
+    }
+
+    public static String configFile(int i) {
+        return own().horizonConfigs().get(i).getFileName();
+    }
+
+    /** The text NeoForge writes for a new file of that config. */
+    public static String configText(int i) {
+        return own().horizonDefaultText(configFile(i));
+    }
+
+    /** A config's file read (again, when reloading): false when the mod has no config of that file. */
+    public static boolean configLoad(String file, String text, boolean reloading) {
+        return own() != null && own().horizonLoadConfig(file, text, reloading);
     }
 
     public static Level level() {

@@ -167,7 +167,7 @@ final class Machines {
             });
             bridgeModule = module + "_bridge";
             Files.writeString(mod.resolve("java.rs"), java.rust(), StandardCharsets.UTF_8);
-            Files.writeString(mod.resolve("bridge.rs"), BridgeRust.module("super::" + module + "_java", info != null ? info : ModInfo.minimal(modId), functions, given(machines)), StandardCharsets.UTF_8);
+            Files.writeString(mod.resolve("bridge.rs"), BridgeRust.module("super::" + module + "_java", info != null ? info : ModInfo.minimal(modId), functions, given(machines), configHooks(table, taken, modId, module + "_bridge")), StandardCharsets.UTF_8);
         }
         for (String name : HOOKS) {
             Body body = name.equals("block_entity_tick") && !bridged.isEmpty() ? bridgedTick(bridged, bridgeModule, blocks) : body(name, blocks, notes);
@@ -202,6 +202,33 @@ final class Machines {
             added.append("]\n");
         }
         if (bridgeModule != null) {
+            // The mod's config files (API 397): the bridge lists them, Horizon writes a new one from its text, reads it and
+            // hands its text over, again when it changes.
+            boolean wired = configHooks(table, taken, modId, bridgeModule);
+            for (String name : CONFIG_HOOKS) {
+                Body body = configBody(name, bridgeModule, modId);
+                Hook hook = table.named(name);
+                String id = Wiring.unique(name.replace('_', '-'), ids);
+                Files.writeString(mod.resolve(id + ".rs"), helper(name, hook, body, function + "_" + name, module)
+                        .replace("for the mod's machines. Written by horizon-port-neoforge from what NeoForge\n// gave of them in a server (`dump`), each block placed alone, new, in its default state.",
+                                "for the mod's config files (NeoForge's ModConfigSpec, translated). Written by horizon-port-neoforge."), StandardCharsets.UTF_8);
+                if (!wired) {
+                    String why = hook == null ? "this Horizon source's catalogue has no `" + name + "`" : unusable(hook, body.uses());
+                    if (why == null) why = "one of the config hook points (" + String.join(", ", CONFIG_HOOKS) + ") can't take its helper";
+                    off.put(name, why);
+                    added.append("\n# Off: the mod's config files on `").append(name).append("` (").append(id).append(".rs): its configs are loaded new, each value its default.\n#   ")
+                            .append(sentence(why)).append("\n# [[injection]]\n# id = \"").append(id).append("\"\n");
+                    continue;
+                }
+                on.put(name, id);
+                if (hook.api() != null) api = Math.max(api, hook.api());
+                added.append("\n[[injection]]\nid = \"").append(id).append("\"\nkind = \"HEAD\"\ntarget = \"").append(hook.target())
+                        .append("\"\nhelper = \"").append(id).append(".rs\"\nbindings = [\n");
+                for (Binding b : hook.bindings()) {
+                    added.append("  { name = \"").append(b.name()).append("\", ty = \"").append(b.type()).append("\", value = \"").append(b.value()).append("\" },\n");
+                }
+                added.append("]\n");
+            }
             added.insert(0, "\n# The mod's Java translated by horizon-port-neoforge, and Horizon's side of the bridge to it (BridgeRust).\n"
                     + "[[module]]\nid = \"java\"\nfile = \"crates/horizon-client/src/game.rs\"\nname = \"" + module + "_java\"\nsource = \"java.rs\"\n\n"
                     + "[[module]]\nid = \"bridge\"\nfile = \"crates/horizon-client/src/game.rs\"\nname = \"" + bridgeModule + "\"\nsource = \"bridge.rs\"\n");
@@ -214,6 +241,45 @@ final class Machines {
         if (api > 0) Wiring.needs(mod.getParent().getParent().resolve("compatibility.json"), api);
         return new Made(on, off, counts, notes, blocks.size(), Json.object(machines.get("block_entity_types")).size(), Json.array(machines.get("menu_types")).size(),
                 bridged, bridgeProblem);
+    }
+
+    /** The hook points of a mod's config files (Horizon's API 397). */
+    static final List<String> CONFIG_HOOKS = List.of("register_configs", "config_loading", "config_reloading");
+
+    /** Whether the three config hook points take the bridge's helpers in this Horizon source. */
+    static boolean configHooks(EventTable table, Map<String, String> taken, String modId, String bridgeModule) {
+        for (String name : CONFIG_HOOKS) {
+            Hook hook = table.named(name);
+            if (hook == null || unusable(hook, configBody(name, bridgeModule, modId).uses()) != null || taken.containsKey(hook.target())) return false;
+        }
+        return true;
+    }
+
+    /** A config hook point's helper body: the bridge's configs, or a file of the mod's read. */
+    static Body configBody(String name, String bridgeModule, String modId) {
+        String bridge = "crate::game::" + bridgeModule;
+        return switch (name) {
+            case "register_configs" -> new Body("""
+                        // Each config the mod registers (NeoForge's ModContainer.registerConfig), its file's new text as NeoForge
+                        // writes it (bridge.rs). A "startup" one is read once when the game starts, as a "common" one: Horizon has no
+                        // kind of its own for it.
+                        for (kind, file, text) in %s::configs() {
+                            let kind = match kind.as_str() {
+                                "client" => crate::game::NativeConfigKind::Client,
+                                "server" => crate::game::NativeConfigKind::Server,
+                                _ => crate::game::NativeConfigKind::Common,
+                            };
+                            configs.push(crate::game::NativeConfig::new(%s, kind, &text).file(&file));
+                        }
+                    """.formatted(bridge, rust(modId)), List.of("game", "configs"), 1);
+            case "config_loading", "config_reloading" -> new Body("""
+                        // A config file of the mod's read: its values, as NeoForge reads and corrects them, then ModConfigEvent.%s.
+                        if config.mod_id == %s {
+                            %s::config(&config.file, &config.text, %s);
+                        }
+                    """.formatted(name.equals("config_loading") ? "Loading" : "Reloading", rust(modId), bridge, name.equals("config_reloading")), List.of("game", "config"), 1);
+            default -> throw new IllegalArgumentException(name);
+        };
     }
 
     static final String BLOCK_ENTITY_TODO = "    // TODO: what each block entity saves isn't ported: it starts empty (report/machines.md lists what NeoForge's saved).\n";

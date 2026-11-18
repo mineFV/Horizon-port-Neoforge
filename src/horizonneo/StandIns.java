@@ -31,7 +31,7 @@ final class StandIns {
             "probe/horizonneo/probe/IdProbe.java", "probe/horizonneo/probe/MthProbe.java",
             "probe/horizonneo/probe/VecProbe.java",
             "probe/horizonneo/probe/EquipProbe.java",
-            "probe/horizonneo/probe/RegistryProbe.java", "probe/horizonneo/probe/ComponentProbe.java", "probe/horizonneo/probe/CapabilityProbe.java", "probe/horizonneo/probe/TextProbe.java", "probe/horizonneo/probe/TagProbe.java", "probe/horizonneo/probe/LogProbe.java", "probe/horizonneo/probe/CodecProbe.java", "probe/horizonneo/probe/BuiltInProbe.java", "probe/horizonneo/probe/ConfigProbe.java",
+            "probe/horizonneo/probe/RegistryProbe.java", "probe/horizonneo/probe/ComponentProbe.java", "probe/horizonneo/probe/CapabilityProbe.java", "probe/horizonneo/probe/TextProbe.java", "probe/horizonneo/probe/TagProbe.java", "probe/horizonneo/probe/LogProbe.java", "probe/horizonneo/probe/CodecProbe.java", "probe/horizonneo/probe/BuiltInProbe.java", "probe/horizonneo/probe/ConfigProbe.java", "probe/horizonneo/probe/ConfigFiles.java",
             "probe/horizonneo/probe/ModProbe.java",
             "probe/horizonneo/probe/ItemProbe.java");
 
@@ -155,6 +155,13 @@ final class StandIns {
         }
         Path answers = horizonSrc.toAbsolutePath().normalize().resolve(Dump.HOME).resolve("runs").resolve("export").resolve("horizon-probe.txt");
         Files.deleteIfExists(answers);
+        // The probe's config files, written new by NeoForge each run (their text is compared).
+        Path configs = answers.getParent().resolve("config");
+        if (Files.isDirectory(configs)) {
+            try (Stream<Path> s = Files.list(configs)) {
+                for (Path p : s.filter(p -> p.getFileName().toString().startsWith("horizonprobe-")).toList()) Files.delete(p);
+            }
+        }
         ByteArrayOutputStream dumpSaid = new ByteArrayOutputStream();
         ModJar mod = ModJar.open(jar);
         int exit;

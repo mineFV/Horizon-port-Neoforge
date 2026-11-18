@@ -56,7 +56,17 @@ final class ConfigProbe {
             ModContainer container = (ModContainer) Class.forName("net.neoforged.fml.HorizonModContainer")
                     .getConstructor(String.class, String.class, String.class, net.neoforged.bus.api.IEventBus.class).newInstance("horizonprobe", "1.0", "Probe", bus);
             register(container, container.getEventBus());
-            container.getClass().getMethod("horizonLoadConfigs").invoke(container);
+            java.lang.reflect.Method text = container.getClass().getMethod("horizonDefaultText", String.class);
+            java.lang.reflect.Method load = container.getClass().getMethod("horizonLoadConfig", String.class, String.class, boolean.class);
+            for (String name : List.of("horizonprobe-common.toml", "horizonprobe-rich.toml")) load.invoke(container, name, text.invoke(container, name), false);
+            load.invoke(container, "horizonprobe-fixed.toml", ConfigFiles.FIXED_TEXT, false);
+            FILES = name -> {
+                try {
+                    return (String) text.invoke(container, name);
+                } catch (ReflectiveOperationException e) {
+                    throw new IllegalStateException(e);
+                }
+            };
         } catch (ClassNotFoundException e) {
             // The game's own: NeoForge registered and loaded it.
         } catch (ReflectiveOperationException e) {
@@ -65,8 +75,18 @@ final class ConfigProbe {
     }
 
     /** What the probe's mod does with its container and bus (InServer, and given()). */
+    /** A config file's text: the server's on disk, the stand-ins' as they write a new one (given()). */
+    static java.util.function.Function<String, String> FILES = name -> {
+        try {
+            return java.nio.file.Files.readString(java.nio.file.Path.of("config", name));
+        } catch (java.io.IOException e) {
+            throw new java.io.UncheckedIOException(e);
+        }
+    };
+
     static void register(ModContainer container, net.neoforged.bus.api.IEventBus bus) {
         container.registerConfig(ModConfig.Type.COMMON, SPEC);
+        ConfigFiles.register(container);
         bus.addListener(ModConfigEvent.Loading.class, ConfigProbe::loaded);
     }
 
@@ -93,6 +113,7 @@ final class ConfigProbe {
         p("config bad pop", () -> new ModConfigSpec.Builder().push("a").pop(2));
         p("config bad predicate", () -> new ModConfigSpec.Builder().define("x", "v", o -> false).getClass().getName());
         p("config empty", () -> new ModConfigSpec.Builder().build().isEmpty());
+        ConfigFiles.run(FILES);
     }
 
     static void p(String key, Supplier<Object> call) {

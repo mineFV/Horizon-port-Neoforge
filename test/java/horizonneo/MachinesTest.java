@@ -76,7 +76,12 @@ final class MachinesTest {
         c.same("no fluids there", null, given.get("fluid"));
         Map<String, String> f = new LinkedHashMap<>();
         for (String[] m : BridgeRust.NEEDED) f.put(m[0], "f_" + m[0]);
-        String module = BridgeRust.module("super::java", ModInfo.minimal("m"), f, given);
+        String module = BridgeRust.module("super::java", ModInfo.minimal("m"), f, given, false);
+        c.yes("its configs loaded new when Horizon doesn't hand their files over", module.contains("const CONFIG_FILES: bool = false;"));
+        c.yes("and read from them when it does", BridgeRust.module("super::java", ModInfo.minimal("m"), f, given, true).contains("const CONFIG_FILES: bool = true;"));
+        Machines.Body register = Machines.configBody("register_configs", "port_m_bridge", "m");
+        c.yes("each config listed for Horizon, in its kind", register.text().contains("crate::game::port_m_bridge::configs()") && register.text().contains("crate::game::NativeConfig::new(\"m\", kind, &text).file(&file)"));
+        c.yes("a file read handed to the bridge, the mod's own", Machines.configBody("config_reloading", "port_m_bridge", "m").text().contains("if config.mod_id == \"m\" {\n        crate::game::port_m_bridge::config(&config.file, &config.text, true);"));
         c.yes("the bridge gives the items", module.contains("j::f_known(text(\"item\"), text(\"minecraft:air,minecraft:stone\"))"));
         c.yes("and the items' components", module.contains("j::f_known(text(\"components\"), text(\"minecraft:stone=max_stack_size:64,other\"))"));
         c.yes("and the fluids observed", module.contains("j::f_known(text(\"fluid\"), text(" + Machines.rust(BridgeRust.FLUIDS) + "))"));

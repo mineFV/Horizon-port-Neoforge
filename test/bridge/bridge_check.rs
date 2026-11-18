@@ -103,4 +103,14 @@ fn main() {
     all.insert(JavaString::from("c"), Tag::Compound(inner));
     let back = bridge::to_java(&Tag::Compound(all.clone())).and_then(|j| bridge::from_java(&j));
     println!("round trip: {}", match back { Ok(Tag::Compound(c)) => (c == all).to_string(), other => format!("{:?}", other.err().map(|e| java::jdescribe(&e))) });
+    // Its config files, as Horizon hands them over (API 397): listed with the text of a new one; read again with
+    // another value, the mod counts its seconds by it; a file that isn't the mod's is said not to be.
+    for (kind, file, text) in bridge::configs() {
+        println!("config: {} {} {:?}", kind, file, text);
+    }
+    let found = bridge::config("counter-common.toml", "ticks_per_second = 10\n", true);
+    let missing = bridge::config("nope.toml", "", false);
+    let mut fast = Compound::new();
+    ticks([7, 8, 9], 45, &mut fast);
+    println!("reloaded: {} {}; {}", found, missing, shown(&fast));
 }

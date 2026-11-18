@@ -1098,6 +1098,10 @@ if command -v rustc > /dev/null; then
     # lit switched: at 20 and 40 ticks, then at 60 elsewhere. 84 questions; lit twice, put out once.
     says "$BR/ran.txt" "asked: 84; lit 2 times; lit now at (1, 2, 3): Some(false)"
     says "$BR/ran.txt" "round trip: true"
+    # Its config file as Horizon writes a new one (NeoForge's text), then read again with 10 ticks a second: 45 ticks, 4 seconds.
+    says "$BR/ran.txt" 'config: common counter-common.toml "#Ticks in a second\n# Default: 20\n# Range: 1 ~ 1000\nticks_per_second = 20\n"'
+    says "$BR/ran.txt" "reloaded: true false; "
+    says "$BR/ran.txt" "seconds=Long(4) ticks=Int(45)"
     no_text "$BR/said.txt"
   else
     echo "  FAIL: the bridge doesn't compile:"; head -30 "$BR/rustc.txt"; failures=$((failures + 1))

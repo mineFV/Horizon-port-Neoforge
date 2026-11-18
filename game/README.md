@@ -74,7 +74,9 @@ network isn't modelled if run; the game's codec fields (ItemStack.CODEC...) are 
 A mod's config (net/neoforged/neoforge/common/ModConfigSpec, 2026-11-18, decision 3): its values by path, read as
 NeoForge reads them (before loading, an error; once read, the same value until the cache is cleared, set or not), each
 its default once the bridge loads the configs the mod registered (ModConfigEvent.Loading fired for each, in their
-order). The player's values (Horizon's settings, horizon-<modid>.txt) aren't read yet, nor any config file written.
+order). Its file, `config/<modid>-<kind>.toml`, is NeoForge's (HorizonConfigToml: a new one's text as NeoForge
+writes it, read and corrected as it reads it, a number out of range its nearest end, a list its valid elements):
+Horizon writes the new file, reads it and hands its text over, again when it changes (API 397).
 
 What isn't here, and what it costs: BlockPos's getCenter, betweenClosed and codecs, Direction's getRotation and
 codecs, MutableBlockPos's other setters, NBT's codecs (NbtOps), its readers and writers (DataOutput, visitors),
