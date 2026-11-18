@@ -16,6 +16,16 @@ public record TagKey<T>(ResourceKey<?> registry, ResourceLocation location) {
         return (TagKey<T>) MADE.computeIfAbsent(key, k -> k);
     }
 
+    /** A codec of a registry's tags by id (encoding isn't modelled yet: HorizonCodecs). */
+    public static <T> com.mojang.serialization.Codec<TagKey<T>> codec(ResourceKey<?> registry) {
+        return com.mojang.serialization.HorizonCodecs.game("TagKey.codec[" + registry.location() + "]");
+    }
+
+    /** A codec of a registry's tags by "#" and id (encoding isn't modelled yet). */
+    public static <T> com.mojang.serialization.Codec<TagKey<T>> hashedCodec(ResourceKey<?> registry) {
+        return com.mojang.serialization.HorizonCodecs.game("TagKey.hashedCodec[" + registry.location() + "]");
+    }
+
     public boolean isFor(ResourceKey<?> registry) {
         return this.registry == registry;
     }

@@ -77,6 +77,14 @@ final class MethodRust {
     // ---- what can be translated ----
 
     static Check check(String owner, ClassData.Method m, ClassData.Pool pool, JavaWorld world) {
+        return check(owner, m, pool, world, null);
+    }
+
+    /**
+     * As check, and with all: every reason the method can't be translated, each instruction's, added to it (the check
+     * then goes on past the first, for Blockers); the needs then hold what the instructions that can be translated need.
+     */
+    static Check check(String owner, ClassData.Method m, ClassData.Pool pool, JavaWorld world, List<String> all) {
         List<Need> needs = new ArrayList<>();
         if (m.body() == null) return new Check("it has no body", needs);
         for (ClassData.Handler h : m.body().handlers()) {
@@ -100,11 +108,15 @@ final class MethodRust {
         // The model's split(String) hands its own (checked) separator on to split(String, int).
         String split = owner.equals(STRING) ? null : splitWhy(code, m.body().handlers(), pool);
         if (split != null) return new Check(split, needs);
+        String first = null;
         for (Insn i : code) {
             String why = need(owner, i, pool, world, needs);
-            if (why != null) return new Check(why, needs);
+            if (why == null) continue;
+            if (all == null) return new Check(why, needs);
+            all.add(why);
+            if (first == null) first = why;
         }
-        return new Check(null, needs);
+        return new Check(first, needs);
     }
 
     /**

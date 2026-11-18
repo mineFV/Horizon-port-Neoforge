@@ -48,6 +48,8 @@ final class TagProbe {
         TagKey<Item> diamonds = ItemTags.create(ResourceLocation.parse("c:gems/diamond"));
         TagKey<Item> payment = ItemTags.create(ResourceLocation.withDefaultNamespace("beacon_payment_items"));
         TagKey<Item> none = ItemTags.create(ResourceLocation.parse("horizonprobe:none"));
+        p("tag key holders", () -> net.neoforged.neoforge.registries.DeferredHolder.create(net.minecraft.resources.ResourceKey.create(Registries.ITEM, ResourceLocation.withDefaultNamespace("diamond")))
+                + " " + net.neoforged.neoforge.registries.DeferredHolder.create(net.minecraft.resources.ResourceKey.create(Registries.ITEM, ResourceLocation.withDefaultNamespace("diamond"))).getId());
         p("tag key", () -> probed + " | " + (ItemTags.create(ResourceLocation.parse("horizonprobe:probed")) == probed) + " | " + probed.equals(TagKey.create(Registries.ITEM, ResourceLocation.parse("horizonprobe:probed")))
                 + " | " + (probed.hashCode() == ItemTags.create(ResourceLocation.parse("horizonprobe:probed")).hashCode()) + " | " + probed.isFor(Registries.ITEM) + " | " + probed.isFor(Registries.BLOCK)
                 + " | " + probed.location() + " | " + probed.registry() + " | " + FluidTags.WATER + " | " + BlockTags.REPLACEABLE_BY_TREES + " | " + probed.cast(Registries.BLOCK).isPresent());

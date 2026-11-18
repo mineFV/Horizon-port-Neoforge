@@ -74,7 +74,7 @@ public final class Main {
                 return check(Line.read(args, Set.of("--horizon-src", "--translator", "--horizon-tools"), Set.of("--compile")), out, err);
             }
             case "translate" -> {
-                return translate(Line.read(args, Set.of("--out", "--server", "--bridge"), Set.of()), out, err);
+                return translate(Line.read(args, Set.of("--out", "--server", "--bridge"), Set.of("--blockers")), out, err);
             }
             case "standins" -> {
                 Line line = Line.read(args, Set.of("--server", "--horizon-src", "--python"), Set.of());
@@ -141,6 +141,10 @@ public final class Main {
         for (var e : r.reasons().entrySet()) {
             if (shown++ == 8) break;
             out.println("  not translated: " + e.getValue() + ", " + e.getKey());
+        }
+        if (line.has("--blockers")) {
+            java.nio.file.Files.writeString(dir.resolve("blockers.md"), Blockers.report(JarRust.classes(jar), model, outside, r.translated(), r.why()), java.nio.charset.StandardCharsets.UTF_8);
+            out.println("Written: " + dir.resolve("blockers.md") + ", what keeps the mod's methods out, piece by piece (an estimate).");
         }
         if (line.has("--bridge")) {
             List<String> missing = new ArrayList<>();
@@ -499,7 +503,7 @@ public final class Main {
                   mod is run). The last line is `RESULT: ok`, `RESULT: ok, not compiled` or
                   `RESULT: failed (...)`; exit code 0 or 1.
 
-              translate <mod.jar> [--out DIR] [--server FOLDER] [--bridge PATH]
+              translate <mod.jar> [--out DIR] [--server FOLDER] [--bridge PATH] [--blockers]
                   This tool's own translator, from the mod's bytecode to Rust (no decompiling):
                   numbers with Java's exact semantics (wrapping arithmetic, NaN, casts),
                   branches, loops and switches, Math's methods with an exact counterpart;
@@ -519,7 +523,10 @@ public final class Main {
                   server's classes: the client's stay unknown. --bridge: also writes
                   DIR/bridge.rs, Horizon's side of the bridge to the translation (which
                   it reaches as PATH, a Rust path such as super::port_mymod_java): it
-                  keeps the mod's block entities and ticks them.
+                  keeps the mod's block entities and ticks them. --blockers: also writes
+                  DIR/blockers.md, an estimate of what keeps the mod's methods out: every
+                  reason of each, followed through the methods it calls, and which
+                  missing pieces alone would bring the most of them in.
 
               standins --server FOLDER [--horizon-src FOLDER [--python PROGRAM]]
                   The translator's stand-ins for the game (game/ in this tool's source) against

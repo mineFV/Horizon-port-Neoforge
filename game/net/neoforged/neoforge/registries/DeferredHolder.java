@@ -17,6 +17,11 @@ public class DeferredHolder<R, T extends R> implements Holder<R>, Supplier<T> {
         return new DeferredHolder<>(ResourceKey.create(registryKey, valueName));
     }
 
+    @SuppressWarnings("unchecked")
+    public static <R, T extends R> DeferredHolder<R, T> create(ResourceKey<R> key) {
+        return new DeferredHolder<>(key);
+    }
+
     @Override
     @SuppressWarnings("unchecked")
     public T get() {

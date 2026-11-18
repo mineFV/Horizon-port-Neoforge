@@ -86,7 +86,7 @@ bash test/run-test.sh         # builds, writes the fixture, runs everything; end
 java -jar build/horizon-port-neoforge.jar --help
 ```
 
-The tool's commands: `metadata`, `license`, `analyze`, `port`, `check`, `pack`, `dump`, `standins` (the game's stand-ins against a server's classes and answers), `translate` (`--server`: a NeoForge server's libraries, for the game's supertypes). The tests need
+The tool's commands: `metadata`, `license`, `analyze`, `port`, `check`, `pack`, `dump`, `standins` (the game's stand-ins against a server's classes and answers), `translate` (`--server`: a NeoForge server's libraries, for the game's supertypes; `--blockers`: `blockers.md`, which missing pieces alone would bring the most methods in, an estimate: choose the next stand-ins by it, not by translation.md's first reasons). The tests need
 `horizon-port.jar`; the ones that pack a `.hmod` or check a `.hnmod` are skipped, with a note, without Horizon's tools.
 
 ## Rules that are not up for interpretation

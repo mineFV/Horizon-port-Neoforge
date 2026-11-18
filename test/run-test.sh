@@ -137,7 +137,7 @@ jar --create --file "$B/jars/tidy.jar" -C "$B/tidy" . -C test/fixture/tidy/resou
 
 echo; echo "== unit tests"
 javac --release 21 -Xlint:all -Werror -cp build/classes -d "$B/classes" test/java/horizonneo/*.java
-for t in TomlTest JsonTest MetadataTest LicenceCheckTest ClassDataTest AnalyzerTest ReportTest StandInTest BundleTest EventTableTest WiringTest ContentTest RustTextTest PackTest DumpTest DeclarationsTest MachinesTest TranslatorTest; do
+for t in TomlTest JsonTest MetadataTest LicenceCheckTest ClassDataTest AnalyzerTest ReportTest StandInTest BundleTest EventTableTest WiringTest ContentTest RustTextTest PackTest DumpTest DeclarationsTest MachinesTest TranslatorTest BlockersTest; do
   # Their arguments, for the tests that read them: the first mod's classes, its jar, the stand-ins' jar, the second mod's jar.
   java -cp "build/classes:$B/classes" "horizonneo.$t" "$B/mod" "$J" "$B/jars/neoforge-stubs.jar" "$B/jars/oddities.jar" || failures=$((failures + 1))
 done
@@ -940,7 +940,7 @@ else
 fi
 says "$OUT" "Nothing was compiled or run"
 # The game's stand-ins (game/), translated with the mod where it reaches them.
-says "$OUT" "Stand-ins for the game: 292 classes, not checked against the game's (no --server)."
+says "$OUT" "Stand-ins for the game: 294 classes, not checked against the game's (no --server)."
 says "$TR/out/translation.md" '- `com.example.numbers.Places.keys(I)Ljava/lang/String;` as `places__keys`'
 says "$TR/out/translated.rs" '/// `net.minecraft.core.Vec3i.compareTo(Lnet/minecraft/core/Vec3i;)I`, translated from its bytecode.'
 says "$TR/out/translated.rs" 'pub fn numbers__collatz(mut l0: i64) -> JR<i64> {'
@@ -976,6 +976,11 @@ javac --release 21 -cp "$TR/game" -d "$TR/gamey" test/translate/gamey/com/exampl
 sed 's/numbers/gamey/g; s/Numbers/Gamey/' "$TR/jar/META-INF/neoforge.mods.toml" > "$TR/gamey/META-INF/neoforge.mods.toml"
 jar --create --file "$B/jars/gamey.jar" -C "$TR/gamey" .
 exits 0 tool translate "$B/jars/gamey.jar" --out "$TR/gamey-out"
+# What keeps the methods out, piece by piece: each untranslated method's reasons, followed through what it calls.
+exits 0 tool translate "$B/jars/gamey.jar" --out "$TR/gamey-blockers" --blockers
+says "$OUT" "blockers.md, what keeps the mod's methods out, piece by piece (an estimate)."
+says "$TR/gamey-blockers/blockers.md" "## Pieces that alone keep methods out (each would bring that many in)"
+says "$TR/gamey-blockers/blockers.md" "| it splits a text by a regular expression"
 says "$OUT" "no --server: the supertypes of the game's classes aren't known"
 says "$TR/gamey-out/translation.md" '`com.example.gamey.Tagged.size(I)I`: it makes an object whose supertypes aren'"'"'t all known: com.example.gamey.Tagged$Tag is a net.minecraft.world.Named'
 # A method dropped while something it needs may hold, back once what dropped it is gone.
@@ -990,7 +995,7 @@ exits 0 tool translate "$B/jars/gamey.jar" --server "$TR/server" --out "$TR/game
 says "$OUT" "Read: the supertypes of 4 classes of the game, NeoForge and their libraries, from 1 jars in"
 # Each stand-in checked against the server's class: one whose interfaces differ, one that would inherit a method the
 # game's declares, are left out.
-says "$OUT" "Stand-ins for the game: 290 classes, checked against the game's."
+says "$OUT" "Stand-ins for the game: 292 classes, checked against the game's."
 says "$OUT" "- left out: net.minecraft.core.Vec3i: its superclass or interfaces aren't the game's"
 says "$OUT" "- left out: net.minecraft.core.BlockPos: the game's class declares getX()I, which the stand-in would take from net.minecraft.core.Vec3i"
 says "$TR/gamey-out/translation.md" "- left out: net.minecraft.core.Vec3i"
@@ -1043,8 +1048,8 @@ for v in same upper; do
   jar --create --file "$SI/$v/libraries/net/neoforged/neoforge/21.1.1/neoforge-21.1.1-server.jar" -C "$SI/$v-classes" .
 done
 exits 0 tool standins --server "$SI/same"
-says "$OUT" "ok: the 292 stand-ins have the supertypes and the methods of the server's classes"
-says "$OUT" "ok: the game and the stand-ins give the same 20983 answers to the probe"
+says "$OUT" "ok: the 294 stand-ins have the supertypes and the methods of the server's classes"
+says "$OUT" "ok: the game and the stand-ins give the same 20995 answers to the probe"
 says "$OUT" "no server, no world, no mod"
 no_file logs
 exits 1 tool standins --server "$SI/upper"
