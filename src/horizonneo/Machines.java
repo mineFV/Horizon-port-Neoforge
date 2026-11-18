@@ -71,7 +71,7 @@ final class Machines {
     /**
      * What the bridge gives the stand-ins of the game's ids (HorizonRegistries.known), by registry: its items, from the
      * facts (`vanilla_items`, which Port puts in the machines), and its fluids, component types and items' components,
-     * from the machines file (`game_ids`, which a dump since 2026-11-17 writes); the blocks' and items' tags and the mod's
+     * from the machines file (`game_ids`, which a dump since 2026-11-17 writes, its furnace fuels and the items' remainders since 2026-11-18); the blocks' and items' tags and the mod's
      * namespaces from the facts (`tags`, `namespaces`), the fluids' tags from `game_ids`. A registry left out isn't given.
      */
     static Map<String, String> given(Map<String, Object> machines) {
@@ -82,7 +82,7 @@ final class Machines {
             out.put("item", String.join(",", items));
         }
         Map<String, Object> ids = Json.object(machines.get("game_ids"));
-        for (String k : List.of("fluid", "component", "components", "tags_fluid")) if (Json.text(ids, k) != null) out.put(k, Json.text(ids, k));
+        for (String k : List.of("fluid", "component", "components", "tags_fluid", "furnace_fuels", "remainders")) if (Json.text(ids, k) != null) out.put(k, Json.text(ids, k));
         Map<String, Object> tags = Json.object(machines.get("tags"));
         for (String kind : List.of("block", "item")) {
             if (!tags.containsKey(kind)) continue;

@@ -96,6 +96,8 @@ final class MachinesTest {
         c.same("no blocks' tags there", null, tags.get("tags_block"));
         c.same("the mod's namespaces", "m", tags.get("namespaces"));
         c.same("every block's id", "minecraft:air,m:press", tags.get("block"));
+        c.same("the furnace fuels from the machines file", "minecraft:coal=1600;m:pellet=200",
+                Machines.given(Map.of("game_ids", Map.of("furnace_fuels", "minecraft:coal=1600;m:pellet=200"))).get("furnace_fuels"));
         System.exit(c.done());
     }
 

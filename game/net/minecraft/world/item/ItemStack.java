@@ -68,6 +68,11 @@ public final class ItemStack implements DataComponentHolder, MutableDataComponen
         return isEmpty() ? net.minecraft.core.component.DataComponentMap.EMPTY : getItem().components();
     }
 
+    /** Observed (`standins --horizon-src`): whether its components are its item's, an empty stack's too. */
+    public boolean isComponentsPatchEmpty() {
+        return getComponentsPatch().isEmpty();
+    }
+
     public net.minecraft.core.component.DataComponentPatch getComponentsPatch() {
         return isEmpty() ? net.minecraft.core.component.DataComponentPatch.EMPTY : components.asPatch();
     }

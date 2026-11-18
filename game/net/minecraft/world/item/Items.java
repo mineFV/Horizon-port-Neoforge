@@ -9,6 +9,9 @@ public class Items {
     public static final Item DIAMOND = HorizonRegistries.item("minecraft:diamond");
     public static final Item EMERALD = HorizonRegistries.item("minecraft:emerald");
     public static final Item DIAMOND_SWORD = HorizonRegistries.item("minecraft:diamond_sword");
+    public static final Item COAL = HorizonRegistries.item("minecraft:coal");
+    public static final Item STICK = HorizonRegistries.item("minecraft:stick");
+    public static final Item LAVA_BUCKET = HorizonRegistries.item("minecraft:lava_bucket");
 
     private Items() {}
 }

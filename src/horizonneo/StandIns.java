@@ -31,7 +31,7 @@ final class StandIns {
             "probe/horizonneo/probe/IdProbe.java", "probe/horizonneo/probe/MthProbe.java",
             "probe/horizonneo/probe/VecProbe.java",
             "probe/horizonneo/probe/EquipProbe.java",
-            "probe/horizonneo/probe/RegistryProbe.java", "probe/horizonneo/probe/ComponentProbe.java", "probe/horizonneo/probe/CapabilityProbe.java", "probe/horizonneo/probe/TextProbe.java", "probe/horizonneo/probe/TagProbe.java", "probe/horizonneo/probe/LogProbe.java", "probe/horizonneo/probe/CodecProbe.java", "probe/horizonneo/probe/BuiltInProbe.java", "probe/horizonneo/probe/ConfigProbe.java", "probe/horizonneo/probe/ConfigFiles.java", "probe/horizonneo/probe/ColorProbe.java", "probe/horizonneo/probe/ArithProbe.java", "probe/horizonneo/probe/NameProbe.java", "probe/horizonneo/probe/FastutilProbe.java", "probe/horizonneo/probe/BoxProbe.java", "probe/horizonneo/probe/FluidTypeProbe.java", "probe/horizonneo/probe/EntityTypeProbe.java",
+            "probe/horizonneo/probe/RegistryProbe.java", "probe/horizonneo/probe/ComponentProbe.java", "probe/horizonneo/probe/CapabilityProbe.java", "probe/horizonneo/probe/TextProbe.java", "probe/horizonneo/probe/TagProbe.java", "probe/horizonneo/probe/LogProbe.java", "probe/horizonneo/probe/CodecProbe.java", "probe/horizonneo/probe/BuiltInProbe.java", "probe/horizonneo/probe/ConfigProbe.java", "probe/horizonneo/probe/ConfigFiles.java", "probe/horizonneo/probe/ColorProbe.java", "probe/horizonneo/probe/ArithProbe.java", "probe/horizonneo/probe/NameProbe.java", "probe/horizonneo/probe/FastutilProbe.java", "probe/horizonneo/probe/BoxProbe.java", "probe/horizonneo/probe/FluidTypeProbe.java", "probe/horizonneo/probe/EntityTypeProbe.java", "probe/horizonneo/probe/FuelProbe.java",
             "probe/horizonneo/probe/ModProbe.java",
             "probe/horizonneo/probe/ItemProbe.java");
 
@@ -105,8 +105,9 @@ final class StandIns {
 
     static final String SERVER_MOD = "probe/server/horizonneo/probe/InServer.java", SERVER_TOML = "probe/server/META-INF/neoforge.mods.toml";
 
-    /** The probe mod's data (its tags), at their paths under probe/server/. */
-    static final List<String> SERVER_DATA = List.of("data/horizonprobe/tags/item/probed.json", "data/horizonprobe/tags/block/blocks.json");
+    /** The probe mod's data (its tags, its fuel), at their paths under probe/server/. */
+    static final List<String> SERVER_DATA = List.of("data/horizonprobe/tags/item/probed.json", "data/horizonprobe/tags/block/blocks.json",
+            "data/neoforge/data_maps/item/furnace_fuels.json");
 
     /**
      * The probe as a mod (probe/server/), run in the server by `dump`'s path: its answers, from horizon-probe.txt where

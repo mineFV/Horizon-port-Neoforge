@@ -140,8 +140,8 @@ public final class MachinesExporter {
     }
 
     /**
-     * The game's ids the stand-ins are given (HorizonRegistries.known): its fluids and component types, and its items'
-     * components, written as horizon-port-neoforge's probe writes them (probe/server/InServer.java).
+     * The game's ids the stand-ins are given (HorizonRegistries.known): its fluids and component types, its items'
+     * components and crafting remainders, and the furnace fuels, written as horizon-port-neoforge's probe writes them (probe/server/InServer.java).
      */
     static JsonObject gameIds() {
         JsonObject o = new JsonObject();
@@ -163,6 +163,20 @@ public final class MachinesExporter {
         });
         java.util.Collections.sort(fluidTags);
         o.addProperty("tags_fluid", String.join(";", fluidTags));
+        // The furnace fuels data map, whole: every item it holds and its burn time (IWithData in the stand-ins).
+        List<String> fuels = new java.util.ArrayList<>();
+        BuiltInRegistries.ITEM.getDataMap(net.neoforged.neoforge.registries.datamaps.builtin.NeoForgeDataMaps.FURNACE_FUELS)
+                .forEach((key, fuel) -> fuels.add(key.location() + "=" + fuel.burnTime()));
+        java.util.Collections.sort(fuels);
+        o.addProperty("furnace_fuels", String.join(";", fuels));
+        // What the game's items leave in a crafting grid, whole: those that leave one.
+        List<String> remainders = new java.util.ArrayList<>();
+        for (net.minecraft.world.item.Item item : BuiltInRegistries.ITEM) {
+            String id = BuiltInRegistries.ITEM.getKey(item).toString();
+            if (id.startsWith("minecraft:") && item.getCraftingRemainingItem() != null) remainders.add(id + "=" + BuiltInRegistries.ITEM.getKey(item.getCraftingRemainingItem()));
+        }
+        java.util.Collections.sort(remainders);
+        o.addProperty("remainders", String.join(";", remainders));
         return o;
     }
 

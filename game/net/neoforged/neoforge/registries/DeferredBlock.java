@@ -13,4 +13,10 @@ public class DeferredBlock<T extends Block> extends DeferredHolder<Block, T> imp
     public static <T extends Block> DeferredBlock<T> createBlock(ResourceKey<Block> key) {
         return new DeferredBlock<>(key);
     }
+
+    /** Its block's item (Block.asItem). */
+    @Override
+    public net.minecraft.world.item.Item asItem() {
+        return get().asItem();
+    }
 }

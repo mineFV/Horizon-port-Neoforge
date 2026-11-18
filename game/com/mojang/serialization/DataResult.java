@@ -121,6 +121,33 @@ public interface DataResult<R> extends App<DataResult.Mu, R> {
         return new Error<>(e.messageSupplier(), next.result(), lifecycle);
     }
 
+    /** Observed (`standins`): as apply2stable, the function's lifecycle experimental. */
+    default <R2, S> DataResult<S> apply2(java.util.function.BiFunction<R, R2, S> function, DataResult<R2> second) {
+        return horizonAp2(Lifecycle.experimental(), function, this, second);
+    }
+
+    /**
+     * Observed: both results' values given to the function, the lifecycles added (the function's stable); an error's
+     * messages joined, the second's first, its partial value the function's of both partial values when both have one.
+     */
+    default <R2, S> DataResult<S> apply2stable(java.util.function.BiFunction<R, R2, S> function, DataResult<R2> second) {
+        return horizonAp2(Lifecycle.stable(), function, this, second);
+    }
+
+    /** apply2's and apply2stable's. Not DataFixerUpper's API. */
+    static <A, B, S> DataResult<S> horizonAp2(Lifecycle lifecycle, java.util.function.BiFunction<A, B, S> function, DataResult<A> a, DataResult<B> b) {
+        Lifecycle all = lifecycle.add(a.lifecycle()).add(b.lifecycle());
+        if (a instanceof Success<A> sa && b instanceof Success<B> sb) return new Success<>(function.apply(sa.value(), sb.value()), all);
+        Optional<A> pa = a instanceof Success<A> sa ? Optional.of(sa.value()) : ((Error<A>) a).partialValue();
+        Optional<B> pb = b instanceof Success<B> sb ? Optional.of(sb.value()) : ((Error<B>) b).partialValue();
+        Optional<S> partial = pa.isPresent() && pb.isPresent() ? Optional.of(function.apply(pa.get(), pb.get())) : Optional.empty();
+        Supplier<String> message;
+        if (a instanceof Error<A> ea && b instanceof Error<B> eb) message = () -> appendMessages(eb.message(), ea.message());
+        else if (a instanceof Error<A> ea) message = ea.messageSupplier();
+        else message = ((Error<B>) b).messageSupplier();
+        return new Error<>(message, partial, all);
+    }
+
     record Success<R>(R value, Lifecycle lifecycle) implements DataResult<R> {
         @Override
         public Optional<R> result() {

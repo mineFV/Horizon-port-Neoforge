@@ -74,7 +74,8 @@ public final class HorizonEventBus implements IEventBus {
     /**
      * The event to each listener of its class, by priority (HIGHEST first), then in the order they were added. A listener
      * given without its event's class has its lambda's: the class its site instantiates its parameter to, as NeoForge
-     * reads it. Not modelled, and refused: cancelling an event, and the objects registered (their @SubscribeEvent methods).
+     * reads it; once a listener cancelled it (ICancellableEvent), only those that take cancelled events. Not modelled, and
+     * refused: the objects registered (their @SubscribeEvent methods).
      */
     @Override
     public <T extends Event> T post(T event) {
@@ -85,13 +86,14 @@ public final class HorizonEventBus implements IEventBus {
     @Override
     @SuppressWarnings({"unchecked", "rawtypes"})
     public <T extends Event> T post(EventPriority priority, T event) {
-        if (event instanceof ICancellableEvent) throw new UnsupportedOperationException("cancelling an event isn't modelled (horizon-port-neoforge)");
         if (!registered.isEmpty()) throw new UnsupportedOperationException("the listeners of objects registered on a bus aren't modelled (horizon-port-neoforge)");
         for (Listener l : new ArrayList<>(listeners)) {
             if (l.priority() != priority) continue;
             Class<?> type = l.type() != null ? l.type() : eventType(l.consumer());
             if (type == null) throw new IllegalStateException("the event class of a listener given without it isn't known (horizon-port-neoforge)");
-            if (type.isInstance(event)) ((Consumer) l.consumer()).accept(event);
+            if (!type.isInstance(event)) continue;
+            if (event.isCanceled && !l.receiveCanceled()) continue;
+            ((Consumer) l.consumer()).accept(event);
         }
         return event;
     }

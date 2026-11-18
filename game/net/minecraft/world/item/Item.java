@@ -11,7 +11,8 @@ public class Item implements FeatureElement, ItemLike, IItemExtension {
     private net.minecraft.core.component.DataComponentMap components;
 
     private final boolean canRepair;
-    private final Item craftingRemainingItem;
+    private Item craftingRemainingItem;
+    private boolean horizonRemainderUnknown;
 
     public Item(Properties properties) {
         this.components = properties.buildAndValidateComponents();
@@ -61,6 +62,26 @@ public class Item implements FeatureElement, ItemLike, IItemExtension {
     /** HorizonRegistries': the components of an item of the game's, as given. Not the game's API. */
     public void horizonGiven(net.minecraft.core.component.DataComponentMap given) {
         this.components = given;
+    }
+
+    /**
+     * HorizonRegistries': what an item of the game's leaves in a crafting grid, as given (`dump`'s "remainders"), or that
+     * it wasn't given. Not the game's API.
+     */
+    public void horizonGivenRemainder(Item remainder, boolean known) {
+        this.craftingRemainingItem = remainder;
+        this.horizonRemainderUnknown = !known;
+    }
+
+    /** What it leaves in a crafting grid (Properties.craftRemainder; the game's items' as given), else null. */
+    public final Item getCraftingRemainingItem() {
+        if (horizonRemainderUnknown)
+            throw new IllegalStateException("what " + horizonId + " leaves in a crafting grid wasn't given (HorizonRegistries.known: remainders)");
+        return craftingRemainingItem;
+    }
+
+    public boolean hasCraftingRemainingItem() {
+        return getCraftingRemainingItem() != null;
     }
 
     /** HorizonRegistries': the description id of an item of the game's when it isn't its own (a block's item's). Not the game's API. */

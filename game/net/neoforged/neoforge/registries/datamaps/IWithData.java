@@ -1,11 +1,11 @@
 package net.neoforged.neoforge.registries.datamaps;
 
 /**
- * The stand-in for NeoForge's IWithData: a value's data maps. Data maps (data packs' values for registry entries, such
- * as furnace fuels) aren't modelled: asking one says so, where the game would answer from the data packs.
+ * The stand-in for NeoForge's IWithData: a value's data maps (data packs' values for registry entries). Those of a
+ * holder that HorizonRegistries was given (the furnace fuels, which `dump` reads) are answered; asking another says so.
  */
 public interface IWithData<R> {
     default <T> T getData(DataMapType<R, T> type) {
-        throw new UnsupportedOperationException("the data map " + type.id() + " isn't modelled (horizon-port-neoforge)");
+        return net.neoforged.neoforge.registries.HorizonRegistries.data(this, type);
     }
 }

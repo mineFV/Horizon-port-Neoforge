@@ -18,12 +18,12 @@ final class ItemProbe {
      * that the game has ("minecraft:nope" isn't one).
      */
     /** The game's components of the items the questions name, as horizon-ids.txt has them (InServer.ids). */
-    static final String COMPONENTS = "minecraft:air=max_stack_size:64,lore:empty,enchantments:empty,repair_cost:0,attribute_modifiers:empty,rarity:common,name:block.minecraft.air;minecraft:stone=max_stack_size:64,lore:empty,enchantments:empty,repair_cost:0,attribute_modifiers:empty,rarity:common,name:block.minecraft.stone;minecraft:diamond=max_stack_size:64,lore:empty,enchantments:empty,repair_cost:0,attribute_modifiers:empty,rarity:common;minecraft:diamond_sword=rarity:common,damage:0,repair_cost:0,enchantments:empty,lore:empty,max_damage:1561,max_stack_size:1,other";
+    static final String COMPONENTS = "minecraft:air=max_stack_size:64,lore:empty,enchantments:empty,repair_cost:0,attribute_modifiers:empty,rarity:common,name:block.minecraft.air;minecraft:stone=max_stack_size:64,lore:empty,enchantments:empty,repair_cost:0,attribute_modifiers:empty,rarity:common,name:block.minecraft.stone;minecraft:diamond=max_stack_size:64,lore:empty,enchantments:empty,repair_cost:0,attribute_modifiers:empty,rarity:common;minecraft:coal=max_stack_size:64,lore:empty,enchantments:empty,repair_cost:0,attribute_modifiers:empty,rarity:common;minecraft:stick=max_stack_size:64,lore:empty,enchantments:empty,repair_cost:0,attribute_modifiers:empty,rarity:common;minecraft:lava_bucket=max_stack_size:1,lore:empty,enchantments:empty,repair_cost:0,attribute_modifiers:empty,rarity:common;minecraft:bucket=max_stack_size:16,lore:empty,enchantments:empty,repair_cost:0,attribute_modifiers:empty,rarity:common;minecraft:diamond_sword=rarity:common,damage:0,repair_cost:0,enchantments:empty,lore:empty,max_damage:1561,max_stack_size:1,other";
 
     private static void given() {
         try {
             java.lang.reflect.Method known = Class.forName("net.neoforged.neoforge.registries.HorizonRegistries").getMethod("known", String.class, String.class);
-            known.invoke(null, "item", "minecraft:air,minecraft:stone,minecraft:diamond,minecraft:diamond_sword");
+            known.invoke(null, "item", "minecraft:air,minecraft:stone,minecraft:diamond,minecraft:diamond_sword,minecraft:coal,minecraft:stick,minecraft:lava_bucket,minecraft:bucket");
             known.invoke(null, "block", "minecraft:air,minecraft:stone");
             known.invoke(null, "fluid", "minecraft:empty,minecraft:flowing_water,minecraft:water,minecraft:flowing_lava,minecraft:lava");
             known.invoke(null, "component", "minecraft:max_stack_size,minecraft:max_damage,minecraft:damage,minecraft:repair_cost,minecraft:lore,minecraft:enchantments,minecraft:attribute_modifiers,minecraft:rarity");

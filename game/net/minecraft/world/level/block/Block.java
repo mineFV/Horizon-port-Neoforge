@@ -23,6 +23,12 @@ public class Block extends BlockBehaviour implements ItemLike, IBlockExtension {
     /** The properties its states have: none here, a mod's block adds its own. */
     protected void createBlockStateDefinition(net.minecraft.world.level.block.state.StateDefinition.Builder<Block, BlockState> builder) {}
 
+    /** Its item: a block's (BlockItem) isn't modelled yet, refused. */
+    @Override
+    public net.minecraft.world.item.Item asItem() {
+        throw new UnsupportedOperationException("a block's item isn't modelled yet (horizon-port-neoforge)");
+    }
+
     protected final void registerDefaultState(BlockState state) {
         this.defaultState = state;
     }

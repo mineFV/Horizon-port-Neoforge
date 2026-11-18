@@ -56,6 +56,7 @@ public final class HorizonRegistries {
                 String name = givenName(id);
                 if (name != null) other.horizonGivenName(name);
                 ITEMS.put(id, other);
+                remainder(id, other);
             }
             return other;
         }
@@ -112,6 +113,23 @@ public final class HorizonRegistries {
         }
         if (registry.equals("namespaces")) {
             net.minecraft.tags.HorizonTags.namespaces(ids);
+            return;
+        }
+        if (registry.equals("remainders")) {
+            remainders = new HashMap<>();
+            for (String entry : ids.split(";")) {
+                int eq = entry.indexOf('=');
+                if (eq > 0) remainders.put(entry.substring(0, eq), entry.substring(eq + 1));
+            }
+            for (Map.Entry<String, net.minecraft.world.item.Item> e : new java.util.ArrayList<>(ITEMS.entrySet())) remainder(e.getKey(), e.getValue());
+            return;
+        }
+        if (registry.equals("furnace_fuels")) {
+            furnaceFuels = new HashMap<>();
+            for (String entry : ids.split(";")) {
+                int eq = entry.indexOf('=');
+                if (eq > 0) furnaceFuels.put(entry.substring(0, eq), Integer.parseInt(entry.substring(eq + 1)));
+            }
             return;
         }
         if (registry.equals("components")) {
@@ -285,5 +303,36 @@ public final class HorizonRegistries {
         if (made instanceof net.minecraft.world.item.Item item) item.horizonRegistered(key.location());
         if (made instanceof net.minecraft.core.component.DataComponentType<?> type) net.minecraft.core.component.DataComponentType.horizonRegistered(type, key.location());
         return made;
+    }
+
+    private static Map<String, Integer> furnaceFuels;
+
+    /**
+     * IWithData's: a holder's value in a data map. The furnace fuels are given whole ("furnace_fuels": "id=ticks;...",
+     * every item the game's data map holds, as `dump` read it); an item not in them has none. Other maps aren't modelled.
+     * Not the game's API.
+     */
+    @SuppressWarnings("unchecked")
+    public static synchronized <T> T data(Object holder, net.neoforged.neoforge.registries.datamaps.DataMapType<?, T> type) {
+        if (type == net.neoforged.neoforge.registries.datamaps.builtin.NeoForgeDataMaps.FURNACE_FUELS && holder instanceof net.minecraft.core.Holder<?> h) {
+            if (furnaceFuels == null) throw new IllegalStateException("the furnace fuels weren't given (HorizonRegistries.known)");
+            net.minecraft.resources.ResourceKey<?> key = h.unwrapKey().orElse(null);
+            if (key == null) return null;
+            Integer ticks = furnaceFuels.get(key.location().toString());
+            return ticks == null ? null : (T) new net.neoforged.neoforge.registries.datamaps.builtin.FurnaceFuel(ticks);
+        }
+        throw new UnsupportedOperationException("the data map " + type.id() + " isn't modelled (horizon-port-neoforge)");
+    }
+
+    private static Map<String, String> remainders;
+
+    /** What an item of the game's leaves in a crafting grid, from "remainders" (whole: the game's items that leave one), when given. */
+    private static void remainder(String id, net.minecraft.world.item.Item item) {
+        if (remainders == null) {
+            item.horizonGivenRemainder(null, false);
+            return;
+        }
+        String r = remainders.get(id);
+        item.horizonGivenRemainder(r == null ? null : item(r), true);
     }
 }

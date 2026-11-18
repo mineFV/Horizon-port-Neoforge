@@ -48,6 +48,27 @@ final class CodecProbe {
         p("result map", () -> ok.map(i -> i + 1) + " | " + bad.map(i -> i + 1) + " | " + partial.map(i -> i + 1) + " | " + ok.flatMap(i -> DataResult.success(i * 2)) + " | "
                 + ok.flatMap(i -> DataResult.error(() -> "no")) + " | " + bad.flatMap(i -> DataResult.success(i)) + " | " + partial.flatMap(i -> DataResult.success(i * 2))
                 + " | " + partial.flatMap(i -> DataResult.error(() -> "again", i * 3)) + " | " + partial.flatMap(i -> DataResult.error(() -> "again")));
+        {
+            java.util.List<DataResult<Integer>> rs = java.util.List.of(ok, bad, partial, DataResult.error(() -> "other", 5, Lifecycle.stable()), DataResult.success(4, Lifecycle.stable()),
+                    DataResult.success(6, Lifecycle.deprecated(2)));
+            for (int i = 0; i < rs.size(); i++) {
+                for (int j = 0; j < rs.size(); j++) {
+                    DataResult<Integer> x = rs.get(i), y = rs.get(j);
+                    p("result apply2 " + i + " " + j, () -> {
+                        DataResult<String> s1 = x.apply2stable((u, v) -> u + "+" + v, y), s2 = x.apply2((u, v) -> u + "*" + v, y);
+                        return s1 + " " + s1.lifecycle() + " " + s1.hasResultOrPartial() + " | " + s2 + " " + s2.lifecycle();
+                    });
+                }
+            }
+        }
+        p("products and", () -> {
+            Codec<Pair> two = RecordCodecBuilder.create(i -> i.group(Codec.INT.fieldOf("a").forGetter(Pair::a)).and(Codec.STRING.fieldOf("b").forGetter(Pair::b)).apply(i, Pair::new));
+            MapCodec<Three> three = RecordCodecBuilder.mapCodec(i -> i.group(Codec.INT.fieldOf("a").forGetter(Three::a)).and(i.group(Codec.STRING.fieldOf("b").forGetter(Three::b),
+                    Codec.BOOL.fieldOf("c").forGetter(Three::c))).apply(i, Three::new));
+            MapCodec<Three> three2 = RecordCodecBuilder.mapCodec(i -> i.group(Codec.INT.fieldOf("a").forGetter(Three::a), Codec.STRING.fieldOf("b").forGetter(Three::b))
+                    .and(Codec.BOOL.fieldOf("c").forGetter(Three::c)).apply(i, Three::new));
+            return two + " | " + three + " | " + three2;
+        });
         p("result partial", () -> {
             StringBuilder b = new StringBuilder();
             java.util.function.Consumer<String> angle = m -> b.append("<").append(m).append(">");
