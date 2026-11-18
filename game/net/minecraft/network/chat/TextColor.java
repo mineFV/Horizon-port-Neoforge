@@ -12,10 +12,11 @@ public final class TextColor {
         this.name = name;
     }
 
-    private static final java.util.Map<ChatFormatting, TextColor> LEGACY = new java.util.EnumMap<>(ChatFormatting.class);
+    /** By ordinal, not an EnumMap: an EnumMap asks every enum there may be for its constants, a translated mod's too. */
+    private static final TextColor[] LEGACY = new TextColor[ChatFormatting.values().length];
 
     static {
-        for (ChatFormatting f : ChatFormatting.values()) if (f.isColor()) LEGACY.put(f, new TextColor(f.getColor(), f.getName()));
+        for (ChatFormatting f : ChatFormatting.values()) if (f.isColor()) LEGACY[f.ordinal()] = new TextColor(f.getColor(), f.getName());
     }
 
     public int getValue() {
@@ -46,7 +47,7 @@ public final class TextColor {
     }
 
     public static TextColor fromLegacyFormat(ChatFormatting formatting) {
-        return LEGACY.get(formatting);
+        return formatting == null ? null : LEGACY[formatting.ordinal()];
     }
 
     public static TextColor fromRgb(int rgb) {

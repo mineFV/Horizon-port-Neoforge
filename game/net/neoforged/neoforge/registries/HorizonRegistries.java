@@ -65,11 +65,35 @@ public final class HorizonRegistries {
     public static synchronized net.minecraft.world.level.material.Fluid fluid(String id) {
         net.minecraft.world.level.material.Fluid f = FLUIDS.get(id);
         if (f == null) {
-            f = new net.minecraft.world.level.material.Fluid() {};
+            // Observed (FluidTypeProbe): the game's water and lava, still and flowing, are FlowingFluids.
+            f = switch (id) {
+                case "minecraft:water", "minecraft:flowing_water", "minecraft:lava", "minecraft:flowing_lava" -> new net.minecraft.world.level.material.FlowingFluid() {
+                    @Override
+                    public net.neoforged.neoforge.fluids.FluidType getFluidType() {
+                        return fluidType(horizonId());
+                    }
+                };
+                default -> new net.minecraft.world.level.material.Fluid() {
+                    @Override
+                    public net.neoforged.neoforge.fluids.FluidType getFluidType() {
+                        return fluidType(horizonId());
+                    }
+                };
+            };
             f.horizonRegistered(net.minecraft.resources.ResourceLocation.parse(id));
             FLUIDS.put(id, f);
         }
         return f;
+    }
+
+    /** Observed: the game's fluids' types, NeoForgeMod's; another library's fluid's type isn't modelled. */
+    private static net.neoforged.neoforge.fluids.FluidType fluidType(net.minecraft.resources.ResourceLocation id) {
+        return switch (String.valueOf(id)) {
+            case "minecraft:empty" -> net.neoforged.neoforge.common.NeoForgeMod.EMPTY_TYPE.value();
+            case "minecraft:water", "minecraft:flowing_water" -> net.neoforged.neoforge.common.NeoForgeMod.WATER_TYPE.value();
+            case "minecraft:lava", "minecraft:flowing_lava" -> net.neoforged.neoforge.common.NeoForgeMod.LAVA_TYPE.value();
+            default -> throw new UnsupportedOperationException("the fluid type of " + id + " isn't modelled");
+        };
     }
 
     private static java.util.Set<String> knownItems;
@@ -228,6 +252,13 @@ public final class HorizonRegistries {
         }
         if (known == null) throw new IllegalStateException("the game's fluid ids weren't given (HorizonRegistries.known)");
         return known.contains(id) ? fluid(id) : null;
+    }
+
+    /** The game's own value at key, bound now: its holder, and its id for idOf. */
+    public static synchronized <T> net.minecraft.core.Holder.Reference<T> bind(ResourceKey<T> key, T value) {
+        VALUES.put(key, value);
+        KEYS.put(value, key);
+        return holder(key, value);
     }
 
     static synchronized void add(ResourceKey<?> key, Supplier<?> supplier) {

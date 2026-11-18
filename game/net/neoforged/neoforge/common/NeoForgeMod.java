@@ -7,6 +7,21 @@ package net.neoforged.neoforge.common;
 public class NeoForgeMod {
     private static boolean milkFluid;
 
+    /** The game's fluid types, as NeoForge registers them (observed, FluidTypeProbe). */
+    public static final net.minecraft.core.Holder<net.neoforged.neoforge.fluids.FluidType> EMPTY_TYPE = type("empty",
+            net.neoforged.neoforge.fluids.FluidType.Properties.create().descriptionId("block.minecraft.air").density(0).temperature(0).viscosity(0));
+    public static final net.minecraft.core.Holder<net.neoforged.neoforge.fluids.FluidType> WATER_TYPE = type("water",
+            net.neoforged.neoforge.fluids.FluidType.Properties.create().descriptionId("block.minecraft.water"));
+    public static final net.minecraft.core.Holder<net.neoforged.neoforge.fluids.FluidType> LAVA_TYPE = type("lava",
+            net.neoforged.neoforge.fluids.FluidType.Properties.create().descriptionId("block.minecraft.lava").lightLevel(15).density(3000).viscosity(6000).temperature(1300));
+
+    private static net.minecraft.core.Holder<net.neoforged.neoforge.fluids.FluidType> type(String name, net.neoforged.neoforge.fluids.FluidType.Properties properties) {
+        net.minecraft.resources.ResourceKey<net.neoforged.neoforge.fluids.FluidType> key = net.minecraft.resources.ResourceKey.create(
+                net.minecraft.resources.ResourceKey.createRegistryKey(net.minecraft.resources.ResourceLocation.parse("neoforge:fluid_type")),
+                net.minecraft.resources.ResourceLocation.withDefaultNamespace(name));
+        return net.neoforged.neoforge.registries.HorizonRegistries.bind(key, new net.neoforged.neoforge.fluids.FluidType(properties));
+    }
+
     private NeoForgeMod() {}
 
     public static void enableMilkFluid() {

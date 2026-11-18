@@ -108,6 +108,14 @@ public final class FluidStack implements MutableDataComponentHolder {
         return stack == null ? 0 : 31 * (31 + stack.getFluid().hashCode()) + stack.getComponentsPatch().hashCode();
     }
 
+    public FluidType getFluidType() {
+        return getFluid().getFluidType();
+    }
+
+    public boolean is(FluidType type) {
+        return getFluidType() == type;
+    }
+
     public boolean is(net.minecraft.tags.TagKey<Fluid> tag) {
         return getFluidHolder().is(tag);
     }

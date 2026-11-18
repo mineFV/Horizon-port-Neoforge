@@ -67,6 +67,7 @@ public final class GameProbe {
             BuiltInProbe.run();
             ConfigProbe.run();
             ColorProbe.run();
+            FluidTypeProbe.run();
         }
     }
 

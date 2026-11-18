@@ -1,5 +1,6 @@
 package net.neoforged.neoforge.common.extensions;
 
-/** The stand-in for the game's IFluidExtension: its supertypes alone (data components aren't modelled yet). */
+/** The stand-in for the game's IFluidExtension: a fluid's type. */
 public interface IFluidExtension {
+    net.neoforged.neoforge.fluids.FluidType getFluidType();
 }
