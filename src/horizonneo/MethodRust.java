@@ -196,6 +196,8 @@ final class MethodRust {
                 Call call = new Call(t[0], t[1], t[2]);
                 // Class.getEnumConstants: every enum whose class object there may be has its values() translated.
                 if (t[0].equals(CLASS) && t[1].equals("jEnumValues")) needs.add(new Need("enums", null, null, null, null));
+                // ServiceLoader: the providers of every service whose class object there may be, made there (JarRust).
+                if (t[0].equals(CLASS) && t[1].equals("jServiceNew")) needs.add(new Need("services", null, null, null, null));
                 if (library(call) != null) return null;
                 if (where(t[0], world) != null) return "it calls " + where(t[0], world) + ": " + display(call);
                 String declaring = null;

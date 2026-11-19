@@ -30,9 +30,13 @@ public final class InServer {
         EntityTypeProbe.ENTITIES.register(bus);
         BlockItemProbe.BLOCKS.register(bus);
         BlockItemProbe.ITEMS.register(bus);
+        IntrusiveProbe.ENTRIES.register(bus);
         CapabilityProbe.BLOCKS.register(bus);
         BuiltInProbe.WORD_ENTRIES.register(bus);
-        bus.addListener(net.neoforged.neoforge.registries.NewRegistryEvent.class, e -> e.register(BuiltInProbe.WORDS));
+        bus.addListener(net.neoforged.neoforge.registries.NewRegistryEvent.class, e -> {
+            e.register(BuiltInProbe.WORDS);
+            e.register(IntrusiveProbe.THINGS);
+        });
         bus.addListener(net.neoforged.neoforge.capabilities.RegisterCapabilitiesEvent.class, CapabilityProbe::register);
         NeoForge.EVENT_BUS.addListener(EventPriority.HIGHEST, (ServerStartedEvent event) -> {
             GameProbe.REGISTRIES = event.getServer().registryAccess();

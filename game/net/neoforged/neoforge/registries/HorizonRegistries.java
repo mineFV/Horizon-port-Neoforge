@@ -289,6 +289,8 @@ public final class HorizonRegistries {
     /** The one holder of a key's value, for values that don't keep theirs (all but items, blocks and fluids). */
     @SuppressWarnings("unchecked")
     public static synchronized <T> net.minecraft.core.Holder.Reference<T> holder(ResourceKey<?> key, T value) {
+        net.minecraft.core.Holder.Reference<?> own = INTRUSIVE.get(value);
+        if (own != null) return (net.minecraft.core.Holder.Reference<T>) own;
         return (net.minecraft.core.Holder.Reference<T>) HOLDERS.computeIfAbsent(key, k -> new net.minecraft.core.Holder.Reference<>((ResourceKey<T>) k, value));
     }
 
@@ -359,6 +361,7 @@ public final class HorizonRegistries {
     }
 
     /** The value registered at key, made the first time; null when nothing was registered there. */
+    @SuppressWarnings("unchecked")
     public static Object get(ResourceKey<?> key) {
         Supplier<?> supplier;
         synchronized (HorizonRegistries.class) {
@@ -376,6 +379,10 @@ public final class HorizonRegistries {
         }
         if (made instanceof net.minecraft.world.level.block.Block block) block.horizonRegistered(key.location());
         if (made instanceof net.minecraft.world.item.Item item) item.horizonRegistered(key.location());
+        synchronized (HorizonRegistries.class) {
+            net.minecraft.core.Holder.Reference<?> own = INTRUSIVE.get(made);
+            if (own != null) ((net.minecraft.core.Holder.Reference<Object>) own).horizonBind((ResourceKey<Object>) key);
+        }
         if (made instanceof net.minecraft.world.item.BlockItem blockItem) {
             synchronized (HorizonRegistries.class) {
                 blockItem.registerBlocks(net.minecraft.world.item.Item.BY_BLOCK, blockItem);
@@ -471,5 +478,21 @@ public final class HorizonRegistries {
             if (item != null) return item;
         }
         return item("minecraft:air");
+    }
+
+    private static final Map<Object, net.minecraft.core.Holder.Reference<?>> INTRUSIVE = new java.util.IdentityHashMap<>();
+    private static final Map<Object, Object> INTRUSIVE_OWNERS = new java.util.IdentityHashMap<>();
+
+    /** A registry's intrusive holder of a value (HorizonRegistry.createIntrusiveHolder), unbound until it is registered. Not the game's API. */
+    public static synchronized <T> net.minecraft.core.Holder.Reference<T> intrusive(T value, Object registry) {
+        net.minecraft.core.Holder.Reference<T> h = new net.minecraft.core.Holder.Reference<>(null, value);
+        INTRUSIVE.put(value, h);
+        INTRUSIVE_OWNERS.put(value, registry);
+        return h;
+    }
+
+    /** The registry that made a value's intrusive holder, for its text. Not the game's API. */
+    public static synchronized Object intrusiveOwner(Object value) {
+        return INTRUSIVE_OWNERS.get(value);
     }
 }

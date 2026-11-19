@@ -14,6 +14,8 @@ import net.neoforged.bus.api.IEventBus;
 public class DeferredRegister<T> {
     private final ResourceKey<?> registryKey;
     private final String namespace;
+    private final java.util.Set<DeferredHolder<T, ? extends T>> entries = new java.util.LinkedHashSet<>();
+    private final java.util.Set<DeferredHolder<T, ? extends T>> entriesView = java.util.Collections.unmodifiableSet(entries);
 
     protected DeferredRegister(ResourceKey<?> registryKey, String namespace) {
         this.registryKey = registryKey;
@@ -32,6 +34,7 @@ public class DeferredRegister<T> {
         ResourceLocation id = ResourceLocation.fromNamespaceAndPath(namespace, name);
         DeferredHolder<T, I> holder = createHolder(registryKey, id);
         HorizonRegistries.add(holder.getKey(), supplier);
+        entries.add(holder);
         return holder;
     }
 
@@ -40,6 +43,11 @@ public class DeferredRegister<T> {
     }
 
     public void register(IEventBus bus) {}
+
+    /** Observed: what it registered, in that order, as a set that can't be changed: the same view each time. */
+    public java.util.Collection<DeferredHolder<T, ? extends T>> getEntries() {
+        return entriesView;
+    }
 
     public ResourceKey<?> getRegistryKey() {
         return registryKey;

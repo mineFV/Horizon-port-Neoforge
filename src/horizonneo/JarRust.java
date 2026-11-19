@@ -77,7 +77,35 @@ final class JarRust {
 
     /** model: the library model's classes and the game's stand-ins, as `Library.checkStandIns` left them. */
     static Result translate(ModJar jar, Map<String, ClassData> model, Map<String, ClassData> outside) throws IOException {
-        return translate(classes(jar), model, outside);
+        return translate(classes(jar), model, outside, services(jar));
+    }
+
+    /**
+     * The jar's services files (META-INF/services/<service>): each service's providers, by internal name, as the JDK
+     * reads them (observed): a line's text before a '#', trimmed; each provider once, in its first place.
+     */
+    static Map<String, List<String>> services(ModJar jar) throws IOException {
+        Map<String, List<String>> out = new TreeMap<>();
+        try (ZipFile zip = new ZipFile(jar.path().toFile())) {
+            Enumeration<? extends ZipEntry> entries = zip.entries();
+            while (entries.hasMoreElements()) {
+                ZipEntry e = entries.nextElement();
+                String name = e.getName();
+                if (e.isDirectory() || !name.startsWith("META-INF/services/") || name.length() == "META-INF/services/".length()) continue;
+                String file = name.substring("META-INF/services/".length());
+                if (file.contains("/")) continue;
+                String service = file.replace('.', '/');
+                List<String> providers = new ArrayList<>();
+                String text = new String(ModJar.read(zip, e, Analyzer.MAX_CLASS), java.nio.charset.StandardCharsets.UTF_8);
+                for (String line : text.split("\n")) {
+                    int hash = line.indexOf('#');
+                    String p = (hash >= 0 ? line.substring(0, hash) : line).trim().replace('.', '/');
+                    if (!p.isEmpty() && !providers.contains(p)) providers.add(p);
+                }
+                out.put(service, providers);
+            }
+        }
+        return out;
     }
 
     /** The jar's classes, by internal name (not those under META-INF/, as versioned or module ones). */
@@ -109,7 +137,13 @@ final class JarRust {
      * outside: classes known for their supertypes alone.
      */
     static Result translate(Map<String, ClassData> jar, Map<String, ClassData> model, Map<String, ClassData> outside) {
+        return translate(jar, model, outside, Map.of());
+    }
+
+    /** services: the jar's services files (`services`), for ServiceLoader. */
+    static Result translate(Map<String, ClassData> jar, Map<String, ClassData> model, Map<String, ClassData> outside, Map<String, List<String>> services) {
         JavaWorld world = new JavaWorld(jar, model, outside);
+        world.services.putAll(services);
         int methods = 0;
         Map<Id, String> why = new TreeMap<>();
         Map<Id, List<Need>> needs = new TreeMap<>();
@@ -259,6 +293,12 @@ final class JarRust {
                     case "enums" -> {
                         for (String e : inst.enums(world)) todo.add(new Id(e, "values", "()[L" + e + ";"));
                     }
+                    case "services" -> {
+                        for (String p : inst.providers(world)) {
+                            todo.add(new Id(p, "<init>", "()V"));
+                            for (String c : world.initOrder(p)) if (world.declared(c, "<clinit>", "()V") != null) todo.add(new Id(c, "<clinit>", "()V"));
+                        }
+                    }
                     case "init" -> {
                         for (String c : world.initOrder(n.type())) if (world.declared(c, "<clinit>", "()V") != null) todo.add(new Id(c, "<clinit>", "()V"));
                     }
@@ -307,6 +347,22 @@ final class JarRust {
             this(classes, arrays, lambdas, constants, new HashMap<>());
         }
 
+        /**
+         * The services ServiceLoader may be asked for, those of the jar's with a class constant (an interface's object
+         * is no object's class), whose providers can be made (JavaWorld.providers); with their providers.
+         */
+        Set<String> services(JavaWorld world) {
+            Set<String> out = new TreeSet<>();
+            for (String t : constants) if (world.services.containsKey(t) && world.providers(t) != null) out.add(t);
+            return out;
+        }
+
+        Set<String> providers(JavaWorld world) {
+            Set<String> out = new TreeSet<>();
+            for (String s : services(world)) out.addAll(world.providers(s));
+            return out;
+        }
+
         /** The enums a class object may stand for: of a class constant, or of an object's getClass(). */
         Set<String> enums(JavaWorld world) {
             Set<String> out = new TreeSet<>();
@@ -345,14 +401,19 @@ final class JarRust {
             arrays.add("[C");
         }
         if (world.concrete(MethodRust.CLASS)) classes.add(MethodRust.CLASS);
+        boolean services = false;
         for (List<Need> list : needs.values()) {
             for (Need n : list) {
                 if (n.kind().equals("new")) (n.type().startsWith("[") ? arrays : classes).add(n.type());
                 if (n.kind().equals("lambda")) lambdas.add(n.type());
                 if (n.kind().equals("class")) constants.add(n.type());
+                if (n.kind().equals("services")) services = true;
             }
         }
-        return new Instances(classes, arrays, lambdas, constants);
+        Instances inst = new Instances(classes, arrays, lambdas, constants);
+        // ServiceLoader makes the providers of the services it may be asked for.
+        if (services) classes.addAll(inst.providers(world));
+        return inst;
     }
 
     private static void settleAndRevive(JavaWorld world, Map<Id, List<Need>> pool, Map<Id, List<Need>> needs, Map<Id, String> why) {
@@ -363,7 +424,7 @@ final class JarRust {
     }
 
     /** The needs that ask something of every object there may be. */
-    private static final Set<String> OVER_OBJECTS = Set.of("dispatch", "enums", "test");
+    private static final Set<String> OVER_OBJECTS = Set.of("dispatch", "enums", "services", "test");
 
     /**
      * Drops the methods whose needs aren't met until none is left to drop; objectsAside: only by the needs that ask
@@ -397,6 +458,16 @@ final class JarRust {
             if (poison == null || poison.isEmpty()) continue;
             for (Id id : List.copyOf(needs.keySet())) {
                 for (Need n : needs.get(id)) {
+                    // ServiceLoader makes its providers where it may be asked for them.
+                    if (n.kind().equals("services") && inst != null) {
+                        String p = inst.providers(world).stream().filter(poison::containsKey).findFirst().orElse(null);
+                        if (p != null) {
+                            why.put(id, "ServiceLoader may make an object of " + p.replace('/', '.') + " that a virtual call may reach, and " + poison.get(p));
+                            needs.remove(id);
+                            changed = true;
+                            break;
+                        }
+                    }
                     if (!(n.kind().equals("new") || n.kind().equals("lambda")) || !poison.containsKey(n.type())) continue;
                     String made = n.kind().equals("new") ? "an object of " + n.type().replace('/', '.') : "a lambda of " + world.lambdaInterface(n.type()).replace('/', '.');
                     why.put(id, "it makes " + made + " that a virtual call may reach, and " + poison.get(n.type()));
@@ -419,7 +490,12 @@ final class JarRust {
      */
     private static boolean poisonable(JavaWorld world, String instance) {
         String owner = instance.startsWith(JavaWorld.LAMBDA) ? instance.substring(JavaWorld.LAMBDA.length(), instance.indexOf('#')) : instance;
-        return world.jar.contains(owner) || (world.cls(owner) != null && Library.standIn(owner));
+        if (world.jar.contains(owner) || (world.cls(owner) != null && Library.standIn(owner))) return true;
+        // The model's own classes too (java.*), but those the runtime makes itself (no method of it is their maker): a
+        // ServiceLoader's iterator whose next can't be translated otherwise kept every Iterator.next out (Mekanism:
+        // 9528 methods against 11964).
+        return owner.startsWith("java/") && world.cls(owner) != null && !instance.startsWith("[") && !Library.thrownClasses().contains(owner)
+                && !owner.equals(MethodRust.STRING) && !owner.equals(MethodRust.CLASS);
     }
 
     /**
@@ -529,6 +605,14 @@ final class JarRust {
                 for (String e : inst.enums(world)) {
                     String r = untranslated("it asks an enum's class for its constants, and ", new Id(e, "values", "()[L" + e + ";"), needs, why);
                     if (r != null) return r;
+                }
+                return null;
+            }
+            case "services" -> {
+                for (String p : inst.providers(world)) {
+                    String r = unmet(new Need("init", null, p, null, null), world, needs, why, inst, null);
+                    if (r == null) r = untranslated("it makes a service's provider, and ", new Id(p, "<init>", "()V"), needs, why);
+                    if (r != null) return "ServiceLoader may make " + p.replace('/', '.') + ": " + r;
                 }
                 return null;
             }
@@ -821,11 +905,13 @@ final class JarRust {
                 } else if (t.startsWith(JavaWorld.LAMBDA)) {
                     sup.append("        ").append(id).append(" => ").append(world.id(JavaWorld.OBJECT)).append(",\n");
                     ifs.append("        ").append(id).append(" => &[").append(world.id(world.lambdaInterface(t))).append("],\n");
+                    if (world.jar.contains(t.substring(JavaWorld.LAMBDA.length(), t.indexOf('#')))) f |= 16;
                 } else {
                     ClassData c = world.knownClass(t);
                     if (c != null) {
                         if ((c.access & ClassData.INTERFACE) != 0) f |= 1;
                         if (world.enumClass(t)) f |= 2;
+                        if (world.jar.contains(t)) f |= 16;
                         if (c.superName != null && (c.access & ClassData.INTERFACE) == 0) sup.append("        ").append(id).append(" => ").append(world.id(c.superName)).append(",\n");
                         if (!c.interfaces.isEmpty()) {
                             List<String> list = new ArrayList<>();
@@ -863,7 +949,7 @@ final class JarRust {
                     + "\n/// A class's superclass (0: none, an interface, Object).\n#[allow(dead_code)]\nfn jclass_super(c: u32) -> u32 {\n    match c {\n" + sup + "        _ => 0,\n    }\n}\n"
                     + "\n/// A type's direct interfaces.\n#[allow(dead_code)]\nfn jclass_interfaces(c: u32) -> &'static [u32] {\n    match c {\n" + ifs + "        _ => &[],\n    }\n}\n"
                     + "\n/// An array of references' component type (0: not one).\n#[allow(dead_code)]\nfn jclass_component(c: u32) -> u32 {\n    match c {\n" + comp + "        _ => 0,\n    }\n}\n"
-                    + "\n/// 1: an interface, 2: an enum's own class, 4: an array, 8: a primitive type or void.\n#[allow(dead_code)]\nfn jclass_flags(c: u32) -> i32 {\n    match c {\n" + flags + "        _ => 0,\n    }\n}\n"
+                    + "\n/// 1: an interface, 2: an enum's own class, 4: an array, 8: a primitive type or void, 16: the mod's (its loader's).\n#[allow(dead_code)]\nfn jclass_flags(c: u32) -> i32 {\n    match c {\n" + flags + "        _ => 0,\n    }\n}\n"
                     + "\n/// getSimpleName.\n#[allow(dead_code)]\nfn jclass_simple(c: u32) -> &'static str {\n    match c {\n" + simple + "        _ => \"?\",\n    }\n}\n"
                     + "\n/// getCanonicalName (None for a local or anonymous class, a lambda's).\n#[allow(dead_code)]\nfn jclass_canonical(c: u32) -> Option<&'static str> {\n    match c {\n" + canonical + "        _ => None,\n    }\n}\n"
                     + "\n/// A lambda's first parameter's type, as its site instantiates it (0: none, or not a class): what NeoForge's bus\n/// reads of a listener given without its event's class.\n#[allow(dead_code)]\nfn jlambda_first_parameter(c: u32) -> u32 {\n    match c {\n" + lambdaFirst + "        _ => 0,\n    }\n}\n"
@@ -977,6 +1063,37 @@ final class JarRust {
         }
 
         /**
+         * ServiceLoader's tables: by service class id, how many providers the jar lists, their names, and each made as
+         * `new` makes it (its class initialized, then its constructor without parameters). A service whose providers
+         * can't be made (JavaWorld.providers) has none here: -1, refused.
+         */
+        String serviceTables() {
+            StringBuilder count = new StringBuilder(), names = new StringBuilder(), make = new StringBuilder();
+            for (String service : world.services.keySet()) {
+                List<String> providers = inst.services(world).contains(service) ? world.providers(service) : null;
+                boolean all = providers != null;
+                if (all) for (String p : providers) if (functions.get(new Id(p, "<init>", "()V")) == null) all = false;
+                if (!all) {
+                    if (world.jar.contains(service)) count.append("        ").append(world.id(service)).append(" => -1,\n");
+                    continue;
+                }
+                int s = world.id(service);
+                count.append("        ").append(s).append(" => ").append(providers.size()).append(",\n");
+                for (int i = 0; i < providers.size(); i++) {
+                    String p = providers.get(i);
+                    names.append("        (").append(s).append(", ").append(i).append(") => ").append(MethodRust.rustText(p.replace('/', '.'))).append(",\n");
+                    make.append("        (").append(s).append(", ").append(i).append(") => {\n            ").append(init(p)).append("()?;\n            let o = jnew(")
+                            .append(world.id(p)).append(", b\"").append(world.layout(p)).append("\");\n            ").append(functions.get(new Id(p, "<init>", "()V")))
+                            .append("(o.clone())?;\n            Ok(o)\n        }\n");
+                }
+            }
+            return "\n// ---- ServiceLoader: the providers the jar lists (META-INF/services) ----\n"
+                    + "\n/// How many providers of a service the jar lists (none for one of the jar's it has no file for); -1 when that isn't known.\n#[allow(dead_code)]\nfn jservice_count(c: u32) -> i32 {\n    match c {\n" + count + "        _ => if jclass_flags(c) & 16 != 0 { 0 } else { -1 },\n    }\n}\n"
+                    + "\n/// A provider's name.\n#[allow(dead_code)]\nfn jservice_name(c: u32, i: i32) -> &'static str {\n    match (c, i) {\n" + names + "        _ => \"?\",\n    }\n}\n"
+                    + "\n/// A provider made.\n#[allow(dead_code)]\nfn jservice_make(c: u32, i: i32) -> JR<Ref> {\n    match (c, i) {\n" + make + "        _ => Ok(None),\n    }\n}\n";
+        }
+
+        /**
          * The part of the runtime that the model's classes shape: the ids of the exceptions the runtime throws, how
          * their message and cause are kept, how a String keeps its units, each class's name.
          */
@@ -985,6 +1102,7 @@ final class JarRust {
             String classes = natives.stream().anyMatch(CLASS_NATIVES::contains) ? classTables() : "";
             StringBuilder b = new StringBuilder("\n// ---- the runtime's exceptions and texts, from the library model ----\n");
             b.append(classes);
+            if (natives.stream().anyMatch(n -> n.startsWith("jnative_class_service"))) b.append(serviceTables());
             StringBuilder layouts = new StringBuilder();
             for (Map.Entry<String, String> e : Library.THROWN.entrySet()) {
                 b.append("#[allow(dead_code)]\nconst ").append(e.getKey()).append(": u32 = ").append(world.concrete(e.getValue()) ? world.id(e.getValue()) : 0).append(";\n");

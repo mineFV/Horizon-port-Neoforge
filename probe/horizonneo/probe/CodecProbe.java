@@ -61,6 +61,12 @@ final class CodecProbe {
                 }
             }
         }
+        p("pairs", () -> {
+            com.mojang.datafixers.util.Pair<String, Integer> a = com.mojang.datafixers.util.Pair.of("x", 3), b = new com.mojang.datafixers.util.Pair<>("x", 3);
+            com.mojang.datafixers.util.Pair<String, Integer> n = com.mojang.datafixers.util.Pair.of(null, null);
+            return a + " " + a.equals(b) + " " + a.hashCode() + " " + n + " " + n.hashCode() + " " + n.equals(com.mojang.datafixers.util.Pair.of(null, null)) + " " + a.equals(n)
+                    + " " + a.swap() + " " + a.mapFirst(s -> s + "!") + " " + a.mapSecond(i -> i * 2) + " " + a.getFirst() + " " + a.getSecond() + " " + a.equals("x");
+        });
         p("products and", () -> {
             Codec<Pair> two = RecordCodecBuilder.create(i -> i.group(Codec.INT.fieldOf("a").forGetter(Pair::a)).and(Codec.STRING.fieldOf("b").forGetter(Pair::b)).apply(i, Pair::new));
             MapCodec<Three> three = RecordCodecBuilder.mapCodec(i -> i.group(Codec.INT.fieldOf("a").forGetter(Three::a)).and(i.group(Codec.STRING.fieldOf("b").forGetter(Three::b),

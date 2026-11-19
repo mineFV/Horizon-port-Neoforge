@@ -86,6 +86,27 @@ final class JavaWorld {
         return c != null && (c.access & ClassData.INTERFACE) != 0;
     }
 
+    /** The jar's services files (META-INF/services): each service's providers, as listed, by internal name. */
+    final Map<String, List<String>> services = new TreeMap<>();
+
+    /**
+     * The providers ServiceLoader makes of a service of the jar's: each listed once, in order; null when that isn't
+     * known (a service outside the jar may have providers elsewhere) or one can't be made as the JDK makes it: a
+     * public, concrete class of the jar, a subtype of the service, with a public constructor without parameters.
+     */
+    List<String> providers(String service) {
+        if (!jar.contains(service)) return null;
+        List<String> listed = services.getOrDefault(service, List.of());
+        for (String p : listed) {
+            ClassData c = jar.contains(p) ? classes.get(p) : null;
+            if (c == null || !concrete(p) || (c.access & ClassData.PUBLIC) == 0 || !Boolean.TRUE.equals(subtype(p, service))) return null;
+            boolean constructor = false;
+            for (ClassData.Method m : c.methods) if (m.name().equals("<init>") && m.descriptor().equals("()V") && (m.access() & ClassData.PUBLIC) != 0) constructor = true;
+            if (!constructor) return null;
+        }
+        return listed;
+    }
+
     /** A class of the jar that can have objects: not an interface nor abstract, with every superclass in the jar. */
     boolean concrete(String name) {
         ClassData c = classes.get(name);

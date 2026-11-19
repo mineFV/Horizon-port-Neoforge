@@ -71,6 +71,7 @@ public final class GameProbe {
             EntityTypeProbe.run();
             FuelProbe.run();
             BlockItemProbe.run();
+            IntrusiveProbe.run();
         }
     }
 

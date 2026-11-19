@@ -60,6 +60,8 @@ public interface Registry<T> extends com.mojang.serialization.Keyable, IdMap<T>,
 
     Holder<T> wrapAsHolder(T value);
 
+    Holder.Reference<T> createIntrusiveHolder(T value);
+
     /** Observed: the holder, else IllegalStateException naming the key. */
     default Holder.Reference<T> getHolderOrThrow(ResourceKey<T> key) {
         return getHolder(key).orElseThrow(() -> new IllegalStateException("Missing key in " + key() + ": " + key));

@@ -4,7 +4,9 @@ package java.lang;
  * The model of java.lang.Class: a type of the translation's world, by the runtime's id for it. There is one object
  * for each type (`Foo.class == foo.getClass()`), made by the runtime. Its names, supertypes and enum constants come
  * from tables the translator writes. A primitive type's object (int.class, Integer.TYPE) is one too. Not modelled:
- * reflection on members, annotations, getPackage, records' components.
+ * reflection on members, annotations, getPackage, records' components. Its loader is known for the mod's own classes
+ * (ClassLoader) and Java's (none); another library's or the game's isn't. ServiceLoader makes the providers the mod's
+ * jar lists (META-INF/services) from a table the translator writes.
  */
 public final class Class<T> implements java.io.Serializable {
     private final int id;
@@ -116,6 +118,43 @@ public final class Class<T> implements java.io.Serializable {
     public Enum<?>[] jEnumUniverse() {
         return jEnumValues(id);
     }
+
+    /**
+     * The mod's loader for its own classes (an array of them, a lambda made in one), none (null) for Java's and the
+     * primitive types; another library's or the game's class's loader isn't modelled, and refused.
+     */
+    public ClassLoader getClassLoader() {
+        if (isPrimitive()) return null;
+        if (isArray()) return jComponent(id).getClassLoader();
+        if ((jFlags(id) & 16) != 0) return ClassLoader.jMod();
+        if (getName().startsWith("java.")) return null;
+        throw new UnsupportedOperationException("the class loader of ".concat(getName()).concat(" isn't modelled (horizon-port-neoforge)"));
+    }
+
+    /**
+     * How many providers of this service the mod's jar lists (META-INF/services, each once, in their order); -1 when
+     * that isn't known: a service of another jar's, or one whose providers the translator couldn't make. Not the JDK's
+     * API: a mod, built against the JDK, can't call it.
+     */
+    public int jServiceCount() {
+        return jServices(id);
+    }
+
+    /** A provider's name, as the jar lists it. Not the JDK's API. */
+    public String jServiceName(int i) {
+        return jServiceProvider(id, i);
+    }
+
+    /** A provider made: its class initialized, then its public constructor without parameters run. Not the JDK's API. */
+    public Object jServiceMake(int i) {
+        return jServiceNew(id, i);
+    }
+
+    private static native int jServices(int id);
+
+    private static native String jServiceProvider(int id, int i);
+
+    private static native Object jServiceNew(int id, int i);
 
     /** Assertions are off, as a JVM's are unless it is told otherwise. */
     public boolean desiredAssertionStatus() {

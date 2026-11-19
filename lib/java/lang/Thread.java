@@ -128,6 +128,11 @@ public class Thread implements Runnable {
 
     public static void yield() {}
 
+    /** In NeoForge, the loader of the mod's classes, the game's own threads' and those it makes (ClassLoader). */
+    public ClassLoader getContextClassLoader() {
+        return ClassLoader.jMod();
+    }
+
     public final String getName() {
         return name;
     }

@@ -924,10 +924,17 @@ mkdir -p "$TR/classes" "$TR/jar/META-INF"
 # The game's stand-ins (game/) are what the made-up classes are built against, and what the Java reference runs with.
 javac --release 21 -cp build/model -d "$TR/classes" test/translate/src/com/example/numbers/*.java
 javac --release 21 -cp "$TR/classes" -d "$TR/classes" test/translate/NumbersCheck.java
+# A services file (ServiceLoader): the jar's, and the Java reference's, which runs from the classes.
+mkdir -p "$TR/jar/META-INF/services" "$TR/classes/META-INF/services"
+printf '# the greeters\ncom.example.numbers.Services$Plain\n com.example.numbers.Services$Broken \ncom.example.numbers.Services$Plain\ncom.example.numbers.Services$Last # last\n' > "$TR/jar/META-INF/services/com.example.numbers.Services\$Greeter"
+cp "$TR/jar/META-INF/services/com.example.numbers.Services\$Greeter" "$TR/classes/META-INF/services/"
 printf 'modLoader = "javafml"\nloaderVersion = "[4,)"\nlicense = "MIT"\n[[mods]]\nmodId = "numbers"\nversion = "1.0"\ndisplayName = "Numbers"\n' > "$TR/jar/META-INF/neoforge.mods.toml"
 jar --create --file "$B/jars/numbers.jar" -C "$TR/jar" . -C "$TR/classes" com
 exits 0 tool translate "$B/jars/numbers.jar" --out "$TR/out"
-says "$OUT" "numbers.jar: 494 of 494 methods translated from their bytecode"
+says "$OUT" "numbers.jar: 503 of 503 methods translated from their bytecode"
+# ServiceLoader: the providers the jar lists, made from a table (each once, in order).
+says "$TR/out/translated.rs" 'fn jservice_make(c: u32, i: i32) -> JR<Ref> {'
+says "$TR/out/translated.rs" ', 2) => "com.example.numbers.Services$Last",'
 # Class objects: an enum's valueOf (Enum.valueOf with a class constant), and their tables.
 says "$TR/out/translation.md" '- `com.example.numbers.Boxes$Color.valueOf(Ljava/lang/String;)Lcom/example/numbers/Boxes$Color;` as'
 says "$TR/out/translated.rs" 'fn jinstance_of(t: u32, a: u32) -> bool {'
@@ -940,7 +947,7 @@ else
 fi
 says "$OUT" "Nothing was compiled or run"
 # The game's stand-ins (game/), translated with the mod where it reaches them.
-says "$OUT" "Stand-ins for the game: 369 classes, not checked against the game's (no --server)."
+says "$OUT" "Stand-ins for the game: 371 classes, not checked against the game's (no --server)."
 says "$TR/out/translation.md" '- `com.example.numbers.Places.keys(I)Ljava/lang/String;` as `places__keys`'
 says "$TR/out/translated.rs" '/// `net.minecraft.core.Vec3i.compareTo(Lnet/minecraft/core/Vec3i;)I`, translated from its bytecode.'
 says "$TR/out/translated.rs" 'pub fn numbers__collatz(mut l0: i64) -> JR<i64> {'
@@ -995,7 +1002,7 @@ exits 0 tool translate "$B/jars/gamey.jar" --server "$TR/server" --out "$TR/game
 says "$OUT" "Read: the supertypes of 4 classes of the game, NeoForge and their libraries, from 1 jars in"
 # Each stand-in checked against the server's class: one whose interfaces differ, one that would inherit a method the
 # game's declares, are left out.
-says "$OUT" "Stand-ins for the game: 367 classes, checked against the game's."
+says "$OUT" "Stand-ins for the game: 369 classes, checked against the game's."
 says "$OUT" "- left out: net.minecraft.core.Vec3i: its superclass or interfaces aren't the game's"
 says "$OUT" "- left out: net.minecraft.core.BlockPos: the game's class declares getX()I, which the stand-in would take from net.minecraft.core.Vec3i"
 says "$TR/gamey-out/translation.md" "- left out: net.minecraft.core.Vec3i"
@@ -1048,8 +1055,8 @@ for v in same upper; do
   jar --create --file "$SI/$v/libraries/net/neoforged/neoforge/21.1.1/neoforge-21.1.1-server.jar" -C "$SI/$v-classes" .
 done
 exits 0 tool standins --server "$SI/same"
-says "$OUT" "ok: the 369 stand-ins have the supertypes and the methods of the server's classes"
-says "$OUT" "ok: the game and the stand-ins give the same 21197 answers to the probe"
+says "$OUT" "ok: the 371 stand-ins have the supertypes and the methods of the server's classes"
+says "$OUT" "ok: the game and the stand-ins give the same 21198 answers to the probe"
 says "$OUT" "no server, no world, no mod"
 no_file logs
 exits 1 tool standins --server "$SI/upper"

@@ -11,6 +11,7 @@ import net.minecraft.resources.ResourceLocation;
 public class RegistryBuilder<T> {
     private final ResourceKey<?> key;
     private ResourceLocation defaultKey;
+    private boolean intrusive;
 
     public RegistryBuilder(ResourceKey<? extends Registry<T>> key) {
         this.key = key;
@@ -27,6 +28,7 @@ public class RegistryBuilder<T> {
     }
 
     public RegistryBuilder<T> withIntrusiveHolders() {
+        intrusive = true;
         return this;
     }
 
@@ -43,6 +45,6 @@ public class RegistryBuilder<T> {
     }
 
     public Registry<T> create() {
-        return new net.minecraft.core.HorizonRegistry<>(key, defaultKey, true);
+        return new net.minecraft.core.HorizonRegistry<>(key, defaultKey, true, intrusive);
     }
 }

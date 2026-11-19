@@ -170,6 +170,9 @@ public final class NumbersCheck {
             p("doubleText", d(d), () -> Texts.doubleText(d));
             p("floatText", f(f), () -> Texts.floatText(f));
         }
+        // ServiceLoader over the jar's services file, and class loaders.
+        p("services", "", com.example.numbers.Services::report);
+        p("loaders", "", com.example.numbers.Services::loaders);
     }
 
     static int[] range(int from, int to) {

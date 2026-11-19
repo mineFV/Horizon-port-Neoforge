@@ -97,3 +97,13 @@ takeWhile, dropWhile, iterate, generate, DoubleStream, list iterators, reversed 
 and sets (headMap, subSet, descendingMap...), the other concurrent collections, interrupts, scheduled and cached thread pools,
 CompletableFuture's Async stages, timeouts and either stages.
 
+
+A class's loader (Class.getClassLoader) is one object, the mod's, for the mod's own classes and the threads' context
+(NeoForge loads the mod and runs the game's threads with one); Java's classes have none (null); another library's
+or the game's class's loader isn't modelled and is refused. ServiceLoader serves the mod's own services from the
+providers its jar lists (META-INF/services, as the JDK reads the files: what precedes a '#', trimmed, each once, in
+order), from a table the translator writes: each made the first time an iterator reaches it, kept for the later
+iterators, one whose constructor throws given as the JDK's ServiceConfigurationError and not tried again, all made
+anew after reload (observed, and compared in `test/translate/`). The translator makes only the providers of the
+services there may be a class object of; a service of another jar's, whose providers may be elsewhere (an addon's),
+is refused. stream() and its Provider aren't modelled.

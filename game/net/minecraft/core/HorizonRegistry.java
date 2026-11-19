@@ -18,16 +18,34 @@ public final class HorizonRegistry<T> implements DefaultedRegistry<T> {
     private final ResourceLocation defaultKey;
     /** A registry the mod made (RegistryBuilder): what it holds is the mod's registrations alone. */
     private final boolean own;
+    /** Whether its values make their holders themselves (RegistryBuilder.withIntrusiveHolders). */
+    private final boolean intrusive;
 
     public HorizonRegistry(ResourceKey<?> key, ResourceLocation defaultKey) {
         this(key, defaultKey, false);
     }
 
     public HorizonRegistry(ResourceKey<?> key, ResourceLocation defaultKey, boolean own) {
+        this(key, defaultKey, own, false);
+    }
+
+    public HorizonRegistry(ResourceKey<?> key, ResourceLocation defaultKey, boolean own, boolean intrusive) {
         this.key = key;
         this.kind = key.location().getPath();
         this.defaultKey = defaultKey;
         this.own = own;
+        this.intrusive = intrusive;
+    }
+
+    /**
+     * Observed: a value's holder, made before it is registered and bound to its key then (HorizonRegistries.get); only
+     * a registry of the mod's made with intrusive holders makes them here.
+     */
+    @Override
+    public Holder.Reference<T> createIntrusiveHolder(T value) {
+        if (!own) throw new UnsupportedOperationException("intrusive holders of the game's registry " + key.location() + " aren't modelled (horizon-port-neoforge)");
+        if (!intrusive) throw new IllegalStateException("This registry can't create intrusive holders");
+        return HorizonRegistries.intrusive(value, this);
     }
 
     @Override

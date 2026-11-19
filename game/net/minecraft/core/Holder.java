@@ -31,7 +31,7 @@ public interface Holder<T> extends IHolderExtension<T> {
 
     /** The stand-in for Holder.Reference: a registered value with its key. */
     class Reference<T> implements Holder<T> {
-        private final net.minecraft.resources.ResourceKey<T> key;
+        private net.minecraft.resources.ResourceKey<T> key;
         private final T value;
 
         /** HorizonRegistries': the game's own constructor binds it to a registry. */
@@ -40,7 +40,18 @@ public interface Holder<T> extends IHolderExtension<T> {
             this.value = value;
         }
 
+        /** HorizonRegistries': an intrusive holder's key, once its value is registered. Not the game's API. */
+        public void horizonBind(net.minecraft.resources.ResourceKey<T> key) {
+            this.key = key;
+        }
+
+        /**
+         * Observed: an intrusive holder whose value isn't registered yet has none, and says so (unwrapKey too). The
+         * game's text then names the registry's holder owner, an object of its own whose text is its identity: here the
+         * registry's.
+         */
         public net.minecraft.resources.ResourceKey<T> key() {
+            if (key == null) throw new IllegalStateException("Trying to access unbound value '" + value + "' from registry " + net.neoforged.neoforge.registries.HorizonRegistries.intrusiveOwner(value));
             return key;
         }
 
@@ -56,7 +67,7 @@ public interface Holder<T> extends IHolderExtension<T> {
 
         @Override
         public boolean isBound() {
-            return value != null;
+            return key != null && value != null;
         }
 
         @Override
@@ -77,7 +88,7 @@ public interface Holder<T> extends IHolderExtension<T> {
 
         @Override
         public java.util.Optional<net.minecraft.resources.ResourceKey<T>> unwrapKey() {
-            return java.util.Optional.of(key);
+            return java.util.Optional.of(key());
         }
 
         @Override

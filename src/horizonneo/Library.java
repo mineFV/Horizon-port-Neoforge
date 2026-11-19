@@ -264,6 +264,27 @@ final class Library {
                         jenum_values(c as u32)
                     }
                     """)),
+            Map.entry("java/lang/Class.jServices(I)I", new Native("jnative_class_services", """
+                    /// ServiceLoader's: how many providers of a service the jar lists, -1 when that isn't known.
+                    #[allow(dead_code)]
+                    fn jnative_class_services(c: i32) -> JR<i32> {
+                        Ok(jservice_count(c as u32))
+                    }
+                    """)),
+            Map.entry("java/lang/Class.jServiceProvider(II)Ljava/lang/String;", new Native("jnative_class_service_provider", """
+                    /// ServiceLoader's: a provider's name, as the jar lists it.
+                    #[allow(dead_code)]
+                    fn jnative_class_service_provider(c: i32, i: i32) -> JR<Ref> {
+                        Ok(jstring(jservice_name(c as u32, i)))
+                    }
+                    """)),
+            Map.entry("java/lang/Class.jServiceNew(II)Ljava/lang/Object;", new Native("jnative_class_service_new", """
+                    /// ServiceLoader's: a provider made, its class initialized and its constructor run.
+                    #[allow(dead_code)]
+                    fn jnative_class_service_new(c: i32, i: i32) -> JR<Ref> {
+                        jservice_make(c as u32, i)
+                    }
+                    """)),
             Map.entry("java/lang/Class.jPrimitive(C)Ljava/lang/Class;", new Native("jnative_class_primitive", """
                     /// Integer.TYPE and the like: the object of a primitive type or void, by its descriptor.
                     #[allow(dead_code)]

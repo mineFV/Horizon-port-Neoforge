@@ -240,4 +240,6 @@ fn main() {
         p("doubleText", d(d0), text(texts__double_text(d0)));
         p("floatText", f(f0), text(texts__float_text(f0)));
     }
+    p("services", String::new(), text(services__report()));
+    p("loaders", String::new(), text(services__loaders()));
 }
