@@ -103,6 +103,11 @@ public class Vec3 implements Position {
         return dx * dx + dz * dz < horizontal * horizontal && Math.abs(dy) < vertical;
     }
 
+    /** Observed: its coordinates as floats. */
+    public org.joml.Vector3f toVector3f() {
+        return new org.joml.Vector3f((float) x, (float) y, (float) z);
+    }
+
     public Vec3 scale(double f) {
         return multiply(f, f, f);
     }
