@@ -12,6 +12,13 @@ final class IdProbe {
         "with space", "a:b", ":", "a:", ":b", "a:b:c", "é", "-", ".", "..", "x/../y", "UPPER:case", "ns:Path", "q\"", "back\\", "new\nline", "tab\t", "\u0001\u001f\u007f", "😀", "日"};
 
     static void run() {
+        p("payload types", () -> {
+            net.minecraft.network.protocol.common.custom.CustomPacketPayload.Type<?> a = new net.minecraft.network.protocol.common.custom.CustomPacketPayload.Type<>(net.minecraft.resources.ResourceLocation.parse("mod:gear_state"));
+            net.minecraft.network.protocol.common.custom.CustomPacketPayload.Type<?> b = new net.minecraft.network.protocol.common.custom.CustomPacketPayload.Type<>(net.minecraft.resources.ResourceLocation.parse("mod:gear_state"));
+            net.minecraft.network.protocol.common.custom.CustomPacketPayload.Type<?> c = net.minecraft.network.protocol.common.custom.CustomPacketPayload.createType("brand");
+            return a + " " + a.id() + " " + a.equals(b) + " " + (a.hashCode() == b.hashCode()) + " " + (a.hashCode() == a.id().hashCode()) + " " + a.equals(c) + " " + c
+                    + " " + new net.minecraft.network.protocol.common.custom.CustomPacketPayload.Type<>(null);
+        });
         for (String ns : PARTS) {
             for (String path : PARTS) {
                 String k = "id [" + ns + "] [" + path + "]";
