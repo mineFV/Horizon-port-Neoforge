@@ -22,6 +22,7 @@ final class FastutilProbe {
     }
 
     static void run() {
+        chars();
         int[] counts = {0, 1, 5, 12, 13, 24, 25, 40, 100, 300};
         for (int n : counts) {
             p("set ints " + n, () -> {
@@ -163,5 +164,92 @@ final class FastutilProbe {
 
     static void p(String key, Supplier<Object> call) {
         GameProbe.p(key, call);
+    }
+
+    /** fastutil's char sets and maps: orders, '\\0', growth, removals, texts, hashes, boxed methods. */
+    static void chars() {
+        char[][] inputs = {{}, {'a'}, {'\0', 'b', 'a', 'b'}, "the quick brown fox jumps over a lazy dog".toCharArray(), {'\uffff', '\u0100', '\0', 'z', '\u7fff'}};
+        for (int n = 0; n < inputs.length; n++) {
+            char[] in = inputs[n];
+            p("char set " + n, () -> {
+                it.unimi.dsi.fastutil.chars.CharOpenHashSet s = new it.unimi.dsi.fastutil.chars.CharOpenHashSet(in);
+                StringBuilder b = new StringBuilder().append(s).append(' ').append(s.size()).append(' ').append(s.hashCode()).append(' ').append(s.contains('a'))
+                        .append(s.contains('\0')).append(s.contains((Object) 'b')).append(s.contains((Object) null)).append(' ');
+                s.remove('a');
+                s.rem('o');
+                s.add('Q');
+                b.append(s).append(' ').append(s.add('Q')).append(' ').append(s.remove((Object) 'Q')).append(' ').append(s);
+                java.util.Set<Character> boxed = new java.util.HashSet<>();
+                for (char c : in) boxed.add(c);
+                b.append(' ').append(new it.unimi.dsi.fastutil.chars.CharOpenHashSet(in).equals(boxed)).append(' ').append(boxed.equals(new it.unimi.dsi.fastutil.chars.CharOpenHashSet(in)));
+                StringBuilder each = new StringBuilder();
+                for (Character c : new it.unimi.dsi.fastutil.chars.CharOpenHashSet(in)) each.append(c);
+                return b.append(' ').append(each);
+            });
+            p("char map " + n, () -> {
+                it.unimi.dsi.fastutil.chars.Char2ObjectArrayMap<String> m = new it.unimi.dsi.fastutil.chars.Char2ObjectArrayMap<>(1);
+                for (int i = 0; i < in.length; i++) m.put(in[i], "v" + i);
+                StringBuilder b = new StringBuilder().append(m).append(' ').append(m.size()).append(' ').append(m.hashCode()).append(' ').append(m.get('a')).append(' ')
+                        .append(m.get('#')).append(' ').append(m.containsKey('b')).append(' ').append(m.keySet()).append(' ').append(m.values()).append(' ').append(m.keySet().contains('\0'))
+                        .append(' ').append(m.keySet().hashCode()).append(' ').append(m.get((Object) 'a')).append(' ').append(m.get((Object) '#')).append(' ').append(m.get((Object) null))
+                        .append(' ').append(m.getOrDefault('#', "d")).append(' ').append(m.getOrDefault((Object) 'a', "d")).append(' ').append(m.put((Character) 'a', "x")).append(' ')
+                        .append(m.put((Character) '%', "y")).append(' ').append(m.remove('b')).append(' ').append(m.remove('#')).append(' ').append(m).append(' ').append(m.containsValue("x"))
+                        .append(' ').append(m.char2ObjectEntrySet()).append(' ').append(m.entrySet().iterator().hasNext() ? m.entrySet().iterator().next().getKey() : null);
+                m.defaultReturnValue("none");
+                b.append(' ').append(m.get('#')).append(' ').append(m.get((Object) '#')).append(' ').append(m.getOrDefault('#', "d")).append(' ').append(m.apply('%'));
+                java.util.Map<Character, String> h = new java.util.HashMap<>(m);
+                return b.append(' ').append(m.equals(h)).append(' ').append(h.equals(m)).append(' ').append(m.hashCode() == h.hashCode());
+            });
+        }
+        p("char map apply", () -> {
+            try {
+                return new it.unimi.dsi.fastutil.chars.Char2ObjectArrayMap<String>().apply(70000);
+            } catch (IllegalArgumentException e) {
+                return e.getMessage();
+            }
+        });
+        p("char set all", () -> {
+            it.unimi.dsi.fastutil.chars.CharOpenHashSet s = new it.unimi.dsi.fastutil.chars.CharOpenHashSet(new char[] {'x'});
+            java.util.List<Character> more = new java.util.ArrayList<>();
+            for (char c = 'a'; c < 'a' + 20; c++) more.add(c);
+            boolean changed = s.addAll(more);
+            it.unimi.dsi.fastutil.chars.Char2ObjectArrayMap<String> m = new it.unimi.dsi.fastutil.chars.Char2ObjectArrayMap<>();
+            m.put('a', "1");
+            m.put('b', "2");
+            boolean removed = m.keySet().remove('a');
+            it.unimi.dsi.fastutil.chars.CharOpenHashSet copy = s.clone();
+            copy.removeAll(java.util.List.of('a', 'b', 'x'));
+            copy.retainAll(java.util.List.of('c', 'd', 'e', 'q'));
+            it.unimi.dsi.fastutil.chars.Char2ObjectArrayMap<String> mc = new it.unimi.dsi.fastutil.chars.Char2ObjectArrayMap<>();
+            mc.put('k', "v");
+            it.unimi.dsi.fastutil.chars.Char2ObjectArrayMap<String> mcc = mc.clone();
+            mcc.put('l', "w");
+            boolean gone = mcc.char2ObjectEntrySet().remove(java.util.Map.entry('k', "v")), kept = mcc.char2ObjectEntrySet().remove(java.util.Map.entry('l', "x"));
+            return changed + " " + s + " " + copy + " " + mc + " " + mcc + " " + gone + " " + kept + " " + s.containsAll(more) + " " + removed + " " + m + " " + m.char2ObjectEntrySet().contains(java.util.Map.entry('b', "2"))
+                    + " " + m.char2ObjectEntrySet().contains(java.util.Map.entry('b', "3")) + " " + m.char2ObjectEntrySet().contains("b");
+        });
+        for (int size : new int[] {3, 11, 12, 40, 200}) {
+            p("char set iterate remove " + size, () -> {
+                it.unimi.dsi.fastutil.chars.CharOpenHashSet s = new it.unimi.dsi.fastutil.chars.CharOpenHashSet();
+                for (int i = 0; i < size; i++) s.add((char) (i * 4099 + 1));
+                if (size > 5) s.add('\0');
+                StringBuilder seen = new StringBuilder();
+                it.unimi.dsi.fastutil.chars.CharIterator i = s.iterator();
+                while (i.hasNext()) {
+                    char c = i.nextChar();
+                    seen.append((int) c).append(',');
+                    if (c % 3 != 1) i.remove();
+                }
+                StringBuilder left = new StringBuilder();
+                for (it.unimi.dsi.fastutil.chars.CharIterator j = s.iterator(); j.hasNext();) left.append((int) j.nextChar()).append(',');
+                return s.size() + " " + seen + " | " + left;
+            });
+        }
+        p("char set grow", () -> {
+            it.unimi.dsi.fastutil.chars.CharOpenHashSet s = new it.unimi.dsi.fastutil.chars.CharOpenHashSet();
+            for (int i = 0; i < 300; i += 7) s.add((char) (i * 131));
+            for (int i = 0; i < 300; i += 21) s.remove((char) (i * 131));
+            return s + " " + s.size() + " " + s.hashCode();
+        });
     }
 }
