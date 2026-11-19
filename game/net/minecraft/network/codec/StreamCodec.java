@@ -7,6 +7,14 @@ import java.util.function.Function;
  * modelled, so none encodes or decodes (HorizonStreamCodecs says so if asked).
  */
 public interface StreamCodec<B, V> extends StreamDecoder<B, V>, StreamEncoder<B, V> {
+    static <B, V> StreamCodec<B, V> of(StreamEncoder<B, V> encoder, StreamDecoder<B, V> decoder) {
+        return new HorizonStreamCodecs.Opaque<>("of");
+    }
+
+    static <B, V> StreamCodec<B, V> ofMember(StreamMemberEncoder<B, V> encoder, StreamDecoder<B, V> decoder) {
+        return new HorizonStreamCodecs.Opaque<>("ofMember");
+    }
+
     static <B, V> StreamCodec<B, V> unit(V value) {
         return new HorizonStreamCodecs.Opaque<>("unit");
     }

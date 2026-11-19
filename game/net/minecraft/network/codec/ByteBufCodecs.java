@@ -9,6 +9,12 @@ import java.util.function.ToIntFunction;
 
 /** The stand-in for the game's ByteBufCodecs: the network's codecs (HorizonStreamCodecs: they don't run). */
 public interface ByteBufCodecs {
+    StreamCodec<Object, byte[]> BYTE_ARRAY = new HorizonStreamCodecs.Opaque<>("BYTE_ARRAY");
+
+    static StreamCodec<Object, byte[]> byteArray(int max) {
+        return new HorizonStreamCodecs.Opaque<>("byteArray");
+    }
+
     StreamCodec<Object, Boolean> BOOL = new HorizonStreamCodecs.Opaque<>("BOOL");
     StreamCodec<Object, Byte> BYTE = new HorizonStreamCodecs.Opaque<>("BYTE");
     StreamCodec<Object, Short> SHORT = new HorizonStreamCodecs.Opaque<>("SHORT");
