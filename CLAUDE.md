@@ -289,7 +289,7 @@ The tool's commands: `metadata`, `license`, `analyze`, `port`, `check`, `pack`, 
   NoClassDefFoundError there instead (the JVM resolves lazily). The translator writes both (`MethodRust.clientOnly`),
   with --server only; another mod's class may be in a modpack and is never taken for absent. Making that client code
   translatable first lowered Mekanism's count (12110 to 11578): it reaches stand-in methods the client calls
-  (Component.getVisualOrderText, Vector3f.cross), whose objects' makers drop until they are declared.
+  (Component.getVisualOrderText, Vector3f.cross), whose objects' makers drop until they are declared; declared (the first refusing, cross and normalize observed against JOML), and an array of such a class (anewarray, multianewarray, which resolve its element's class) refused too, Mekanism reached 12318 (2026-11-22).
 
 - **A ticker's method isn't readable at run time, but the JVM writes it down**: getTicker gives a lambda, whose class
   (`Owner$$Lambda/0x...`) only names where it was made. Mekanism makes all its tickers in one class, for four

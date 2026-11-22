@@ -122,6 +122,39 @@ public class Vector3f implements java.io.Externalizable, Cloneable, Vector3fc {
                 mat.m02() * lx + (mat.m12() * ly + mat.m22() * lz));
     }
 
+    public Vector3f cross(Vector3fc v) {
+        return cross(v.x(), v.y(), v.z(), this);
+    }
+
+    public Vector3f cross(Vector3fc v, Vector3f dest) {
+        return cross(v.x(), v.y(), v.z(), dest);
+    }
+
+    public Vector3f cross(float x, float y, float z) {
+        return cross(x, y, z, this);
+    }
+
+    /** Observed: each component JOML's multiply-add as it runs it by default (a product, then the other's negated product added). */
+    public Vector3f cross(float x, float y, float z, Vector3f dest) {
+        float rx = this.y * z + -this.z * y;
+        float ry = this.z * x + -this.x * z;
+        float rz = this.x * y + -this.y * x;
+        return dest.set(rx, ry, rz);
+    }
+
+    public Vector3f normalize() {
+        return normalize(this);
+    }
+
+    /**
+     * Observed: each component times one over the square root of the sum of squares, that sum JOML's multiply-adds as
+     * it runs them by default (innermost first).
+     */
+    public Vector3f normalize(Vector3f dest) {
+        float scalar = 1.0F / (float) Math.sqrt(x * x + (y * y + z * z));
+        return dest.set(x * scalar, y * scalar, z * scalar);
+    }
+
     public Vector3f negate() {
         return set(-x, -y, -z);
     }

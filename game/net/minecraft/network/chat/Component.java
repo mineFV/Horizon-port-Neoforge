@@ -9,6 +9,9 @@ import net.minecraft.network.chat.contents.TranslatableContents;
  * then its siblings', a translation's from the game's language (Language), observed (`standins --horizon-src`).
  */
 public interface Component extends com.mojang.brigadier.Message, FormattedText {
+    /** A text in its visual order (bidirectional), for drawing it: the client's, not modelled. */
+    net.minecraft.util.FormattedCharSequence getVisualOrderText();
+
     Style getStyle();
 
     ComponentContents getContents();

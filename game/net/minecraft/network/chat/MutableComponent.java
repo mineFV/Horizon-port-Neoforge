@@ -94,4 +94,10 @@ public class MutableComponent implements Component {
         }
         return b.toString();
     }
+
+    /** Not modelled: a text's visual order is the client's drawing (refused). */
+    @Override
+    public net.minecraft.util.FormattedCharSequence getVisualOrderText() {
+        throw new UnsupportedOperationException("a text's visual order isn't modelled (horizon-port-neoforge)");
+    }
 }

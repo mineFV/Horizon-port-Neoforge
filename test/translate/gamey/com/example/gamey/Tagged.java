@@ -81,4 +81,10 @@ public final class Tagged {
         if (client) return net.minecraft.client.Screenish.open();
         return 0;
     }
+
+    /** An array of a class of the client: making it resolves the class, which the server doesn't have. */
+    public static int screenArray(boolean client) {
+        if (client) return new net.minecraft.client.Screenish[2].length;
+        return 0;
+    }
 }

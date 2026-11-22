@@ -194,7 +194,13 @@ final class MethodRust {
         int op = i.op();
         String c = null;
         if (op >= GETSTATIC && op <= INVOKEINTERFACE) c = pool.member(i.index())[0];
-        else if (op == NEW) c = pool.className(i.index());
+        else if (op == NEW || op == ANEWARRAY || op == MULTIANEWARRAY) {
+            // An array's class resolves its element's class first (anewarray, multianewarray).
+            c = pool.className(i.index());
+            while (c.startsWith("[")) c = c.substring(1);
+            if (c.length() == 1) return null;
+            if (c.startsWith("L") && c.endsWith(";")) c = c.substring(1, c.length() - 1);
+        }
         return c != null && !c.startsWith("[") && (world.clientOnly(c) || world.clientMarked(c)) ? c : null;
     }
 

@@ -79,6 +79,11 @@ final class VecProbe {
                         .append(' ').append(mat.hashCode()).append(' ').append(mat.equals(new org.joml.Matrix3f(mat))).append(' ').append(mat.equals(new org.joml.Matrix3f()))
                         .append(' ').append(new org.joml.Matrix3f().hashCode()).append(' ').append(new org.joml.Matrix3f().m11).append(' ').append(new org.joml.Matrix3f().m01)
                         .append(' ').append(mat.m21()).append(' ').append(mat.m12);
+                org.joml.Vector3f cr = new org.joml.Vector3f(v).cross(w);
+                org.joml.Vector3f cr2 = new org.joml.Vector3f(0.3f, -1.7f, 2.9f).cross(a, 0.123f, -c, new org.joml.Vector3f());
+                r.append(" | ").append(cr.x).append(' ').append(cr.y).append(' ').append(cr.z).append(' ').append(cr2.x).append(' ').append(cr2.y).append(' ').append(cr2.z);
+                org.joml.Vector3f nm = new org.joml.Vector3f(v).normalize(), nm2 = new org.joml.Vector3f(1.7f, -0.3f, c).normalize(new org.joml.Vector3f());
+                r.append(" | ").append(nm.x).append(' ').append(nm.y).append(' ').append(nm.z).append(' ').append(nm2.x).append(' ').append(nm2.y).append(' ').append(nm2.z);
                 Vec3 p = new Vec3(a * 1.0000001, b, c);
                 org.joml.Vector3f f = p.toVector3f();
                 r.append(" | ").append(f.x).append(' ').append(f.y).append(' ').append(f.z).append(' ').append(f.equals(p.toVector3f())).append(' ').append(f == p.toVector3f());
