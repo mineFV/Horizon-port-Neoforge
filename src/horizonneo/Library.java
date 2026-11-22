@@ -742,17 +742,18 @@ final class Library {
     }
 
     /** The exceptions the runtime throws itself, by the name of the constant that holds each one's class id. */
-    static final Map<String, String> THROWN = new TreeMap<>(Map.of(
-            "JID_NULL_POINTER", "java/lang/NullPointerException",
-            "JID_ARITHMETIC", "java/lang/ArithmeticException",
-            "JID_ARRAY_INDEX", "java/lang/ArrayIndexOutOfBoundsException",
-            "JID_NEGATIVE_SIZE", "java/lang/NegativeArraySizeException",
-            "JID_ARRAY_STORE", "java/lang/ArrayStoreException",
-            "JID_CLASS_CAST", "java/lang/ClassCastException",
-            "JID_INITIALIZER", "java/lang/ExceptionInInitializerError",
-            "JID_NO_CLASS", "java/lang/NoClassDefFoundError",
-            "JID_RUNTIME", "java/lang/RuntimeException",
-            "JID_ILLEGAL_MONITOR", "java/lang/IllegalMonitorStateException"));
+    static final Map<String, String> THROWN = new TreeMap<>(Map.ofEntries(
+            Map.entry("JID_NULL_POINTER", "java/lang/NullPointerException"),
+            Map.entry("JID_ARITHMETIC", "java/lang/ArithmeticException"),
+            Map.entry("JID_ARRAY_INDEX", "java/lang/ArrayIndexOutOfBoundsException"),
+            Map.entry("JID_NEGATIVE_SIZE", "java/lang/NegativeArraySizeException"),
+            Map.entry("JID_ARRAY_STORE", "java/lang/ArrayStoreException"),
+            Map.entry("JID_CLASS_CAST", "java/lang/ClassCastException"),
+            Map.entry("JID_INITIALIZER", "java/lang/ExceptionInInitializerError"),
+            Map.entry("JID_NO_CLASS", "java/lang/NoClassDefFoundError"),
+            Map.entry("JID_RUNTIME", "java/lang/RuntimeException"),
+            Map.entry("JID_ILLEGAL_MONITOR", "java/lang/IllegalMonitorStateException"),
+            Map.entry("JID_UNSUPPORTED", "java/lang/UnsupportedOperationException")));
 
     /** Java's Double.toString and Float.toString, from Rust's shortest digits (the same digits: the shortest that read back, the closest of those). */
     static final String NUMBER_TEXT = """

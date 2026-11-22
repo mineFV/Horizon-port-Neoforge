@@ -931,7 +931,7 @@ cp "$TR/jar/META-INF/services/com.example.numbers.Services\$Greeter" "$TR/classe
 printf 'modLoader = "javafml"\nloaderVersion = "[4,)"\nlicense = "MIT"\n[[mods]]\nmodId = "numbers"\nversion = "1.0"\ndisplayName = "Numbers"\n' > "$TR/jar/META-INF/neoforge.mods.toml"
 jar --create --file "$B/jars/numbers.jar" -C "$TR/jar" . -C "$TR/classes" com
 exits 0 tool translate "$B/jars/numbers.jar" --out "$TR/out"
-says "$OUT" "numbers.jar: 507 of 508 methods translated from their bytecode"
+says "$OUT" "numbers.jar: 508 of 509 methods translated from their bytecode"
 # The server's side: a method whose client branches can't be translated is, those branches left out.
 says "$TR/out/translation.md" '- `com.example.numbers.Sides.side(Lnet/minecraft/world/level/Level;)Ljava/lang/String;` as `sides__side`'
 says "$TR/out/translation.md" '`com.example.numbers.Sides.client(Ljava/lang/String;)Ljava/lang/String;`: it splits a text by a regular expression' 

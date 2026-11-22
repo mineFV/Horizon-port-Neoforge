@@ -925,6 +925,8 @@ final class MethodRust {
     /** The Rust for a call of Java's library, `$0`, `$1` for its arguments; null when there is none known to be exact. */
     static String library(Call c) {
         if (!c.owner().equals("java/lang/Math") && !c.owner().equals("java/lang/StrictMath")) return null;
+        // Math.log10's own (HotSpot's intrinsic) isn't any library's: only what its specification fixes, else refused.
+        if (c.owner().equals("java/lang/Math") && (c.name() + c.descriptor()).equals("log10(D)D")) return "jlog10($0)?";
         return switch (c.name() + c.descriptor()) {
             case "abs(I)I", "abs(J)J" -> "$0.wrapping_abs()";
             case "abs(F)F", "abs(D)D" -> "$0.abs()";
@@ -985,6 +987,8 @@ final class MethodRust {
             Map.entry("jfloor_div_i32", "fn jfloor_div_i32(a: i32, b: i32) -> JR<i32> {\n    let q = jdiv_i32(a, b)?;\n    Ok(if (a.wrapping_rem(b) != 0) && ((a ^ b) < 0) { q - 1 } else { q })\n}"),
             Map.entry("jfloor_div_i64", "fn jfloor_div_i64(a: i64, b: i64) -> JR<i64> {\n    let q = jdiv_i64(a, b)?;\n    Ok(if (a.wrapping_rem(b) != 0) && ((a ^ b) < 0) { q - 1 } else { q })\n}"),
             Map.entry("jfloor_mod_i32", "fn jfloor_mod_i32(a: i32, b: i32) -> JR<i32> {\n    let m = jrem_i32(a, b)?;\n    Ok(if m != 0 && ((m ^ b) < 0) { m + b } else { m })\n}"),
+            // Math.log10: what its specification fixes (NaN, below zero, zeros, infinity, 10^n is n), else refused at run time.
+            Map.entry("jlog10", "fn jlog10(a: f64) -> JR<f64> {\n    if a.is_nan() || a < 0.0 {\n        return Ok(f64::NAN);\n    }\n    if a == 0.0 {\n        return Ok(f64::NEG_INFINITY);\n    }\n    if a == f64::INFINITY {\n        return Ok(f64::INFINITY);\n    }\n    let mut p = 1.0f64;\n    for n in 0..23 {\n        if a == p {\n            return Ok(n as f64);\n        }\n        p *= 10.0;\n    }\n    Err(jexception(JID_UNSUPPORTED, Some(\"Math.log10 of a value that isn't a power of ten has no exact counterpart (horizon-port-neoforge)\")))\n}"),
             Map.entry("jto_radians", "fn jto_radians(a: f64) -> f64 {\n    a * 0.017453292519943295\n}"),
             Map.entry("jto_degrees", "fn jto_degrees(a: f64) -> f64 {\n    a * 57.29577951308232\n}"),
             Map.entry("jexact_i32", "fn jexact_i32(r: Option<i32>) -> JR<i32> {\n    r.ok_or_else(|| jexception(JID_ARITHMETIC, Some(\"integer overflow\")))\n}"),

@@ -244,4 +244,5 @@ fn main() {
     p("loaders", String::new(), text(services__loaders()));
     p("sides", "server".to_string(), text(sides__server()));
     p("sides", "none".to_string(), text(sides__none()));
+    p("logs", String::new(), text(sides__logs()));
 }

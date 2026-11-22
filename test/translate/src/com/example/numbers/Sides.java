@@ -34,4 +34,12 @@ public final class Sides {
     public static String none() {
         return side(null);
     }
+
+    /** Math.log10 where its specification fixes it: powers of ten, zeros, below zero, NaN, infinity. */
+    public static String logs() {
+        double[] in = {1, 10, 100, 1e22, 1e15, 0.0, -0.0, -1, Double.NaN, Double.POSITIVE_INFINITY};
+        StringBuilder b = new StringBuilder();
+        for (double d : in) b.append(Math.log10(d)).append(' ');
+        return b.toString();
+    }
 }

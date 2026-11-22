@@ -176,6 +176,7 @@ public final class NumbersCheck {
         // The server's side: the client's branches aren't translated, and the answers are Java's.
         p("sides", "server", com.example.numbers.Sides::server);
         p("sides", "none", com.example.numbers.Sides::none);
+        p("logs", "", com.example.numbers.Sides::logs);
     }
 
     static int[] range(int from, int to) {
