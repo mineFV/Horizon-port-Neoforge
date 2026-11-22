@@ -82,7 +82,17 @@ fastutil (it/unimi/dsi/fastutil, 2026-11-18, decision 5): ObjectOpenHashSet and 
 hash tables as fastutil's (each key at its mixed hash or the next free slot, removals shifting back, growing and
 shrinking at its load factor), gone through from the last slot to the first, the null key first, and a removal while
 iterating as fastutil's; their texts, hashes, views and Object2ObjectMap's defaults. Observed against fastutil itself.
-Its other collections (primitive keys, linked, array and sorted ones) aren't here yet.
+The same for chars (CharOpenHashSet, and Char2ObjectArrayMap's array) and longs (LongOpenHashSet,
+Long2ObjectOpenHashMap, the key 0 kept apart as fastutil keeps it). Its other collections (other primitive keys,
+lists, linked and sorted ones) aren't here yet.
+
+Random numbers (net/minecraft/util/RandomSource, net/minecraft/world/level/levelgen, 2026-11-22): the Java generator
+(LegacyRandomSource, BitRandomSource's draws), after Horizon's `horizon_core::random`, and RandomSource.create's
+seed from a shared counter and the clock (RandomSupport.generateUniqueSeed), after Horizon's
+`horizon-client-render/src/random_source.rs`. Observed: which class each gives, the numbers drawn on seeds and bounds
+chosen to pin them down, the errors and that an error draws nothing, forks and reseeding. nextGaussian refuses (it
+needs Java's Math.log to the last bit). Not here: forkPositional, the thread-safe and thread-local generators,
+Xoroshiro, WorldgenRandom.
 
 What isn't here, and what it costs: BlockPos's getCenter, betweenClosed and codecs, Direction's getRotation and
 codecs, MutableBlockPos's other setters, NBT's codecs (NbtOps), its readers and writers (DataOutput, visitors),
