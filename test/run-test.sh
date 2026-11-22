@@ -931,7 +931,10 @@ cp "$TR/jar/META-INF/services/com.example.numbers.Services\$Greeter" "$TR/classe
 printf 'modLoader = "javafml"\nloaderVersion = "[4,)"\nlicense = "MIT"\n[[mods]]\nmodId = "numbers"\nversion = "1.0"\ndisplayName = "Numbers"\n' > "$TR/jar/META-INF/neoforge.mods.toml"
 jar --create --file "$B/jars/numbers.jar" -C "$TR/jar" . -C "$TR/classes" com
 exits 0 tool translate "$B/jars/numbers.jar" --out "$TR/out"
-says "$OUT" "numbers.jar: 503 of 503 methods translated from their bytecode"
+says "$OUT" "numbers.jar: 507 of 508 methods translated from their bytecode"
+# The server's side: a method whose client branches can't be translated is, those branches left out.
+says "$TR/out/translation.md" '- `com.example.numbers.Sides.side(Lnet/minecraft/world/level/Level;)Ljava/lang/String;` as `sides__side`'
+says "$TR/out/translation.md" '`com.example.numbers.Sides.client(Ljava/lang/String;)Ljava/lang/String;`: it splits a text by a regular expression' 
 # ServiceLoader: the providers the jar lists, made from a table (each once, in order).
 says "$TR/out/translated.rs" 'fn jservice_make(c: u32, i: i32) -> JR<Ref> {'
 says "$TR/out/translated.rs" ', 2) => "com.example.numbers.Services$Last",'
@@ -976,10 +979,12 @@ lacks "$TR/out/translation.md" 'nothing implements equals(Ljava/lang/Object;)Z o
 lacks "$TR/out/translation.md" 'several default methods could be getFirst'
 # --server: the supertypes of the game's classes, read from a server's libraries (a stand-in here).
 mkdir -p "$TR/game" "$TR/gamey/META-INF" "$TR/server/libraries/net/neoforged/neoforge/21.1.1"
-javac --release 21 -d "$TR/game" test/translate/game/net/minecraft/world/Named.java test/translate/game/net/minecraft/world/Light.java test/translate/game/net/minecraft/core/*.java
+javac --release 21 -d "$TR/game" test/translate/game/net/minecraft/world/Named.java test/translate/game/net/minecraft/world/Light.java test/translate/game/net/minecraft/core/*.java test/translate/game/net/minecraft/server/MinecraftServer.java
 jar --create --file "$TR/server/libraries/net/neoforged/neoforge/21.1.1/neoforge-21.1.1-server.jar" -C "$TR/game" .
 rm -rf "$TR/gamey/com"
-javac --release 21 -cp "$TR/game" -d "$TR/gamey" test/translate/gamey/com/example/gamey/Tagged.java
+mkdir -p "$TR/client"
+javac --release 21 -d "$TR/client" test/translate/client/net/minecraft/client/Screenish.java
+javac --release 21 -cp "$TR/game:$TR/client" -d "$TR/gamey" test/translate/gamey/com/example/gamey/Tagged.java
 sed 's/numbers/gamey/g; s/Numbers/Gamey/' "$TR/jar/META-INF/neoforge.mods.toml" > "$TR/gamey/META-INF/neoforge.mods.toml"
 jar --create --file "$B/jars/gamey.jar" -C "$TR/gamey" .
 exits 0 tool translate "$B/jars/gamey.jar" --out "$TR/gamey-out"
@@ -1007,7 +1012,10 @@ says "$TR/gamey-out/translation.md" '`com.example.gamey.Tagged.words(Ljava/lang/
 says "$TR/gamey-out/translation.md" '- `com.example.gamey.Tagged.total(Ljava/util/List;)I` as `tagged__total`'
 says "$TR/gamey-out/translation.md" '`com.example.gamey.Tagged.lit()Ljava/lang/Object;`: it makes an object of com.example.gamey.Tagged$Lit that a virtual call may reach, and it calls java.util.function.Consumer.accept'
 exits 0 tool translate "$B/jars/gamey.jar" --server "$TR/server" --out "$TR/gamey-out"
-says "$OUT" "Read: the supertypes of 4 classes of the game, NeoForge and their libraries, from 1 jars in"
+says "$OUT" "Read: the supertypes of 5 classes of the game, NeoForge and their libraries, from 1 jars in"
+# A class of the client, which the server doesn't have: naming it throws NoClassDefFoundError there, as the JVM does.
+says "$TR/gamey-out/translation.md" '- `com.example.gamey.Tagged.screens(Z)I` as `tagged__screens`'
+says "$TR/gamey-out/translated.rs" 'return Err(jexception(JID_NO_CLASS, Some("net/minecraft/client/Screenish")));' 
 # Each stand-in checked against the server's class: one whose interfaces differ, one that would inherit a method the
 # game's declares, are left out.
 says "$OUT" "Stand-ins for the game: 434 classes, checked against the game's."

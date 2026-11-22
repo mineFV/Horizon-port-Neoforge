@@ -109,7 +109,13 @@ final class MethodRust {
         String split = owner.equals(STRING) ? null : splitWhy(code, m.body().handlers(), pool);
         if (split != null) return new Check(split, needs);
         String first = null;
-        for (Insn i : code) {
+        // What runs only on a client's side is never reached: the translation's levels are all a server's.
+        Set<Integer> absent = clientOnly(code, pool, world);
+        boolean[] live = live(code, sides(code, m.body().handlers(), pool, world), absent, m.body().handlers());
+        for (int k = 0; k < code.size(); k++) {
+            if (!live[k]) continue;
+            Insn i = code.get(k);
+            if (absent.contains(i.pc())) continue;
             String why = need(owner, i, pool, world, needs);
             if (why == null) continue;
             if (all == null) return new Check(why, needs);
@@ -117,6 +123,129 @@ final class MethodRust {
             if (first == null) first = why;
         }
         return new Check(first, needs);
+    }
+
+    static final String LEVEL = "net/minecraft/world/level/Level", FML_ENVIRONMENT = "net/neoforged/fml/loading/FMLEnvironment",
+            DIST = "net/neoforged/api/distmarker/Dist";
+
+    /**
+     * The branches whose way is known because the translation runs on the server's side, by the jump's pc: whether it
+     * is taken. FMLEnvironment.dist is DEDICATED_SERVER, and every level the translation sees is a server's (the
+     * stand-ins' Level): a jump on `level.isClientSide`, on `isClientSide()` (when no class of the jar declares its own,
+     * so the call reaches the stand-ins'), or on `FMLEnvironment.dist.isClient()` or `isDedicatedServer()`, just
+     * before it, goes one way. The test still runs (a null level still throws); what only the other way reaches isn't.
+     */
+    static Map<Integer, Boolean> sides(List<Insn> code, List<ClassData.Handler> handlers, ClassData.Pool pool, JavaWorld world) {
+        Map<Integer, Boolean> out = new HashMap<>();
+        Set<Integer> targets = null;
+        for (int k = 1; k < code.size(); k++) {
+            Insn i = code.get(k);
+            if (i.op() != IFEQ && i.op() != IFEQ + 1) continue;
+            Insn p = code.get(k - 1);
+            Boolean value = null;
+            boolean dist = false;
+            if (p.op() == INVOKEVIRTUAL || p.op() == INVOKEINTERFACE) {
+                String[] t = pool.member(p.index());
+                if (t[1].equals("isClientSide") && t[2].equals("()Z") && !world.jar.contains(t[0]) && !world.jarDeclares("isClientSide", "()Z")) value = false;
+                else if (t[0].equals(DIST) && (t[1].equals("isClient") || t[1].equals("isDedicatedServer")) && t[2].equals("()Z") && k >= 2 && code.get(k - 2).op() == GETSTATIC) {
+                    String[] f = pool.member(code.get(k - 2).index());
+                    if (f[0].equals(FML_ENVIRONMENT) && f[1].equals("dist")) {
+                        value = t[1].equals("isDedicatedServer");
+                        dist = true;
+                    }
+                }
+            } else if (p.op() == GETFIELD) {
+                String[] t = pool.member(p.index());
+                if (t[1].equals("isClientSide") && t[2].equals("Z") && !world.jar.contains(t[0])) {
+                    JavaWorld.FieldAt f = world.field(t[0], t[1], t[2], false);
+                    if (f.why() == null && LEVEL.equals(f.declaring())) value = false;
+                }
+            }
+            if (value == null) continue;
+            if (targets == null) {
+                targets = new java.util.HashSet<>();
+                for (Insn x : code) for (int t : x.targets()) targets.add(t);
+                for (ClassData.Handler h : handlers) targets.add(h.handler());
+            }
+            // Only from the test just before: no other way onto the jump (or onto dist's call).
+            if (targets.contains(i.pc()) || (dist && targets.contains(p.pc()))) continue;
+            out.put(i.pc(), i.op() == IFEQ ? !value : value);
+        }
+        return out;
+    }
+
+    /**
+     * The instructions that name a class of the client, by pc: one a dedicated server doesn't have (JavaWorld.clientOnly)
+     * or won't load (@OnlyIn(Dist.CLIENT), JavaWorld.clientMarked). As the JVM resolves a class the first time an
+     * instruction that names it runs, each throws there, and only there: NoClassDefFoundError, or NeoForge's
+     * RuntimeException (observed). A mod's common code names them behind tests of its side, and runs on servers.
+     */
+    static Set<Integer> clientOnly(List<Insn> code, ClassData.Pool pool, JavaWorld world) {
+        Set<Integer> out = new java.util.HashSet<>();
+        for (Insn i : code) {
+            String c = absentClass(i, pool, world);
+            if (c != null) out.add(i.pc());
+        }
+        return out;
+    }
+
+    /** The class of the client an instruction names, which a dedicated server doesn't have or won't load; null for any other. */
+    static String absentClass(Insn i, ClassData.Pool pool, JavaWorld world) {
+        int op = i.op();
+        String c = null;
+        if (op >= GETSTATIC && op <= INVOKEINTERFACE) c = pool.member(i.index())[0];
+        else if (op == NEW) c = pool.className(i.index());
+        return c != null && !c.startsWith("[") && (world.clientOnly(c) || world.clientMarked(c)) ? c : null;
+    }
+
+    /** What naming a class of the client throws on a dedicated server: NeoForge's refusal of a marked one, else the JVM's. */
+    static String absentThrow(String c, JavaWorld world) {
+        if (world.clientMarked(c)) return "return Err(jexception(JID_RUNTIME, Some(" + rustText("Attempted to load class " + c + " for invalid dist DEDICATED_SERVER") + ")));";
+        return "return Err(jexception(JID_NO_CLASS, Some(" + rustText(c) + ")));";
+    }
+
+    /** Which instructions run, from the first, a known jump going its one way; a handler runs when what it covers does. */
+    static boolean[] live(List<Insn> code, Map<Integer, Boolean> known, Set<Integer> stopping, List<ClassData.Handler> handlers) {
+        boolean[] live = new boolean[code.size()];
+        if (known.isEmpty() && stopping.isEmpty()) {
+            java.util.Arrays.fill(live, true);
+            return live;
+        }
+        Map<Integer, Integer> at = new HashMap<>();
+        for (int k = 0; k < code.size(); k++) at.put(code.get(k).pc(), k);
+        Deque<Integer> work = new ArrayDeque<>(List.of(0));
+        for (boolean more = true; more; ) {
+            while (!work.isEmpty()) {
+                int k = work.poll();
+                if (k >= code.size() || live[k]) continue;
+                live[k] = true;
+                Insn i = code.get(k);
+                int op = i.op();
+                if (stopping.contains(i.pc())) continue;
+                Boolean taken = known.get(i.pc());
+                if (taken != null) {
+                    work.add(taken ? at.get(i.targets()[0]) : k + 1);
+                    continue;
+                }
+                for (int t : i.targets()) work.add(at.get(t));
+                boolean stops = op == GOTO || op == GOTO_W || op == TABLESWITCH || op == LOOKUPSWITCH || op == ATHROW || (op >= IRETURN && op <= RETURN) || op == RET;
+                if (!stops) work.add(k + 1);
+            }
+            more = false;
+            for (ClassData.Handler h : handlers) {
+                Integer hk = at.get(h.handler());
+                if (hk == null || live[hk]) continue;
+                for (int k = 0; k < code.size(); k++) {
+                    int pc = code.get(k).pc();
+                    if (live[k] && h.start() <= pc && pc < h.end()) {
+                        work.add(hk);
+                        more = true;
+                        break;
+                    }
+                }
+            }
+        }
+        return live;
     }
 
     /**
@@ -878,6 +1007,8 @@ final class MethodRust {
         final Map<Integer, Map<Character, String>> locals = new TreeMap<>();
         /** The stack variables used between blocks: name to kind. */
         final Map<String, Character> stackVars = new TreeMap<>();
+        /** The jumps whose way the server's side decides (MethodRust.sides). */
+        final Map<Integer, Boolean> sides;
         int temps;
 
         Writer(String owner, ClassData.Method m, ClassData.Pool pool, String function, JavaWorld world, Names names) {
@@ -889,6 +1020,7 @@ final class MethodRust {
             this.names = names;
             this.code = Bytecode.decode(m.body().code());
             for (int i = 0; i < code.size(); i++) at.put(code.get(i).pc(), i);
+            this.sides = MethodRust.sides(code, m.body().handlers(), pool, world);
         }
 
         Done write() {
@@ -1101,6 +1233,12 @@ final class MethodRust {
             boolean step(Insn i) {
                 int op = i.op();
                 if (op == NOP) return false;
+                String absent = absentClass(i, pool, world);
+                if (absent != null) {
+                    // A class of the client: a dedicated server doesn't have it, or won't load it (MethodRust.clientOnly).
+                    lines.add(absentThrow(absent, world));
+                    return true;
+                }
                 if (op == ACONST_NULL) push('A', "None");
                 else if (op >= ICONST_M1 && op <= ICONST_5) push('I', literal(op - 3));
                 else if (op == LCONST_0 || op == LCONST_1) push('J', literal((long) (op - LCONST_0)));
@@ -1163,6 +1301,15 @@ final class MethodRust {
                     };
                     helpers.add(h);
                     push('I', h + "(" + a.e() + ", " + b.e() + ")", false);
+                } else if (sides.containsKey(i.pc())) {
+                    // The server's side: the test still runs, the jump goes its one way (MethodRust.sides).
+                    V v = stack.removeLast();
+                    lines.add("let _ = " + v.e() + ";");
+                    spill();
+                    int target = sides.get(i.pc()) ? blockOf.get(at.get(i.targets()[0])) : blockOf.get(at.get(i.pc()) + 1);
+                    lines.add("block = " + target + ";");
+                    next.add(target);
+                    return true;
                 } else if ((op >= IFEQ && op <= IF_ACMPNE) || op == IFNULL || op == IFNONNULL) {
                     String cond;
                     if (op <= IFLE) {

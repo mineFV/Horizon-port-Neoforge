@@ -276,6 +276,21 @@ The tool's commands: `metadata`, `license`, `analyze`, `port`, `check`, `pack`, 
   The same holds for every member a mod calls: one missing (Mekanism's Direction.getClockWise) keeps every Direction
   out, so a stand-in counts only once it covers the API the mod uses.
 
+- **The translation runs on the server's side, and that decides branches** (`MethodRust.sides`, 2026-11-22):
+  FMLEnvironment.dist is DEDICATED_SERVER and every level it sees is a server's (the stand-ins' Level can't be a
+  client's), so a jump on `level.isClientSide`, `isClientSide()` (when no class of the jar declares its own) or
+  `FMLEnvironment.dist.isClient()` just before it goes one way; the test still runs, and what only the client's way
+  reaches isn't needed. Mekanism's machines were held back through `world.isClientSide()` in PlayerState. A test on a
+  parameter (`clearPlayer(uuid, isRemote)`) isn't folded.
+- **NeoForge's "server" jar holds 384 classes of the client** (`net/minecraft/client/Minecraft` among them), marked
+  `@OnlyIn(Dist.CLIENT)`: on a dedicated server NeoForge refuses to load them, and an instruction naming one throws,
+  when it runs, `RuntimeException: Attempted to load class X for invalid dist DEDICATED_SERVER` (observed in the
+  server, by Class.forName and by a direct call alike). A class of the game absent from the server's libraries throws
+  NoClassDefFoundError there instead (the JVM resolves lazily). The translator writes both (`MethodRust.clientOnly`),
+  with --server only; another mod's class may be in a modpack and is never taken for absent. Making that client code
+  translatable first lowered Mekanism's count (12110 to 11578): it reaches stand-in methods the client calls
+  (Component.getVisualOrderText, Vector3f.cross), whose objects' makers drop until they are declared.
+
 - **A ticker's method isn't readable at run time, but the JVM writes it down**: getTicker gives a lambda, whose class
   (`Owner$$Lambda/0x...`) only names where it was made. Mekanism makes all its tickers in one class, for four
   methods. `dump` passes `-Djdk.invoke.LambdaMetafactory.dumpProxyClassFiles=true` through JAVA_TOOL_OPTIONS (the

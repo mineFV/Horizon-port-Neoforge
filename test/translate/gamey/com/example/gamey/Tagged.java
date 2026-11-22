@@ -75,4 +75,10 @@ public final class Tagged {
     public static int words(String s) {
         return s.split("\\s+").length;
     }
+
+    /** A class of the client, named behind a test: a dedicated server doesn't have it, so naming it throws there. */
+    public static int screens(boolean client) {
+        if (client) return net.minecraft.client.Screenish.open();
+        return 0;
+    }
 }

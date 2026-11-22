@@ -4,14 +4,21 @@ import net.neoforged.neoforge.attachment.AttachmentHolder;
 import net.neoforged.neoforge.common.extensions.ILevelExtension;
 
 /**
- * The stand-in for the game's Level: whether it is a client's. The world itself is Horizon's, reached through the
- * hook points; none of the Level's methods is modelled yet, so a call to one isn't translated.
+ * The stand-in for the game's Level. The translation runs on the server's side (FMLEnvironment.dist is
+ * DEDICATED_SERVER): every level it sees is a server's, so isClientSide is false, always; the translator counts on it
+ * (MethodRust.sides). The world itself is Horizon's, reached through the hook points.
  */
 public abstract class Level extends AttachmentHolder implements LevelAccessor, AutoCloseable, ILevelExtension {
     public final boolean isClientSide;
 
-    protected Level(boolean isClientSide) {
-        this.isClientSide = isClientSide;
+    protected Level() {
+        this.isClientSide = false;
+    }
+
+    /** False: a server's (see above). */
+    @Override
+    public boolean isClientSide() {
+        return isClientSide;
     }
 
     /** The state at a position, from Horizon's world (HorizonWorld): its block, in its default state. */

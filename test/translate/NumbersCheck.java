@@ -173,6 +173,9 @@ public final class NumbersCheck {
         // ServiceLoader over the jar's services file, and class loaders.
         p("services", "", com.example.numbers.Services::report);
         p("loaders", "", com.example.numbers.Services::loaders);
+        // The server's side: the client's branches aren't translated, and the answers are Java's.
+        p("sides", "server", com.example.numbers.Sides::server);
+        p("sides", "none", com.example.numbers.Sides::none);
     }
 
     static int[] range(int from, int to) {

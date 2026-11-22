@@ -143,6 +143,18 @@ final class JavaWorld {
     // ---- fields ----
 
     /** A field as resolved: the class that declares it, its slot there, its kind. why: why it can't be, else null. */
+    private Set<String> jarDeclared;
+
+    /** Whether a class of the jar declares a method of this name and descriptor (MethodRust.sides). */
+    boolean jarDeclares(String name, String descriptor) {
+        if (jarDeclared == null) {
+            Set<String> s = new java.util.HashSet<>();
+            for (String c : jar) for (ClassData.Method m : classes.get(c).methods) s.add(m.name() + m.descriptor());
+            jarDeclared = s;
+        }
+        return jarDeclared.contains(name + descriptor);
+    }
+
     record FieldAt(String declaring, int slot, char kind, String descriptor, Object constant, String why) {}
 
     FieldAt field(String owner, String name, String descriptor, boolean isStatic) {
@@ -470,6 +482,31 @@ final class JavaWorld {
     boolean enumClass(String c) {
         ClassData data = classes.get(c);
         return data != null && (data.access & 0x4000) != 0 && "java/lang/Enum".equals(data.superName);
+    }
+
+    /**
+     * Whether c is a class of the game or NeoForge that a dedicated server doesn't have (the client's), known only
+     * with --server: a server's classes were read (MinecraftServer among them) and c isn't one of them. Another mod's
+     * class may be there in a modpack: never this.
+     */
+    boolean clientOnly(String c) {
+        if (!outside.containsKey("net/minecraft/server/MinecraftServer")) return false;
+        if (!(c.startsWith("net/minecraft/") || c.startsWith("com/mojang/blaze3d/") || c.startsWith("net/neoforged/"))) return false;
+        return !classes.containsKey(c) && !outside.containsKey(c);
+    }
+
+    /**
+     * Whether c is a class marked @OnlyIn(Dist.CLIENT), of the jar or read with --server: on a dedicated server,
+     * NeoForge refuses to load it (observed: a RuntimeException, "Attempted to load class c for invalid dist
+     * DEDICATED_SERVER", when an instruction naming it runs).
+     */
+    boolean clientMarked(String c) {
+        ClassData d = jar.contains(c) ? classes.get(c) : outside.get(c);
+        if (d == null) return false;
+        for (ClassData.Annotation a : d.annotations) {
+            if (a.type().equals("Lnet/neoforged/api/distmarker/OnlyIn;") && a.values().get("value") instanceof ClassData.EnumConstant e && e.name().equals("CLIENT")) return true;
+        }
+        return false;
     }
 
     /** A type's superclass and interfaces as far as they are known (the jar, the model, the JDK, --server); null when it isn't. */

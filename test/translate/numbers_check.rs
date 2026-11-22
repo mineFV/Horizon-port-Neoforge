@@ -242,4 +242,6 @@ fn main() {
     }
     p("services", String::new(), text(services__report()));
     p("loaders", String::new(), text(services__loaders()));
+    p("sides", "server".to_string(), text(sides__server()));
+    p("sides", "none".to_string(), text(sides__none()));
 }

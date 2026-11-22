@@ -7,7 +7,7 @@ import net.minecraft.world.level.WorldGenLevel;
 public class ServerLevel extends Level implements WorldGenLevel {
     /** HorizonBridge's: the game's own constructor takes the server, which isn't modelled. */
     public ServerLevel() {
-        super(false);
+        super();
     }
 
     /** Not modelled: what closing a level does is the game's. */
