@@ -23,6 +23,7 @@ final class FastutilProbe {
 
     static void run() {
         chars();
+        longs();
         int[] counts = {0, 1, 5, 12, 13, 24, 25, 40, 100, 300};
         for (int n : counts) {
             p("set ints " + n, () -> {
@@ -251,5 +252,60 @@ final class FastutilProbe {
             for (int i = 0; i < 300; i += 21) s.remove((char) (i * 131));
             return s + " " + s.size() + " " + s.hashCode();
         });
+    }
+
+    /** fastutil's long sets and maps: orders, 0, growth, removals while iterating, texts, hashes, boxed methods. */
+    static void longs() {
+        long[][] inputs = {{}, {7}, {0, 5, -5, 5}, {Long.MIN_VALUE, Long.MAX_VALUE, 0, 1, -1, 1L << 40, -(1L << 33)}, java.util.stream.LongStream.range(0, 40).map(i -> i * 0x9E3779B97F4A7C15L).toArray()};
+        for (int n = 0; n < inputs.length; n++) {
+            long[] in = inputs[n];
+            p("long set " + n, () -> {
+                it.unimi.dsi.fastutil.longs.LongOpenHashSet s = new it.unimi.dsi.fastutil.longs.LongOpenHashSet();
+                for (long v : in) s.add(v);
+                StringBuilder b = new StringBuilder().append(s).append(' ').append(s.size()).append(' ').append(s.hashCode()).append(' ').append(s.contains(5)).append(s.contains(0))
+                        .append(s.contains((Object) 7L)).append(s.contains((Object) null)).append(' ').append(java.util.Arrays.toString(s.toLongArray())).append(' ');
+                s.remove(5);
+                s.add(99);
+                b.append(s).append(' ').append(s.add(99)).append(' ').append(s.remove((Object) 99L)).append(' ').append(s);
+                java.util.Set<Long> boxed = new java.util.HashSet<>();
+                for (long v : in) boxed.add(v);
+                it.unimi.dsi.fastutil.longs.LongOpenHashSet again = new it.unimi.dsi.fastutil.longs.LongOpenHashSet(4);
+                again.addAll(boxed);
+                b.append(' ').append(again).append(' ').append(again.equals(boxed)).append(' ').append(boxed.equals(again));
+                it.unimi.dsi.fastutil.longs.LongIterator i = again.iterator();
+                StringBuilder seen = new StringBuilder();
+                while (i.hasNext()) {
+                    long v = i.nextLong();
+                    seen.append(v).append(',');
+                    if ((v & 3) != 0) i.remove();
+                }
+                return b.append(' ').append(seen).append(' ').append(again).append(' ').append(again.size());
+            });
+            p("long map " + n, () -> {
+                it.unimi.dsi.fastutil.longs.Long2ObjectOpenHashMap<String> m = new it.unimi.dsi.fastutil.longs.Long2ObjectOpenHashMap<>();
+                for (int i = 0; i < in.length; i++) m.put(in[i], "v" + i);
+                StringBuilder b = new StringBuilder().append(m).append(' ').append(m.size()).append(' ').append(m.hashCode()).append(' ').append(m.get(5)).append(' ').append(m.get(12345))
+                        .append(' ').append(m.containsKey(0)).append(' ').append(m.keySet()).append(' ').append(m.values()).append(' ').append(m.keySet().hashCode()).append(' ')
+                        .append(m.get((Object) 7L)).append(' ').append(m.get((Object) null)).append(' ').append(m.getOrDefault(12345, "d")).append(' ').append(m.put((Long) 7L, "x"))
+                        .append(' ').append(m.putIfAbsent(8, "p")).append(' ').append(m.putIfAbsent(8, "q")).append(' ').append(m.remove(5)).append(' ').append(m.remove(12345))
+                        .append(' ').append(m.computeIfAbsent(9, k -> "c" + k)).append(' ').append(m.computeIfAbsent(9L, (java.util.function.LongFunction<String>) k -> "z"))
+                        .append(' ').append(m.merge(8, "m", (a, c) -> a + c)).append(' ').append(m.compute(10, (k, v) -> v == null ? "n" : null)).append(' ').append(m);
+                java.util.Map<Long, String> h = new java.util.HashMap<>(m);
+                b.append(' ').append(m.equals(h)).append(' ').append(h.equals(m)).append(' ').append(m.hashCode() == h.hashCode());
+                it.unimi.dsi.fastutil.objects.ObjectIterator<it.unimi.dsi.fastutil.longs.Long2ObjectMap.Entry<String>> fast = it.unimi.dsi.fastutil.longs.Long2ObjectMaps.fastIterator(m);
+                StringBuilder walk = new StringBuilder();
+                while (fast.hasNext()) {
+                    it.unimi.dsi.fastutil.longs.Long2ObjectMap.Entry<String> e = fast.next();
+                    walk.append(e.getLongKey()).append('=').append(e.getValue()).append(',');
+                }
+                for (java.util.Iterator<it.unimi.dsi.fastutil.longs.Long2ObjectMap.Entry<String>> i = m.long2ObjectEntrySet().iterator(); i.hasNext();) {
+                    it.unimi.dsi.fastutil.longs.Long2ObjectMap.Entry<String> e = i.next();
+                    if ((e.getLongKey() & 1) == 0) i.remove();
+                }
+                java.util.Iterator<it.unimi.dsi.fastutil.longs.Long2ObjectMap.Entry<String>> first = m.long2ObjectEntrySet().iterator();
+                String entry = first.hasNext() ? first.next() + " " + first.hasNext() : "none";
+                return b.append(' ').append(walk).append(' ').append(m).append(' ').append(m.size()).append(' ').append(entry).append(' ').append(m.keySet().contains(7));
+            });
+        }
     }
 }

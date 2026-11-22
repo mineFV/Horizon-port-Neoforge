@@ -87,4 +87,13 @@ public final class Tagged {
         if (client) return new net.minecraft.client.Screenish[2].length;
         return 0;
     }
+
+    /** A class of the mod's that extends one of the client's. */
+    static final class Sound extends net.minecraft.client.Soundish {
+    }
+
+    /** An array of it: what loading Sound does on a dedicated server isn't observed, so this isn't translated. */
+    public static int sounds() {
+        return new Sound[3].length;
+    }
 }

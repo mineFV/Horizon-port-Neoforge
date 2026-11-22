@@ -509,6 +509,26 @@ final class JavaWorld {
         return false;
     }
 
+    /** A supertype of c that is the client's (clientOnly or clientMarked), c itself not counted; null when none is. */
+    String clientSupertype(String c) {
+        java.util.Deque<String> todo = new java.util.ArrayDeque<>();
+        Set<String> seen = new java.util.HashSet<>();
+        ClassData d = known(c);
+        if (d == null) return null;
+        if (d.superName != null) todo.add(d.superName);
+        todo.addAll(d.interfaces);
+        while (!todo.isEmpty()) {
+            String t = todo.poll();
+            if (!seen.add(t)) continue;
+            if (clientOnly(t) || clientMarked(t)) return t;
+            ClassData x = known(t);
+            if (x == null) continue;
+            if (x.superName != null) todo.add(x.superName);
+            todo.addAll(x.interfaces);
+        }
+        return null;
+    }
+
     /** A type's superclass and interfaces as far as they are known (the jar, the model, the JDK, --server); null when it isn't. */
     ClassData knownClass(String name) {
         return known(name);

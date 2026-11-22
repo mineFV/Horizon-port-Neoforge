@@ -15,6 +15,11 @@ public class HashCommon {
         return h ^ (h >>> 16);
     }
 
+    /** A long's int hash, its halves xored (Long.hashCode's). */
+    public static int long2int(long l) {
+        return (int) (l ^ (l >>> 32));
+    }
+
     public static long mix(long x) {
         long h = x * LONG_PHI;
         h ^= h >>> 32;

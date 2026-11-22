@@ -438,6 +438,12 @@ final class MethodRust {
             }
             case ANEWARRAY -> {
                 String c = pool.className(i.index());
+                String element = c;
+                while (element.startsWith("[")) element = element.substring(1);
+                if (element.startsWith("L") && element.endsWith(";")) element = element.substring(1, element.length() - 1);
+                String client = element.length() > 1 ? world.clientSupertype(element) : null;
+                // What loading a class whose supertype is the client's does on a dedicated server isn't observed.
+                if (client != null) return "it makes an array of a class whose supertype is the client's, which a dedicated server doesn't load: " + element.replace('/', '.') + " (" + client.replace('/', '.') + ")";
                 needs.add(new Need("new", null, "[" + (c.startsWith("[") ? c : "L" + c + ";"), null, null));
                 return null;
             }
