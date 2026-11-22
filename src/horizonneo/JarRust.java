@@ -536,6 +536,13 @@ final class JarRust {
         return unmet(n, world, needs, why, inst, null);
     }
 
+    /** HORIZONNEO_ALL_POISON (a diagnostic): each class whose makers a missing method drops, with every such method, once. */
+    private static final java.util.Set<String> POISON_SEEN = System.getenv("HORIZONNEO_ALL_POISON") == null ? null : java.util.concurrent.ConcurrentHashMap.newKeySet();
+
+    private static void allPoison(String instance, String reason) {
+        if (POISON_SEEN != null && POISON_SEEN.add(instance + " " + reason)) System.err.println("poison: " + instance.replace('/', '.') + ": " + reason);
+    }
+
     /** poison: where a class (or lambda) of the mod a virtual call may reach is put, with why, instead of failing. */
     static String unmet(Need n, JavaWorld world, Map<Id, List<Need>> needs, Map<Id, String> why, Instances inst, Map<String, String> poison) {
         switch (n.kind()) {
@@ -575,6 +582,7 @@ final class JarRust {
                     }
                     if (r != null && poison != null && poisonable(world, c)) {
                         poison.putIfAbsent(c, r);
+                        allPoison(c, r);
                         continue;
                     }
                     if (r != null) return r;
@@ -595,6 +603,7 @@ final class JarRust {
                     }
                     if (r != null && poison != null && poisonable(world, key)) {
                         poison.putIfAbsent(key, r);
+                        allPoison(key, r);
                         continue;
                     }
                     if (r != null) return r;

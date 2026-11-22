@@ -307,7 +307,8 @@ final class Machines {
         b.append("    let id = entity.id.clone();\n");
         b.append("    // What the mod's Java asks of the world, answered from this level (bridge.rs, HorizonWorld): \"block x y z\", the\n");
         b.append("    // state there as \"id[key=value,...]\"; \"set x y z key value flags\", a property of the block there set as\n");
-        b.append("    // Level.setBlock does (\"true\" when it changed).\n");
+        b.append("    // Level.setBlock does (\"true\" when it changed); \"loaded x z\", whether the chunk at chunk coordinates is in this\n");
+        b.append("    // level, as Horizon answers the game's hasChunk (game/raids.rs, `has_chunk`).\n");
         b.append("    let mut world = |question: &[u16]| -> Option<Vec<u16>> {\n");
         b.append("        let question = String::from_utf16_lossy(question);\n");
         b.append("        let words: Vec<&str> = question.split(' ').collect();\n");
@@ -322,6 +323,7 @@ final class Machines {
         b.append("                let at = [x.parse().ok()?, y.parse().ok()?, z.parse().ok()?];\n");
         b.append("                game.native_set_block_property_with(at, key, value, flags.parse().ok()?).to_string()\n");
         b.append("            }\n");
+        b.append("            [\"loaded\", x, z] => game.world.chunks.contains_key(&(x.parse::<i32>().ok()?, z.parse::<i32>().ok()?)).to_string(),\n");
         b.append("            _ => return None,\n        };\n");
         b.append("        Some(answer.encode_utf16().collect())\n    };\n");
         b.append("    if let Some(saved) = crate::game::").append(bridgeModule).append("::tick(block, &id, pos, &entity.nbt, &mut world) {\n");

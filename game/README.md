@@ -94,6 +94,16 @@ chosen to pin them down, the errors and that an error draws nothing, forks and r
 needs Java's Math.log to the last bit). Not here: forkPositional, the thread-safe and thread-local generators,
 Xoroshiro, WorldgenRandom.
 
+Chunks (net/minecraft/world/level/chunk, 2026-11-22): whether a level has a chunk loaded (hasChunk), asked of Horizon's
+world, which answers the game's hasChunk with the chunks it holds (`game/raids.rs`); ChunkStatus.FULL, its name, text
+and index observed in a server; a level's getChunk null for a whole chunk not loaded and not made, as the game gives
+it (observed in a server). A chunk as an object (ChunkAccess, a type here) isn't modelled: getChunk refuses where the
+game would give one, and the other statuses aren't here. A block's stack for a player's pick (getCloneItemStack: a new
+stack of its item; NeoForge's, with a hit and a player, running the block's own) and a state's handleNeighborChanged
+(its block's neighborChanged, which does nothing unless the block says otherwise), observed in a server with blocks
+of the probe's that record what they are given: code that asks whether a chunk is loaded reaches them, and while one
+was missing every maker of a block or a state dropped.
+
 What isn't here, and what it costs: BlockPos's getCenter, betweenClosed and codecs, Direction's getRotation and
 codecs, MutableBlockPos's other setters, NBT's codecs (NbtOps), its readers and writers (DataOutput, visitors),
 TagType, ResourceLocation's codecs and its readers (StringReader), ByIdMap.sparse. A call to one isn't translated; and when a virtual call through a wider type (Object, List...) may reach

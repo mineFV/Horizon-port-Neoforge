@@ -14,6 +14,12 @@ public abstract class BlockBehaviour implements FeatureElement {
         this.properties = properties;
     }
 
+    /**
+     * What a block does when a neighbour changes: nothing, unless the block says otherwise (observed,
+     * probe/BlockItemProbe.java, neighbours: a state's handleNeighborChanged runs it and returns, given no level).
+     */
+    protected void neighborChanged(BlockState state, net.minecraft.world.level.Level level, net.minecraft.core.BlockPos pos, net.minecraft.world.level.block.Block neighborBlock, net.minecraft.core.BlockPos neighborPos, boolean movedByPiston) {}
+
     /** Its states' fluid: none, unless the block says otherwise (observed). */
     protected net.minecraft.world.level.material.FluidState getFluidState(BlockState state) {
         return net.minecraft.world.level.material.Fluids.EMPTY.defaultFluidState();
@@ -166,6 +172,11 @@ public abstract class BlockBehaviour implements FeatureElement {
 
         public boolean is(Block block) {
             return owner == block;
+        }
+
+        /** Observed (probe/BlockItemProbe.java, neighbours): its block's neighborChanged, given this state and the rest as they come. */
+        public void handleNeighborChanged(net.minecraft.world.level.Level level, net.minecraft.core.BlockPos pos, Block neighborBlock, net.minecraft.core.BlockPos neighborPos, boolean movedByPiston) {
+            getBlock().neighborChanged((BlockState) this, level, pos, neighborBlock, neighborPos, movedByPiston);
         }
 
         public net.minecraft.core.Holder<Block> getBlockHolder() {

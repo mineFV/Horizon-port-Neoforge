@@ -76,6 +76,7 @@ public final class GameProbe {
             IntrusiveProbe.run();
             AttributeProbe.run();
             ArmorProbe.run();
+            ChunkProbe.run();
         }
     }
 

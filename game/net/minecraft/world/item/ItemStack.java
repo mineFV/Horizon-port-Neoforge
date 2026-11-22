@@ -36,8 +36,9 @@ public final class ItemStack implements DataComponentHolder, MutableDataComponen
         this(item, 1);
     }
 
+    /** Observed (probe/BlockItemProbe.java, clones): the stack of what the ItemLike gives as its item (a block's, air when it has none). */
     public ItemStack(ItemLike item, int count) {
-        this((Item) item, count, new net.minecraft.core.component.PatchedDataComponentMap(((Item) item).components()));
+        this(item.asItem(), count, new net.minecraft.core.component.PatchedDataComponentMap(item.asItem().components()));
     }
 
     public ItemStack(net.minecraft.core.Holder<Item> item) {

@@ -8,7 +8,7 @@ import net.neoforged.neoforge.registries.HorizonRegistries;
 /**
  * Not the game's: a level's questions to Horizon's world (horizon-port-neoforge's bridge). `ask` is native: the
  * translation sends the question to the thread that holds Horizon's world (bridge.rs) and waits for the answer.
- * One question for now: the block at a position, by its id.
+ * Its questions: the block at a position, by its id; setting a property of it; whether a chunk is loaded.
  */
 public final class HorizonWorld {
     private HorizonWorld() {}
@@ -45,6 +45,13 @@ public final class HorizonWorld {
             if (!p.getName((Comparable) e.getValue()).equals(given.get(p.getName()))) return false;
         }
         return true;
+    }
+
+    /** Whether the chunk at chunk coordinates is in Horizon's world ("loaded x z": "true" or "false"). */
+    public static boolean hasChunk(int x, int z) {
+        String answer = ask("loaded " + x + " " + z);
+        if (answer == null) throw new IllegalStateException("no world answers for the chunk " + x + " " + z);
+        return answer.equals("true");
     }
 
     /**

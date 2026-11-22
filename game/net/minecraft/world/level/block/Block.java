@@ -29,6 +29,11 @@ public class Block extends BlockBehaviour implements ItemLike, IBlockExtension {
         return net.minecraft.world.item.Item.byBlock(this);
     }
 
+    /** Observed (probe/BlockItemProbe.java, clones): a new stack of its item, one of it (empty for air). */
+    public net.minecraft.world.item.ItemStack getCloneItemStack(net.minecraft.world.level.LevelReader level, net.minecraft.core.BlockPos pos, BlockState state) {
+        return new net.minecraft.world.item.ItemStack(this);
+    }
+
     /** Observed: a BlockItem's block, else air. */
     public static Block byItem(net.minecraft.world.item.Item item) {
         return item instanceof net.minecraft.world.item.BlockItem blockItem ? blockItem.getBlock() : net.neoforged.neoforge.registries.HorizonRegistries.block("minecraft:air");

@@ -35,6 +35,30 @@ final class BlockItemProbe {
             return net.minecraft.world.level.material.Fluids.WATER.getSource(false);
         }
     });
+    /** What CLONE's own getCloneItemStack was given, each time it ran. */
+    static final java.util.List<String> CLONED = new java.util.ArrayList<>();
+    static final DeferredBlock<Block> CLONE = BLOCKS.register("clone", () -> new Block(BlockBehaviour.Properties.of()) {
+        @Override
+        public net.minecraft.world.item.ItemStack getCloneItemStack(net.minecraft.world.level.LevelReader level, net.minecraft.core.BlockPos pos, net.minecraft.world.level.block.state.BlockState state) {
+            CLONED.add(level + " " + pos + " " + (state == defaultBlockState()));
+            return new net.minecraft.world.item.ItemStack(Items.DIAMOND, 3);
+        }
+    });
+    /** What NEIGHBOR's own neighborChanged was given, each time it ran. */
+    static final java.util.List<String> NEIGHBORED = new java.util.ArrayList<>();
+    static final DeferredBlock<Block> NEIGHBOR = BLOCKS.register("neighbor", () -> new Block(BlockBehaviour.Properties.of()) {
+        @Override
+        protected void neighborChanged(net.minecraft.world.level.block.state.BlockState state, net.minecraft.world.level.Level level, net.minecraft.core.BlockPos pos,
+                Block neighborBlock, net.minecraft.core.BlockPos neighborPos, boolean movedByPiston) {
+            NEIGHBORED.add(level + " " + pos + " " + (state == defaultBlockState()) + " " + neighborBlock + " " + neighborPos + " " + movedByPiston);
+        }
+
+        @Override
+        public void onNeighborChange(net.minecraft.world.level.block.state.BlockState state, net.minecraft.world.level.LevelReader level, net.minecraft.core.BlockPos pos,
+                net.minecraft.core.BlockPos neighbor) {
+            NEIGHBORED.add("change " + level + " " + pos + " " + (state == defaultBlockState()) + " " + neighbor);
+        }
+    });
     static final DeferredHolder<Item, BlockItem> ITEM = ITEMS.register("with_item", () -> new BlockItem(WITH.get(), new Item.Properties()));
 
     static void run() {
@@ -67,6 +91,8 @@ final class BlockItemProbe {
                 return s.isAir() + " " + s.liquid() + " " + s.canOcclude() + " " + s.canBeReplaced() + " " + s.getDestroySpeed(null, null) + " " + s.hasBlockEntity() + " " + s.getFluidState();
             });
         }
+        clones();
+        neighbours();
         p("block item", () -> WITH.get().asItem() + " " + (WITH.get().asItem() == ITEM.get()) + " " + ITEM.get().getBlock() + " " + ITEM.get().getDescriptionId()
                 + " " + ITEM.get().getDescription() + " " + WITH.asItem() + " " + WITHOUT.get().asItem() + " " + Item.byBlock(WITHOUT.get()) + " " + Block.byItem(ITEM.get())
                 + " " + Block.byItem(Items.DIAMOND) + " " + Item.BY_BLOCK.get(WITH.get()) + " " + Item.BY_BLOCK.get(WITHOUT.get()));
@@ -76,6 +102,47 @@ final class BlockItemProbe {
             return (Items.STONE instanceof BlockItem) + " " + ((BlockItem) Items.STONE).getBlock() + " " + (((BlockItem) Items.STONE).getBlock() == stone) + " "
                     + Items.STONE.getDescriptionId() + " " + (Items.DIAMOND instanceof BlockItem) + " " + (Items.AIR instanceof BlockItem) + " " + stone.asItem()
                     + " " + (stone.asItem() == Items.STONE) + " " + air.asItem() + " " + (Block.byItem(Items.STONE) == stone) + " " + Block.byItem(Items.AIR) + " " + (Block.byItem(Items.AIR) == air);
+        });
+    }
+
+    /** A state's handleNeighborChanged: its block's neighborChanged, a block's own or the game's (which does nothing). */
+    static void neighbours() {
+        p("block neighbor changed", () -> {
+            NEIGHBORED.clear();
+            net.minecraft.core.BlockPos at = new net.minecraft.core.BlockPos(1, 2, 3), from = new net.minecraft.core.BlockPos(1, 3, 3);
+            NEIGHBOR.get().defaultBlockState().handleNeighborChanged(null, at, WITH.get(), from, true);
+            NEIGHBOR.get().defaultBlockState().handleNeighborChanged(null, from, NEIGHBOR.get(), at, false);
+            WITH.get().defaultBlockState().handleNeighborChanged(null, at, NEIGHBOR.get(), from, false);
+            NEIGHBOR.get().defaultBlockState().onNeighborChange(null, at, from);
+            WITH.get().defaultBlockState().onNeighborChange(null, from, at);
+            return NEIGHBORED;
+        });
+    }
+
+    /** A block's stack for a player's pick: its own (3 arguments), and NeoForge's (5), which runs a block's own. */
+    static void clones() {
+        net.minecraft.core.BlockPos at = new net.minecraft.core.BlockPos(1, 2, 3);
+        for (DeferredBlock<Block> b : java.util.List.of(WITH, WITHOUT, CLONE)) {
+            p("block clone " + b.getId(), () -> {
+                CLONED.clear();
+                net.minecraft.world.item.ItemStack s = b.get().getCloneItemStack(null, at, b.get().defaultBlockState());
+                net.minecraft.world.item.ItemStack t = b.get().getCloneItemStack(b.get().defaultBlockState(), null, null, at, null);
+                return s.getItem() + " " + s.getCount() + " " + s.isEmpty() + " " + (s == net.minecraft.world.item.ItemStack.EMPTY) + " "
+                        + t.getItem() + " " + t.getCount() + " " + t.isEmpty() + " " + (t == net.minecraft.world.item.ItemStack.EMPTY) + " " + CLONED;
+            });
+        }
+        p("block clone other state", () -> {
+            CLONED.clear();
+            net.minecraft.world.item.ItemStack s = WITH.get().getCloneItemStack(CLONE.get().defaultBlockState(), null, null, at, null);
+            net.minecraft.world.item.ItemStack t = CLONE.get().getCloneItemStack(WITH.get().defaultBlockState(), null, null, at, null);
+            return s.getItem() + " " + s.getCount() + " " + t.getItem() + " " + t.getCount() + " " + CLONED;
+        });
+        p("block clone game", () -> {
+            Block stone = BuiltInRegistries.BLOCK.get(ResourceLocation.withDefaultNamespace("stone"));
+            Block air = BuiltInRegistries.BLOCK.get(ResourceLocation.withDefaultNamespace("air"));
+            net.minecraft.world.item.ItemStack s = stone.getCloneItemStack(null, at, stone.defaultBlockState());
+            net.minecraft.world.item.ItemStack a = air.getCloneItemStack(air.defaultBlockState(), null, null, at, null);
+            return s.getItem() + " " + s.getCount() + " " + a.getItem() + " " + a.isEmpty() + " " + (a == net.minecraft.world.item.ItemStack.EMPTY);
         });
     }
 

@@ -1,5 +1,12 @@
 package net.neoforged.neoforge.common.extensions;
 
-/** The stand-in for the game's IBlockExtension: its supertypes alone (game/README.md, "What isn't here"). */
+/** The stand-in for the game's IBlockExtension: its supertypes, a block's stack for a player's pick, what a neighbour's change does. */
 public interface IBlockExtension {
+    /** Observed (probe/BlockItemProbe.java, neighbours): nothing, unless the block says otherwise. */
+    default void onNeighborChange(net.minecraft.world.level.block.state.BlockState state, net.minecraft.world.level.LevelReader level, net.minecraft.core.BlockPos pos, net.minecraft.core.BlockPos neighbor) {}
+
+    /** Observed (probe/BlockItemProbe.java, clones): the block's own getCloneItemStack, given the level, the position and the state. */
+    default net.minecraft.world.item.ItemStack getCloneItemStack(net.minecraft.world.level.block.state.BlockState state, net.minecraft.world.phys.HitResult target, net.minecraft.world.level.LevelReader level, net.minecraft.core.BlockPos pos, net.minecraft.world.entity.player.Player player) {
+        return ((net.minecraft.world.level.block.Block) this).getCloneItemStack(level, pos, state);
+    }
 }
