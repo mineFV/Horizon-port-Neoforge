@@ -40,8 +40,10 @@ final class Blockers {
         return where + ": " + owner;
     }
 
-    /** What it writes: the pieces, by how many of the mod's methods each keeps out alone, and among others. */
-    static String report(Map<String, ClassData> jar, Map<String, ClassData> model, Map<String, ClassData> outside, Map<JarRust.Id, String> translated,
+    /** Every untranslated method's pieces, its own and its dependencies', followed through (cycles included). */
+    record Pieces(JavaWorld world, Map<JarRust.Id, Set<String>> of) {}
+
+    static Pieces pieces(Map<String, ClassData> jar, Map<String, ClassData> model, Map<String, ClassData> outside, Map<JarRust.Id, String> translated,
             Map<JarRust.Id, String> dropped) {
         JavaWorld world = new JavaWorld(jar, model, outside);
         Map<JarRust.Id, Set<String>> direct = new HashMap<>();
@@ -106,6 +108,22 @@ final class Blockers {
                 if (sets[i].cardinality() != before) changed = true;
             }
         }
+        Map<JarRust.Id, Set<String>> of = new HashMap<>();
+        for (int i = 0; i < ids.size(); i++) {
+            Set<String> b = new TreeSet<>();
+            for (int k = sets[i].nextSetBit(0); k >= 0; k = sets[i].nextSetBit(k + 1)) b.add(pieceNames.get(k));
+            if (b.isEmpty()) b.add("translator: " + JarRust.kind(dropped.getOrDefault(ids.get(i), "dropped with what it needs")));
+            of.put(ids.get(i), b);
+        }
+        return new Pieces(world, of);
+    }
+
+    /** What it writes: the pieces, by how many of the mod's methods each keeps out alone, and among others. */
+    static String report(Map<String, ClassData> jar, Map<String, ClassData> model, Map<String, ClassData> outside, Map<JarRust.Id, String> translated,
+            Map<JarRust.Id, String> dropped) {
+        Pieces all = pieces(jar, model, outside, translated, dropped);
+        JavaWorld world = all.world();
+        List<JarRust.Id> ids = new ArrayList<>(all.of().keySet());
         Map<String, Integer> alone = new HashMap<>(), among = new HashMap<>(), pairs = new HashMap<>();
         Map<String, List<String>> examples = new HashMap<>();
         int[] sizes = new int[6];
@@ -113,9 +131,7 @@ final class Blockers {
         for (int i = 0; i < ids.size(); i++) {
             JarRust.Id id = ids.get(i);
             if (!world.jar.contains(id.owner())) continue;
-            Set<String> b = new TreeSet<>();
-            for (int k = sets[i].nextSetBit(0); k >= 0; k = sets[i].nextSetBit(k + 1)) b.add(pieceNames.get(k));
-            if (b.isEmpty()) b.add("translator: " + JarRust.kind(dropped.getOrDefault(id, "dropped with what it needs")));
+            Set<String> b = all.of().get(id);
             counted++;
             sizes[Math.min(b.size(), 5)]++;
             for (String p : b) among.merge(p, 1, Integer::sum);
@@ -135,6 +151,47 @@ final class Blockers {
         table(out, "Pieces that alone keep methods out (each would bring that many in)", "Alone", alone, 60, examples);
         table(out, "Pairs of pieces that together keep methods out", "Methods", pairs, 30, Map.of());
         table(out, "Pieces among what keeps methods out", "Among", among, 60, Map.of());
+        return out.toString();
+    }
+
+    /**
+     * `translate --blockers-for`: for the methods named (each `class.method`, dotted, every overload), whether each is
+     * translated, and every piece that keeps it out, followed through what it calls; then the pieces by how many of
+     * them each keeps out. What a machine needs (its constructor, tick, load and save) is asked this way.
+     */
+    static String forMethods(Map<String, ClassData> jar, Map<String, ClassData> model, Map<String, ClassData> outside, Map<JarRust.Id, String> translated,
+            Map<JarRust.Id, String> dropped, List<String> names) {
+        Pieces p = pieces(jar, model, outside, translated, dropped);
+        StringBuilder out = new StringBuilder("# What keeps these methods out\n\n");
+        out.append("Each method named (`translate --blockers-for`), and every piece that keeps it out: its own reasons and those of the methods it calls ")
+                .append("and the class initializers it runs, followed through (an estimate: virtual calls aren't followed, see blockers.md).\n\n");
+        Map<String, Integer> among = new HashMap<>();
+        for (String name : names) {
+            int dot = name.lastIndexOf('.');
+            String owner = dot < 0 ? "" : name.substring(0, dot).replace('.', '/'), method = name.substring(dot + 1);
+            List<JarRust.Id> found = new ArrayList<>();
+            for (JarRust.Id id : translated.keySet()) if (id.owner().equals(owner) && id.name().equals(method)) found.add(id);
+            for (JarRust.Id id : p.of().keySet()) if (id.owner().equals(owner) && id.name().equals(method)) found.add(id);
+            if (found.isEmpty()) {
+                out.append("## ").append(name).append("\n\nNo method of that name with a body.\n\n");
+                continue;
+            }
+            found.sort(java.util.Comparator.comparing(JarRust.Id::descriptor));
+            for (JarRust.Id id : found) {
+                out.append("## ").append(name).append(id.descriptor()).append("\n\n");
+                if (translated.containsKey(id)) {
+                    out.append("Translated, as `").append(translated.get(id)).append("`.\n\n");
+                    continue;
+                }
+                Set<String> b = p.of().get(id);
+                for (String piece : b) {
+                    out.append("- ").append(piece).append('\n');
+                    among.merge(piece, 1, Integer::sum);
+                }
+                out.append('\n');
+            }
+        }
+        table(out, "Pieces among what keeps them out", "Methods", among, 200, Map.of());
         return out.toString();
     }
 

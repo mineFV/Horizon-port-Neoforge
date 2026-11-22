@@ -74,7 +74,7 @@ public final class Main {
                 return check(Line.read(args, Set.of("--horizon-src", "--translator", "--horizon-tools"), Set.of("--compile")), out, err);
             }
             case "translate" -> {
-                return translate(Line.read(args, Set.of("--out", "--server", "--bridge"), Set.of("--blockers")), out, err);
+                return translate(Line.read(args, Set.of("--out", "--server", "--bridge", "--blockers-for"), Set.of("--blockers")), out, err);
             }
             case "standins" -> {
                 Line line = Line.read(args, Set.of("--server", "--horizon-src", "--python"), Set.of());
@@ -145,6 +145,12 @@ public final class Main {
         if (line.has("--blockers")) {
             java.nio.file.Files.writeString(dir.resolve("blockers.md"), Blockers.report(JarRust.classes(jar), model, outside, r.translated(), r.why()), java.nio.charset.StandardCharsets.UTF_8);
             out.println("Written: " + dir.resolve("blockers.md") + ", what keeps the mod's methods out, piece by piece (an estimate).");
+        }
+        if (line.has("--blockers-for")) {
+            List<String> names = List.of(line.options().get("--blockers-for").split(","));
+            java.nio.file.Files.writeString(dir.resolve("blockers-for.md"), Blockers.forMethods(JarRust.classes(jar), model, outside, r.translated(), r.why(), names),
+                    java.nio.charset.StandardCharsets.UTF_8);
+            out.println("Written: " + dir.resolve("blockers-for.md") + ", what keeps the methods named out, piece by piece (an estimate).");
         }
         if (line.has("--bridge")) {
             List<String> missing = new ArrayList<>();
@@ -504,6 +510,7 @@ public final class Main {
                   `RESULT: failed (...)`; exit code 0 or 1.
 
               translate <mod.jar> [--out DIR] [--server FOLDER] [--bridge PATH] [--blockers]
+                        [--blockers-for CLASS.METHOD,...]
                   This tool's own translator, from the mod's bytecode to Rust (no decompiling):
                   numbers with Java's exact semantics (wrapping arithmetic, NaN, casts),
                   branches, loops and switches, Math's methods with an exact counterpart;
@@ -526,7 +533,11 @@ public final class Main {
                   keeps the mod's block entities and ticks them. --blockers: also writes
                   DIR/blockers.md, an estimate of what keeps the mod's methods out: every
                   reason of each, followed through the methods it calls, and which
-                  missing pieces alone would bring the most of them in.
+                  missing pieces alone would bring the most of them in. --blockers-for:
+                  also writes DIR/blockers-for.md: for the methods named (a.b.Class.method,
+                  comma-separated, every overload), whether each is translated, and every
+                  piece that keeps it out, followed through what it calls (what a machine
+                  needs: its constructor, tick, load and save).
 
               standins --server FOLDER [--horizon-src FOLDER [--python PROGRAM]]
                   The translator's stand-ins for the game (game/ in this tool's source) against

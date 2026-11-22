@@ -988,6 +988,14 @@ exits 0 tool translate "$B/jars/gamey.jar" --out "$TR/gamey-blockers" --blockers
 says "$OUT" "blockers.md, what keeps the mod's methods out, piece by piece (an estimate)."
 says "$TR/gamey-blockers/blockers.md" "## Pieces that alone keep methods out (each would bring that many in)"
 says "$TR/gamey-blockers/blockers.md" "| it splits a text by a regular expression"
+# The same, for a few methods named: each one translated or not, and every piece that keeps it out.
+exits 0 tool translate "$B/jars/gamey.jar" --out "$TR/gamey-for" --blockers-for com.example.gamey.Tagged.words,com.example.gamey.Tagged.pick,com.example.gamey.Tagged.nothing
+says "$OUT" "blockers-for.md, what keeps the methods named out, piece by piece (an estimate)."
+says "$TR/gamey-for/blockers-for.md" "## com.example.gamey.Tagged.words(Ljava/lang/String;)I"
+says "$TR/gamey-for/blockers-for.md" "- it splits a text by a regular expression"
+says "$TR/gamey-for/blockers-for.md" "Translated, as \`tagged__pick\`."
+says "$TR/gamey-for/blockers-for.md" "## com.example.gamey.Tagged.nothing"
+says "$TR/gamey-for/blockers-for.md" "No method of that name with a body."
 says "$OUT" "no --server: the supertypes of the game's classes aren't known"
 says "$TR/gamey-out/translation.md" '`com.example.gamey.Tagged.size(I)I`: it makes an object whose supertypes aren'"'"'t all known: com.example.gamey.Tagged$Tag is a net.minecraft.world.Named'
 # A method dropped while something it needs may hold, back once what dropped it is gone.
