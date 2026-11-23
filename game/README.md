@@ -113,6 +113,13 @@ NeoForge's common tags (net/neoforged/neoforge/common/Tags, 2026-11-23): the key
 ores and three of them, two fluids' and one entity types'), their ids and registries observed in a server, each the one
 key for its id. Not DamageTypes, whose type isn't modelled.
 
+Guava (com/google/common/collect, Guava 20, shipped with the game): ImmutableList and its builder (2026-11-20); Table
+(2026-11-23): HashBasedTable, rows and columns in the order they came, a row gone with its last cell, null keys and
+values refused and asked of with null answering nothing, its views (cellSet, values) made once and removing through
+their iterators, its cells (Tables.immutableCell), texts, equality and hash. Observed against Guava itself; each
+class has Guava's name, supertypes and declared methods (AbstractTable, StandardTable, their views, TransformedIterator),
+as the check against the server's classes asks. A row's view refuses; Tables' other tables aren't here.
+
 What isn't here, and what it costs: BlockPos's getCenter, betweenClosed and codecs, Direction's getRotation and
 codecs, MutableBlockPos's other setters, NBT's codecs (NbtOps), its readers and writers (DataOutput, visitors),
 TagType, ResourceLocation's codecs and its readers (StringReader), ByIdMap.sparse. A call to one isn't translated; and when a virtual call through a wider type (Object, List...) may reach
