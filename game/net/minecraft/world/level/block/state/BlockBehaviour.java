@@ -339,5 +339,20 @@ public abstract class BlockBehaviour implements FeatureElement {
             throw shapes();
         }
 
+        public net.minecraft.world.phys.shapes.VoxelShape getCollisionShape(net.minecraft.world.level.BlockGetter level, net.minecraft.core.BlockPos pos,
+                net.minecraft.world.phys.shapes.CollisionContext context) {
+            throw shapes();
+        }
+
+        public net.minecraft.world.phys.shapes.VoxelShape getShape(net.minecraft.world.level.BlockGetter level, net.minecraft.core.BlockPos pos,
+                net.minecraft.world.phys.shapes.CollisionContext context) {
+            throw shapes();
+        }
+
+        public net.minecraft.world.phys.shapes.VoxelShape getVisualShape(net.minecraft.world.level.BlockGetter level, net.minecraft.core.BlockPos pos,
+                net.minecraft.world.phys.shapes.CollisionContext context) {
+            throw shapes();
+        }
+
     }
 }

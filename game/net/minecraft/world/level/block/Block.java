@@ -29,6 +29,11 @@ public class Block extends BlockBehaviour implements ItemLike, IBlockExtension {
         return net.minecraft.world.item.Item.byBlock(this);
     }
 
+    /** Observed (probe/ShapeProbe.java): Shapes.box in sixteenths of a block. */
+    public static net.minecraft.world.phys.shapes.VoxelShape box(double x1, double y1, double z1, double x2, double y2, double z2) {
+        return net.minecraft.world.phys.shapes.Shapes.box(x1 / 16.0, y1 / 16.0, z1 / 16.0, x2 / 16.0, y2 / 16.0, z2 / 16.0);
+    }
+
     /** Observed (probe/BlockItemProbe.java, clones): a new stack of its item, one of it (empty for air). */
     public net.minecraft.world.item.ItemStack getCloneItemStack(net.minecraft.world.level.LevelReader level, net.minecraft.core.BlockPos pos, BlockState state) {
         return new net.minecraft.world.item.ItemStack(this);

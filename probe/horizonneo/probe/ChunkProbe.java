@@ -50,6 +50,8 @@ final class ChunkProbe {
                     .append(net.minecraft.stats.Stats.OPEN_CHEST).append(' ').append(net.minecraft.stats.Stats.OPEN_BARREL);
             return b;
         });
+        p("block box", () -> ShapeProbe.describe(net.minecraft.world.level.block.Block.box(2, 0, 2, 14, 13, 14)) + " | "
+                + ShapeProbe.describe(net.minecraft.world.level.block.Block.box(0, 0, 0, 16, 16, 16)) + " | " + ShapeProbe.describe(net.minecraft.world.level.block.Block.box(1, 1, 1, 15, 3, 15)));
         // The game's folders: under the folder it runs in, in a server and here alike.
         p("fml paths", () -> {
             StringBuilder b = new StringBuilder();

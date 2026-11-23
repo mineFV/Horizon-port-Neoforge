@@ -130,6 +130,16 @@ pitch and sounds (SoundEvents': ids, ranges, one object each), Properties.sound 
 states answer as the block's do (observed with the probe's blocks); a copy of a block of the game's (but air) isn't
 known either, and its states refuse.
 
+Voxel shapes (net/minecraft/world/phys/shapes, 2026-11-23): VoxelShape, ArrayVoxelShape and CubeVoxelShape (the class
+a shape is of, the game's), Shapes' empty shape and block, boxes made shapes (thin ones nothing, those on a grid of
+up to 1/8 a cube's, the others an array shape), joins by any BooleanOp with the game's merged boundaries, optimize,
+or, joinIsNotEmpty, moving, min, max, bounds, the greedy boxes forAllBoxes and toAabbs give, and Block.box; Rotation
+(composed, turning a direction or an index). After Horizon's horizon_core::geometry::shape (MIT, tested against
+vanilla there), observed against the game on 1351 shapes and joins (980 joins of 14 shapes by five operations, 300
+unions drawn at random and turned as Mekanism turns its blocks' shapes). getFaceShape and clip refuse; the edges,
+collide and the faces' occlusion aren't here; a state's shapes asked with a CollisionContext (a type) refuse, as
+its others do. WorldGenerationContext refuses: Horizon generates the world.
+
 What isn't here, and what it costs: BlockPos's getCenter, betweenClosed and codecs, Direction's getRotation and
 codecs, MutableBlockPos's other setters, NBT's codecs (NbtOps), its readers and writers (DataOutput, visitors),
 TagType, ResourceLocation's codecs and its readers (StringReader), ByIdMap.sparse. A call to one isn't translated; and when a virtual call through a wider type (Object, List...) may reach
