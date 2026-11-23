@@ -32,6 +32,10 @@ final class ComponentProbe {
     static final DeferredHolder<Item, Item> EPIC = ITEMS.register("epic", () -> new Item(new Item.Properties().component(DataComponents.RARITY, Rarity.EPIC).stacksTo(1)));
     static final DeferredHolder<Item, Item> TOUGH = ITEMS.register("tough", () -> new Item(new Item.Properties().fireResistant().durability(30).setNoRepair().craftRemainder(Items.DIAMOND)));
     static final DeferredHolder<Item, Item> RARE = ITEMS.register("rare", () -> new Item(new Item.Properties().rarity(Rarity.RARE).stacksTo(5).rarity(Rarity.UNCOMMON)));
+    /** A bow, and a plain item made with the same properties: what a bow's constructor adds to them. */
+    static final DeferredHolder<Item, net.minecraft.world.item.BowItem> BOW = ITEMS.register("probe_bow",
+            () -> new net.minecraft.world.item.BowItem(new Item.Properties().durability(384)));
+    static final DeferredHolder<Item, Item> NOT_BOW = ITEMS.register("probe_not_bow", () -> new Item(new Item.Properties().durability(384)));
     static final DeferredHolder<Item, Item> CUSTOM = ITEMS.register("custom", () -> new Item(new Item.Properties().durability(60)) {
         @Override
         public int getMaxStackSize(ItemStack stack) {
@@ -73,7 +77,10 @@ final class ComponentProbe {
         p("component repair", () -> TOUGH.get().isRepairable(new ItemStack(TOUGH.get())) + " " + DURABLE.get().isRepairable(new ItemStack(DURABLE.get())) + " "
                 + PLAIN.get().isRepairable(new ItemStack(PLAIN.get())) + " " + new ItemStack(TOUGH.get()).has(DataComponents.FIRE_RESISTANT) + " " + new ItemStack(TOUGH.get()).get(DataComponents.FIRE_RESISTANT)
                 + " " + DataComponents.FIRE_RESISTANT);
-        Item[] items = {Items.AIR, Items.DIAMOND, Items.STONE, PLAIN.get(), STACK16.get(), DURABLE.get(), EPIC.get(), CUSTOM.get(), RARE.get(), TOUGH.get()};
+        Item[] items = {Items.AIR, Items.DIAMOND, Items.STONE, PLAIN.get(), STACK16.get(), DURABLE.get(), EPIC.get(), CUSTOM.get(), RARE.get(), TOUGH.get(), BOW.get(), NOT_BOW.get()};
+        p("component bow", () -> (BOW.get() instanceof net.minecraft.world.item.ProjectileWeaponItem) + " " + BOW.get().getClass().getName() + " " + BOW.get().getDefaultMaxStackSize()
+                + " " + BOW.get().isRepairable(new ItemStack(BOW.get())) + " " + BOW.get().getDescriptionId() + " " + new ItemStack(BOW.get()).getMaxDamage()
+                + " " + new ItemStack(BOW.get()).getMaxStackSize());
         // A map of eight types or more iterates in its types' identity hashes' order, which changes from run to run: the
         // types are sorted.
         for (Item item : items) {

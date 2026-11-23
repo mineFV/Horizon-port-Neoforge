@@ -1,5 +1,6 @@
 package net.neoforged.neoforge.registries;
 
+import java.util.function.Function;
 import java.util.function.Supplier;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.resources.ResourceKey;
@@ -30,12 +31,23 @@ public class DeferredRegister<T> {
         return new Blocks(namespace);
     }
 
-    public <I extends T> DeferredHolder<T, I> register(String name, Supplier<? extends I> supplier) {
+    /**
+     * Observed: the value is made by func, given its id, when first asked for (in the game, when the registry is
+     * filled); the holder is made before a name registered twice is refused.
+     */
+    public <I extends T> DeferredHolder<T, I> register(String name, Function<ResourceLocation, ? extends I> func) {
+        java.util.Objects.requireNonNull(name);
+        java.util.Objects.requireNonNull(func);
         ResourceLocation id = ResourceLocation.fromNamespaceAndPath(namespace, name);
         DeferredHolder<T, I> holder = createHolder(registryKey, id);
-        HorizonRegistries.add(holder.getKey(), supplier);
-        entries.add(holder);
+        if (!entries.add(holder)) throw new IllegalArgumentException("Duplicate registration " + name);
+        HorizonRegistries.add(holder.getKey(), () -> func.apply(id));
         return holder;
+    }
+
+    /** Observed: hands on to register by a function, which a subclass overriding that one sees. */
+    public <I extends T> DeferredHolder<T, I> register(String name, Supplier<? extends I> supplier) {
+        return register(name, id -> supplier.get());
     }
 
     protected <I extends T> DeferredHolder<T, I> createHolder(ResourceKey<?> registryKey, ResourceLocation key) {
@@ -61,6 +73,12 @@ public class DeferredRegister<T> {
     public static class Blocks extends DeferredRegister<Block> {
         protected Blocks(String namespace) {
             super(Registries.BLOCK, namespace);
+        }
+
+        @Override
+        @SuppressWarnings("unchecked")
+        public <B extends Block> DeferredBlock<B> register(String name, Function<ResourceLocation, ? extends B> func) {
+            return (DeferredBlock<B>) super.register(name, func);
         }
 
         @Override

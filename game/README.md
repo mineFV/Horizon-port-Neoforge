@@ -142,6 +142,23 @@ unions drawn at random and turned as Mekanism turns its blocks' shapes). getFace
 collide and the faces' occlusion aren't here; a state's shapes asked with a CollisionContext (a type) refuse, as
 its others do. WorldGenerationContext refuses: Horizon generates the world.
 
+Registering by a function of the value's id (2026-11-23): DeferredRegister.register(String, Function), which its
+register by a supplier hands on to (a subclass overriding it sees that, as Mekanism's registers do), the function
+given the value's id when the value is made, a name given twice refused; observed in a server.
+
+Lists and model keys (2026-11-23): NonNullList, a list that refuses null where it is given a value, made empty, with
+a capacity, of a size filled with a default, on the elements given (their own array) or as a copy that can't be
+changed, clear putting the default back; NeoForge's ModelProperty, a predicate (true of everything when made without
+one). Observed, as a library and in a server.
+
+Bows (2026-11-23): BowItem and ProjectileWeaponItem as items made from their properties, their constructors adding
+nothing to them (observed in a server: a bow's components are a plain item's with the same properties). Using them
+(drawing, shooting) isn't here.
+
+A capability's cache at a position (2026-11-23): BlockCapabilityCache made as NeoForge makes it, what it is given kept
+(the position as an immutable copy), null refused; observed in a server's overworld. Asking it refuses: a level's
+capabilities at a position (its block entities) aren't modelled, nor when they change.
+
 What isn't here, and what it costs: BlockPos's getCenter, betweenClosed and codecs, Direction's getRotation and
 codecs, MutableBlockPos's other setters, NBT's codecs (NbtOps), its readers and writers (DataOutput, visitors),
 TagType, ResourceLocation's codecs and its readers (StringReader), ByIdMap.sparse. A call to one isn't translated; and when a virtual call through a wider type (Object, List...) may reach

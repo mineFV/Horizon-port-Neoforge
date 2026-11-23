@@ -20,6 +20,19 @@ public final class GameProbe {
     /** The game's registries, which saving a stack is given: the server's (InServer); null for the stand-ins'. */
     static net.minecraft.core.HolderLookup.Provider REGISTRIES;
 
+    /** The server's overworld (InServer); null for the stand-ins', whose ServerLevel the bridge makes (see level()). */
+    static net.minecraft.server.level.ServerLevel LEVEL;
+
+    /** A server's level: the server's overworld, or the stand-ins' own (made as HorizonBridge makes it, by its constructor). */
+    static net.minecraft.server.level.ServerLevel level() {
+        if (LEVEL != null) return LEVEL;
+        try {
+            return (net.minecraft.server.level.ServerLevel) Class.forName("net.minecraft.server.level.ServerLevel").getConstructor().newInstance();
+        } catch (ReflectiveOperationException e) {
+            throw new IllegalStateException("no level to ask: " + e);
+        }
+    }
+
     static final int MAX = Integer.MAX_VALUE, MIN = Integer.MIN_VALUE;
     static final int[][] PLACES = {
         {0, 0, 0}, {1, 2, 3}, {-1, -2, -3}, {5, 64, -7}, {3, 64, -7}, {5, 60, -7}, {5, 64, 9},
@@ -60,6 +73,7 @@ public final class GameProbe {
         RandomProbe.run();
         ShapeProbe.run();
         AbsentProbe.run();
+        ListProbe.run();
         // What needs the game started: in a server only (InServer gives "server").
         if (args.length > 0 && args[0].equals("server")) {
             ItemProbe.run();
@@ -69,6 +83,7 @@ public final class GameProbe {
             TagProbe.run();
             LogProbe.levels();
             BuiltInProbe.run();
+            RegisterProbe.run();
             ConfigProbe.run();
             ColorProbe.run();
             FluidTypeProbe.run();

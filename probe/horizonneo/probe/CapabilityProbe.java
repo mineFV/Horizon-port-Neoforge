@@ -68,6 +68,32 @@ final class CapabilityProbe {
     }
 
     static void run() {
+        // A capability's cache at a position: what it keeps of what it is made with, and what it refuses. Asking it isn't
+        // compared (the stand-ins don't model a level's capabilities at a position).
+        p("capability cache", () -> {
+            net.minecraft.server.level.ServerLevel level = GameProbe.level();
+            BlockPos.MutableBlockPos at = new BlockPos.MutableBlockPos(3, 70, 5);
+            var cache = net.neoforged.neoforge.capabilities.BlockCapabilityCache.create(Capabilities.ItemHandler.BLOCK, level, at, Direction.UP);
+            at.set(9, 9, 9);
+            var later = net.neoforged.neoforge.capabilities.BlockCapabilityCache.create(Capabilities.EnergyStorage.BLOCK, level, at.immutable(), null, () -> false, () -> {});
+            StringBuilder b = new StringBuilder().append(cache.pos()).append(' ').append(cache.pos().getClass().getName()).append(' ').append(cache.context())
+                    .append(' ').append(cache.level() == level).append(' ').append(later.pos()).append(' ').append(later.context()).append(' ').append(later.level() == level)
+                    .append(' ').append(cache.getClass().getName());
+            for (Runnable r : new Runnable[] {() -> net.neoforged.neoforge.capabilities.BlockCapabilityCache.create(null, level, at, Direction.UP),
+                    () -> net.neoforged.neoforge.capabilities.BlockCapabilityCache.create(Capabilities.ItemHandler.BLOCK, null, at, Direction.UP),
+                    () -> net.neoforged.neoforge.capabilities.BlockCapabilityCache.create(Capabilities.ItemHandler.BLOCK, level, null, Direction.UP),
+                    () -> net.neoforged.neoforge.capabilities.BlockCapabilityCache.create(Capabilities.ItemHandler.BLOCK, level, at, Direction.UP, null, () -> {}),
+                    () -> net.neoforged.neoforge.capabilities.BlockCapabilityCache.create(Capabilities.ItemHandler.BLOCK, level, at, Direction.UP, () -> true, null),
+                    () -> net.neoforged.neoforge.capabilities.BlockCapabilityCache.create(Capabilities.ItemHandler.BLOCK, level, at, null)}) {
+                try {
+                    r.run();
+                    b.append(" made");
+                } catch (RuntimeException e) {
+                    b.append(' ').append(e.getClass().getSimpleName());
+                }
+            }
+            return b;
+        });
         given();
         p("capability registered", () -> RESULTS);
         Object[] caps = {Capabilities.EnergyStorage.BLOCK, Capabilities.EnergyStorage.ENTITY, Capabilities.EnergyStorage.ITEM, Capabilities.FluidHandler.BLOCK,
