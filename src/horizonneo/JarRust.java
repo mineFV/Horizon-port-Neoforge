@@ -78,7 +78,29 @@ final class JarRust {
 
     /** model: the library model's classes and the game's stand-ins, as `Library.checkStandIns` left them. */
     static Result translate(ModJar jar, Map<String, ClassData> model, Map<String, ClassData> outside) throws IOException {
-        return translate(classes(jar), model, outside, services(jar));
+        return translate(classes(jar), model, outside, services(jar), carried(jar));
+    }
+
+    /**
+     * The classes in the jars the mod carries (META-INF/jarjar/*.jar, which NeoForge loads with it), by internal name:
+     * there when it runs, though not read (JavaWorld.carried).
+     */
+    static Set<String> carried(ModJar jar) throws IOException {
+        Set<String> out = new TreeSet<>();
+        try (ZipFile zip = new ZipFile(jar.path().toFile())) {
+            Enumeration<? extends ZipEntry> entries = zip.entries();
+            while (entries.hasMoreElements()) {
+                ZipEntry e = entries.nextElement();
+                if (e.isDirectory() || !e.getName().startsWith("META-INF/jarjar/") || !e.getName().endsWith(".jar")) continue;
+                try (java.util.zip.ZipInputStream nested = new java.util.zip.ZipInputStream(zip.getInputStream(e))) {
+                    for (ZipEntry n; (n = nested.getNextEntry()) != null; ) {
+                        String name = n.getName();
+                        if (!n.isDirectory() && name.endsWith(".class") && !name.startsWith("META-INF/")) out.add(name.substring(0, name.length() - ".class".length()));
+                    }
+                }
+            }
+        }
+        return out;
     }
 
     /**
@@ -143,8 +165,15 @@ final class JarRust {
 
     /** services: the jar's services files (`services`), for ServiceLoader. */
     static Result translate(Map<String, ClassData> jar, Map<String, ClassData> model, Map<String, ClassData> outside, Map<String, List<String>> services) {
+        return translate(jar, model, outside, services, Set.of());
+    }
+
+    /** carried: the classes in the jars the mod carries (`carried`), never taken for absent. */
+    static Result translate(Map<String, ClassData> jar, Map<String, ClassData> model, Map<String, ClassData> outside, Map<String, List<String>> services,
+            Set<String> carried) {
         JavaWorld world = new JavaWorld(jar, model, outside);
         world.services.putAll(services);
+        world.carried.addAll(carried);
         int methods = 0;
         Map<Id, String> why = new TreeMap<>();
         Map<Id, List<Need>> needs = new TreeMap<>();
@@ -1216,6 +1245,17 @@ final class JarRust {
                         let e = jnew(class, jthrown_layout(class));
                         jset(&e, JMESSAGE, Value::A(message.map(jstring).unwrap_or(None)));
                         jset(&e, JCAUSE, Value::A(e.clone()));
+                        e
+                    }
+
+                    /// What naming a class that isn't there throws (MethodRust.absentError), as observed in a server: NoClassDefFoundError
+                    /// with the name the instruction gives, caused by the class loader's ClassNotFoundException with the class's binary name.
+                    #[allow(dead_code)]
+                    fn jno_class(named: &str, binary: &str) -> Ref {
+                        let cause = jexception(JID_CLASS_NOT_FOUND, Some(binary));
+                        jset(&cause, JCAUSE, Value::A(None));
+                        let e = jexception(JID_NO_CLASS, Some(named));
+                        jset(&e, JCAUSE, Value::A(cause));
                         e
                     }
 

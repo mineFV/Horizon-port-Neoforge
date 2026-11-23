@@ -1119,6 +1119,7 @@ final class Library {
             Map.entry("JID_CLASS_CAST", "java/lang/ClassCastException"),
             Map.entry("JID_INITIALIZER", "java/lang/ExceptionInInitializerError"),
             Map.entry("JID_NO_CLASS", "java/lang/NoClassDefFoundError"),
+            Map.entry("JID_CLASS_NOT_FOUND", "java/lang/ClassNotFoundException"),
             Map.entry("JID_RUNTIME", "java/lang/RuntimeException"),
             Map.entry("JID_ILLEGAL_MONITOR", "java/lang/IllegalMonitorStateException"),
             Map.entry("JID_UNSUPPORTED", "java/lang/UnsupportedOperationException")));

@@ -112,7 +112,7 @@ final class MethodRust {
         if (split != null) return new Check(split, needs);
         String first = null;
         // What runs only on a client's side is never reached: the translation's levels are all a server's.
-        Set<Integer> absent = clientOnly(code, pool, world);
+        Set<Integer> absent = absentAt(code, pool, world);
         boolean[] live = live(code, sides(code, m.body().handlers(), pool, world), absent, m.body().handlers());
         for (int k = 0; k < code.size(); k++) {
             if (!live[k]) continue;
@@ -177,39 +177,52 @@ final class MethodRust {
     }
 
     /**
-     * The instructions that name a class of the client, by pc: one a dedicated server doesn't have (JavaWorld.clientOnly)
-     * or won't load (@OnlyIn(Dist.CLIENT), JavaWorld.clientMarked). As the JVM resolves a class the first time an
-     * instruction that names it runs, each throws there, and only there: NoClassDefFoundError, or NeoForge's
-     * RuntimeException (observed). A mod's common code names them behind tests of its side, and runs on servers.
+     * The instructions that always throw because they name a class that isn't there when the mod runs (JavaWorld.absent:
+     * another mod's, the client's) or that a dedicated server won't load (@OnlyIn(Dist.CLIENT), JavaWorld.clientMarked),
+     * by pc. The JVM resolves a class the first time an instruction naming it runs, so each throws there, and only there
+     * (observed in a server, the probe's AbsentProbe): a mod names another mod's classes behind a test that it is
+     * loaded, and its common code the client's behind tests of its side. A cast or an instanceof resolves its class
+     * only for a value that isn't null: it isn't one of these, and throws when it runs on one.
      */
-    static Set<Integer> clientOnly(List<Insn> code, ClassData.Pool pool, JavaWorld world) {
+    static Set<Integer> absentAt(List<Insn> code, ClassData.Pool pool, JavaWorld world) {
         Set<Integer> out = new java.util.HashSet<>();
         for (Insn i : code) {
-            String c = absentClass(i, pool, world);
-            if (c != null) out.add(i.pc());
+            if (i.op() != CHECKCAST && i.op() != INSTANCEOF && absentClass(i, pool, world) != null) out.add(i.pc());
         }
         return out;
     }
 
-    /** The class of the client an instruction names, which a dedicated server doesn't have or won't load; null for any other. */
-    static String absentClass(Insn i, ClassData.Pool pool, JavaWorld world) {
+    /** The class an instruction resolves when it runs, as its constant names it (an array's descriptor for an array's class); null when it resolves none. */
+    static String resolved(Insn i, ClassData.Pool pool) {
         int op = i.op();
-        String c = null;
-        if (op >= GETSTATIC && op <= INVOKEINTERFACE) c = pool.member(i.index())[0];
-        else if (op == NEW || op == ANEWARRAY || op == MULTIANEWARRAY) {
-            // An array's class resolves its element's class first (anewarray, multianewarray).
-            c = pool.className(i.index());
-            while (c.startsWith("[")) c = c.substring(1);
-            if (c.length() == 1) return null;
-            if (c.startsWith("L") && c.endsWith(";")) c = c.substring(1, c.length() - 1);
-        }
-        return c != null && !c.startsWith("[") && (world.clientOnly(c) || world.clientMarked(c)) ? c : null;
+        if (op >= GETSTATIC && op <= INVOKEINTERFACE) return pool.member(i.index())[0];
+        if (op == NEW || op == ANEWARRAY || op == MULTIANEWARRAY || op == CHECKCAST || op == INSTANCEOF) return pool.className(i.index());
+        if ((op == LDC || op == LDC_W) && pool.constant(i.index()) instanceof ClassData.TypeName t) return t.descriptor();
+        return null;
     }
 
-    /** What naming a class of the client throws on a dedicated server: NeoForge's refusal of a marked one, else the JVM's. */
-    static String absentThrow(String c, JavaWorld world) {
-        if (world.clientMarked(c)) return "return Err(jexception(JID_RUNTIME, Some(" + rustText("Attempted to load class " + c + " for invalid dist DEDICATED_SERVER") + ")));";
-        return "return Err(jexception(JID_NO_CLASS, Some(" + rustText(c) + ")));";
+    /**
+     * The class an instruction resolves (an array's element's: an array's class resolves it first) that isn't there
+     * when the mod runs or that a dedicated server won't load; null for any other.
+     */
+    static String absentClass(Insn i, ClassData.Pool pool, JavaWorld world) {
+        String c = resolved(i, pool);
+        if (c == null) return null;
+        while (c.startsWith("[")) c = c.substring(1);
+        if (c.length() == 1) return null;
+        if (c.startsWith("L") && c.endsWith(";")) c = c.substring(1, c.length() - 1);
+        return world.absent(c) || world.clientMarked(c) ? c : null;
+    }
+
+    /**
+     * What instruction i throws, naming class c that isn't there or won't load (absentClass), as an `Err`: NeoForge's
+     * refusal of a class marked for the client; else the JVM's, observed in a server: NoClassDefFoundError with the
+     * name the instruction gives (an array's descriptor for an array's class), caused by the class loader's
+     * ClassNotFoundException with the binary name of the class.
+     */
+    static String absentError(Insn i, ClassData.Pool pool, String c, JavaWorld world) {
+        if (world.clientMarked(c)) return "Err(jexception(JID_RUNTIME, Some(" + rustText("Attempted to load class " + c + " for invalid dist DEDICATED_SERVER") + ")))";
+        return "Err(jno_class(" + rustText(resolved(i, pool)) + ", " + rustText(c.replace('/', '.')) + "))";
     }
 
     /** Which instructions run, from the first, a known jump going its one way; a handler runs when what it covers does. */
@@ -455,6 +468,8 @@ final class MethodRust {
                 return null;
             }
             case CHECKCAST, INSTANCEOF -> {
+                // A class that isn't there: a null passes, anything else throws (absentAt); nothing is asked of a type.
+                if (absentClass(i, pool, world) != null) return null;
                 needs.add(new Need("test", null, pool.className(i.index()), null, null));
                 return null;
             }
@@ -1253,9 +1268,9 @@ final class MethodRust {
                 int op = i.op();
                 if (op == NOP) return false;
                 String absent = absentClass(i, pool, world);
-                if (absent != null) {
-                    // A class of the client: a dedicated server doesn't have it, or won't load it (MethodRust.clientOnly).
-                    lines.add(absentThrow(absent, world));
+                if (absent != null && op != CHECKCAST && op != INSTANCEOF) {
+                    // A class that isn't there when the mod runs, or won't load on a dedicated server (MethodRust.absentAt).
+                    lines.add("return " + absentError(i, pool, absent, world) + ";");
                     return true;
                 }
                 if (op == ACONST_NULL) push('A', "None");
@@ -1472,10 +1487,18 @@ final class MethodRust {
                     V v = stack.removeLast();
                     String value = val(v);
                     settle();
-                    pushTemp('A', "jcheckcast(" + value + ", " + names.typeTest(pool.className(i.index())) + ")?");
+                    // Of a class that isn't there: a null passes, as the JVM resolves nothing for it; anything else throws.
+                    if (absent != null) pushTemp('A', "{ let v: Ref = " + value + "; if v.is_some() { return " + absentError(i, pool, absent, world) + "; } v }");
+                    else pushTemp('A', "jcheckcast(" + value + ", " + names.typeTest(pool.className(i.index())) + ")?");
                 } else if (op == INSTANCEOF) {
                     V v = stack.removeLast();
-                    pushTemp('I', "jinstanceof(" + ref(v) + ", " + names.typeTest(pool.className(i.index())) + ")");
+                    if (absent != null) {
+                        String value = val(v);
+                        settle();
+                        pushTemp('I', "{ let v: Ref = " + value + "; if v.is_some() { return " + absentError(i, pool, absent, world) + "; } 0 }");
+                    } else {
+                        pushTemp('I', "jinstanceof(" + ref(v) + ", " + names.typeTest(pool.className(i.index())) + ")");
+                    }
                 } else {
                     throw new IllegalStateException("not translated: " + Bytecode.name(op));
                 }

@@ -143,12 +143,12 @@ public final class Main {
             out.println("  not translated: " + e.getValue() + ", " + e.getKey());
         }
         if (line.has("--blockers")) {
-            java.nio.file.Files.writeString(dir.resolve("blockers.md"), Blockers.report(JarRust.classes(jar), model, outside, r.translated(), r.why()), java.nio.charset.StandardCharsets.UTF_8);
+            java.nio.file.Files.writeString(dir.resolve("blockers.md"), Blockers.report(JarRust.classes(jar), model, outside, JarRust.carried(jar), r.translated(), r.why()), java.nio.charset.StandardCharsets.UTF_8);
             out.println("Written: " + dir.resolve("blockers.md") + ", what keeps the mod's methods out, piece by piece (an estimate).");
         }
         if (line.has("--blockers-for")) {
             List<String> names = List.of(line.options().get("--blockers-for").split(","));
-            java.nio.file.Files.writeString(dir.resolve("blockers-for.md"), Blockers.forMethods(JarRust.classes(jar), model, outside, r.translated(), r.why(), names),
+            java.nio.file.Files.writeString(dir.resolve("blockers-for.md"), Blockers.forMethods(JarRust.classes(jar), model, outside, JarRust.carried(jar), r.translated(), r.why(), names),
                     java.nio.charset.StandardCharsets.UTF_8);
             out.println("Written: " + dir.resolve("blockers-for.md") + ", what keeps the methods named out, piece by piece (an estimate).");
         }
@@ -527,7 +527,11 @@ public final class Main {
                   classes in its libraries (the game's, NeoForge's, theirs) are read, so a
                   question such as "is this class of the mod a List?" can be answered
                   when the class implements one of the game's interfaces. Only the
-                  server's classes: the client's stay unknown. --bridge: also writes
+                  server's classes: the client's stay unknown. A class that is neither
+                  the jar's, the server's, one the jar carries nor Java's (another
+                  mod's, the client's) isn't there when the mod runs: an instruction
+                  naming it throws NoClassDefFoundError when it runs, as the JVM's
+                  does, and only then. --bridge: also writes
                   DIR/bridge.rs, Horizon's side of the bridge to the translation (which
                   it reaches as PATH, a Rust path such as super::port_mymod_java): it
                   keeps the mod's block entities and ticks them. --blockers: also writes

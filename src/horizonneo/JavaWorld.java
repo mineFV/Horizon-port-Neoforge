@@ -485,9 +485,26 @@ final class JavaWorld {
     }
 
     /**
+     * The classes in the jars the mod carries (META-INF/jarjar): there when it runs, though not read here, so never
+     * taken for absent.
+     */
+    final Set<String> carried = new HashSet<>();
+
+    /**
+     * Whether class c isn't there when the mod runs, known only with --server: not the jar's, the model's, one of the
+     * server's libraries (the game's and NeoForge's among them), one the jar carries, nor the JDK's. Another mod's most
+     * often: a mod's translation runs alone on Horizon, so another mod's classes aren't there, even where a modpack
+     * would have them (the maintainer's decision, 2026-11-23); or the client's (clientOnly). Java's own library's are
+     * never taken for absent: the JDK the mod runs on may not be the one this tool runs on.
+     */
+    boolean absent(String c) {
+        if (!outside.containsKey("net/minecraft/server/MinecraftServer") || c.startsWith("[") || Library.library(c)) return false;
+        return !classes.containsKey(c) && !outside.containsKey(c) && !carried.contains(c) && jdkClass(c) == null;
+    }
+
+    /**
      * Whether c is a class of the game or NeoForge that a dedicated server doesn't have (the client's), known only
-     * with --server: a server's classes were read (MinecraftServer among them) and c isn't one of them. Another mod's
-     * class may be there in a modpack: never this.
+     * with --server: a server's classes were read (MinecraftServer among them) and c isn't one of them.
      */
     boolean clientOnly(String c) {
         if (!outside.containsKey("net/minecraft/server/MinecraftServer")) return false;

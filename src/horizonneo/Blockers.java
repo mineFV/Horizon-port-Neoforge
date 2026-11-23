@@ -43,9 +43,10 @@ final class Blockers {
     /** Every untranslated method's pieces, its own and its dependencies', followed through (cycles included). */
     record Pieces(JavaWorld world, Map<JarRust.Id, Set<String>> of) {}
 
-    static Pieces pieces(Map<String, ClassData> jar, Map<String, ClassData> model, Map<String, ClassData> outside, Map<JarRust.Id, String> translated,
-            Map<JarRust.Id, String> dropped) {
+    static Pieces pieces(Map<String, ClassData> jar, Map<String, ClassData> model, Map<String, ClassData> outside, Set<String> carried,
+            Map<JarRust.Id, String> translated, Map<JarRust.Id, String> dropped) {
         JavaWorld world = new JavaWorld(jar, model, outside);
+        world.carried.addAll(carried);
         Map<JarRust.Id, Set<String>> direct = new HashMap<>();
         Map<JarRust.Id, List<JarRust.Id>> deps = new HashMap<>();
         for (ClassData c : world.classes.values()) {
@@ -119,9 +120,9 @@ final class Blockers {
     }
 
     /** What it writes: the pieces, by how many of the mod's methods each keeps out alone, and among others. */
-    static String report(Map<String, ClassData> jar, Map<String, ClassData> model, Map<String, ClassData> outside, Map<JarRust.Id, String> translated,
-            Map<JarRust.Id, String> dropped) {
-        Pieces all = pieces(jar, model, outside, translated, dropped);
+    static String report(Map<String, ClassData> jar, Map<String, ClassData> model, Map<String, ClassData> outside, Set<String> carried,
+            Map<JarRust.Id, String> translated, Map<JarRust.Id, String> dropped) {
+        Pieces all = pieces(jar, model, outside, carried, translated, dropped);
         JavaWorld world = all.world();
         List<JarRust.Id> ids = new ArrayList<>(all.of().keySet());
         Map<String, Integer> alone = new HashMap<>(), among = new HashMap<>(), pairs = new HashMap<>();
@@ -159,9 +160,9 @@ final class Blockers {
      * translated, and every piece that keeps it out, followed through what it calls; then the pieces by how many of
      * them each keeps out. What a machine needs (its constructor, tick, load and save) is asked this way.
      */
-    static String forMethods(Map<String, ClassData> jar, Map<String, ClassData> model, Map<String, ClassData> outside, Map<JarRust.Id, String> translated,
-            Map<JarRust.Id, String> dropped, List<String> names) {
-        Pieces p = pieces(jar, model, outside, translated, dropped);
+    static String forMethods(Map<String, ClassData> jar, Map<String, ClassData> model, Map<String, ClassData> outside, Set<String> carried,
+            Map<JarRust.Id, String> translated, Map<JarRust.Id, String> dropped, List<String> names) {
+        Pieces p = pieces(jar, model, outside, carried, translated, dropped);
         StringBuilder out = new StringBuilder("# What keeps these methods out\n\n");
         out.append("Each method named (`translate --blockers-for`), and every piece that keeps it out: its own reasons and those of the methods it calls ")
                 .append("and the class initializers it runs, followed through (an estimate: virtual calls aren't followed, see blockers.md).\n\n");

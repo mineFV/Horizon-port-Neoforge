@@ -33,7 +33,10 @@ final class StandIns {
             "probe/horizonneo/probe/EquipProbe.java",
             "probe/horizonneo/probe/RegistryProbe.java", "probe/horizonneo/probe/ComponentProbe.java", "probe/horizonneo/probe/CapabilityProbe.java", "probe/horizonneo/probe/TextProbe.java", "probe/horizonneo/probe/TagProbe.java", "probe/horizonneo/probe/LogProbe.java", "probe/horizonneo/probe/CodecProbe.java", "probe/horizonneo/probe/BuiltInProbe.java", "probe/horizonneo/probe/ConfigProbe.java", "probe/horizonneo/probe/ConfigFiles.java", "probe/horizonneo/probe/ColorProbe.java", "probe/horizonneo/probe/ArithProbe.java", "probe/horizonneo/probe/NameProbe.java", "probe/horizonneo/probe/FastutilProbe.java", "probe/horizonneo/probe/GuavaProbe.java", "probe/horizonneo/probe/BoxProbe.java", "probe/horizonneo/probe/RandomProbe.java", "probe/horizonneo/probe/ShapeProbe.java", "probe/horizonneo/probe/ChunkProbe.java", "probe/horizonneo/probe/FluidTypeProbe.java", "probe/horizonneo/probe/EntityTypeProbe.java", "probe/horizonneo/probe/FuelProbe.java", "probe/horizonneo/probe/BlockItemProbe.java", "probe/horizonneo/probe/IntrusiveProbe.java", "probe/horizonneo/probe/AttributeProbe.java", "probe/horizonneo/probe/ArmorProbe.java",
             "probe/horizonneo/probe/ModProbe.java",
-            "probe/horizonneo/probe/ItemProbe.java");
+            "probe/horizonneo/probe/ItemProbe.java", "probe/horizonneo/probe/AbsentProbe.java");
+
+    /** A class of the probe deleted once it is compiled (AbsentProbe): what naming a class that isn't there does. */
+    static final String ABSENT = "horizonneo/probe/HorizonProbeAbsent.class";
 
     /** A run of the probe: what it printed, or why it couldn't run. */
     record Run(List<String> lines, String problem) {}
@@ -145,6 +148,7 @@ final class StandIns {
             out.println("problem: the probe doesn't compile as a mod against the server's jars: " + firstLine(said.toString(StandardCharsets.UTF_8)));
             return 1;
         }
+        Files.delete(classes.resolve(ABSENT));
         Path jar = dir.resolve("horizonprobe.jar");
         try (java.io.OutputStream file = Files.newOutputStream(jar); java.util.jar.JarOutputStream j = new java.util.jar.JarOutputStream(file);
              Stream<Path> s = Files.walk(classes)) {
@@ -234,6 +238,7 @@ final class StandIns {
         if (javac.run(null, said, said, args.toArray(String[]::new)) != 0) {
             return new Run(List.of(), "it doesn't compile: " + firstLine(said.toString(StandardCharsets.UTF_8)));
         }
+        Files.delete(classes.resolve(ABSENT));
         String jvm = ProcessHandle.current().info().command().orElse("java");
         Path printed = dir.resolve("out.txt"), errors = dir.resolve("err.txt");
         List<String> command = new ArrayList<>(List.of(jvm, "-cp", classes + java.io.File.pathSeparator + cp, "horizonneo.probe.GameProbe"));

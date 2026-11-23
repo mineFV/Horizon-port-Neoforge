@@ -1019,7 +1019,7 @@ exits 0 tool translate "$B/jars/gamey.jar" --server "$TR/server" --out "$TR/game
 says "$OUT" "Read: the supertypes of 5 classes of the game, NeoForge and their libraries, from 1 jars in"
 # A class of the client, which the server doesn't have: naming it throws NoClassDefFoundError there, as the JVM does.
 says "$TR/gamey-out/translation.md" '- `com.example.gamey.Tagged.screens(Z)I` as `tagged__screens`'
-says "$TR/gamey-out/translated.rs" 'return Err(jexception(JID_NO_CLASS, Some("net/minecraft/client/Screenish")));'
+says "$TR/gamey-out/translated.rs" 'return Err(jno_class("net/minecraft/client/Screenish", "net.minecraft.client.Screenish"));'
 says "$TR/gamey-out/translation.md" '- `com.example.gamey.Tagged.screenArray(Z)I` as `tagged__screen_array`'
 says "$TR/gamey-out/translation.md" '`com.example.gamey.Tagged.sounds()I`: it makes an array of a class whose supertype is the client'"'"'s, which a dedicated server doesn'"'"'t load: com.example.gamey.Tagged$Sound (net.minecraft.client.Soundish)' 
 # Each stand-in checked against the server's class: one whose interfaces differ, one that would inherit a method the
@@ -1034,6 +1034,22 @@ exits 2 tool translate "$B/jars/gamey.jar" --server "$TR/game"
 says "$ERR" "isn't a NeoForge server: it has no libraries/ folder"
 exits 2 tool translate "$B/jars/fabric.jar"
 says "$ERR" '`translate` takes a NeoForge mod'
+# Another mod's class, which the server doesn't have (--server): Guarded is compiled against it, and it is left out of
+# the jar and of Java's run. Each instruction naming it throws when it runs, and only then, as the JVM resolves it.
+rm -rf "$TR/absent" "$TR/othermod" "$TR/absent-check-classes"
+mkdir -p "$TR/absent/META-INF" "$TR/othermod" "$TR/absent-check-classes"
+javac --release 21 -d "$TR/othermod" test/translate/absent/com/othermod/Gadget.java
+javac --release 21 -cp "$TR/othermod" -d "$TR/absent" test/translate/absent/com/example/absent/Guarded.java
+javac --release 21 -cp "$TR/absent" -d "$TR/absent-check-classes" test/translate/AbsentCheck.java
+sed 's/numbers/absent/g; s/Numbers/Absent/' "$TR/jar/META-INF/neoforge.mods.toml" > "$TR/absent/META-INF/neoforge.mods.toml"
+jar --create --file "$B/jars/absent.jar" -C "$TR/absent" .
+exits 0 tool translate "$B/jars/absent.jar" --server "$TR/server" --out "$TR/absent-out"
+says "$OUT" "absent.jar: 21 of 21 methods translated from their bytecode"
+says "$TR/absent-out/translated.rs" 'return Err(jno_class("com/othermod/Gadget", "com.othermod.Gadget"));'
+says "$TR/absent-out/translated.rs" 'return Err(jno_class("[[Lcom/othermod/Gadget;", "com.othermod.Gadget"));'
+# Without --server, what the mod runs with isn't known: another mod's class isn't taken for absent.
+exits 0 tool translate "$B/jars/absent.jar" --out "$TR/absent-plain"
+says "$TR/absent-plain/translation.md" '- `com.example.absent.Guarded.call()Ljava/lang/Object;`: it calls another library or mod: com.othermod.Gadget.value()I'
 if command -v rustc > /dev/null; then
   # Debug build: an overflow the translation didn't mean to wrap panics.
   if TRANSLATED_DIR="$PWD/$TR/out" rustc --edition 2021 -o "$TR/check" test/translate/numbers_check.rs > "$TR/rustc.txt" 2>&1; then
@@ -1048,6 +1064,21 @@ if command -v rustc > /dev/null; then
       echo "  ok: Java and the translation give the same $(wc -l < "$TR/java.txt") results"
     else
       echo "  FAIL: Java and the translation differ:"; diff "$TR/java.txt" "$TR/rust.txt" | head -20; failures=$((failures + 1))
+    fi
+    # Another mod's class that isn't there: the same throws, at the same places, as the JVM's (observed in a server).
+    if TRANSLATED_DIR="$PWD/$TR/absent-out" rustc --edition 2021 -o "$TR/absent-check" test/translate/absent_check.rs > "$TR/absent-rustc.txt" 2>&1; then
+      lacks "$TR/absent-rustc.txt" "warning"
+      java -cp "$TR/absent:$TR/absent-check-classes" AbsentCheck > "$TR/absent-java.txt"
+      if "$TR/absent-check" > "$TR/absent-rust.txt" && cmp -s "$TR/absent-java.txt" "$TR/absent-rust.txt"; then
+        echo "  ok: Java and the translation give the same $(wc -l < "$TR/absent-java.txt") results naming a class that isn't there"
+      else
+        echo "  FAIL: naming a class that isn't there, Java and the translation differ:"; diff "$TR/absent-java.txt" "$TR/absent-rust.txt" | head -20; failures=$((failures + 1))
+      fi
+      says "$TR/absent-java.txt" "call -> java.lang.NoClassDefFoundError: com/othermod/Gadget | cause java.lang.ClassNotFoundException: com.othermod.Gadget | its cause null"
+      says "$TR/absent-java.txt" "castNull -> gives null"
+      says "$TR/absent-java.txt" "guarded -> gives not run"
+    else
+      echo "  FAIL: the translation naming a class that isn't there doesn't compile:"; head -30 "$TR/absent-rustc.txt"; failures=$((failures + 1))
     fi
     # What the translation alone runs (Java runs the lambda): a lambda whose method isn't translated refuses, saying so.
     "$TR/check" refusals > "$TR/rust-refusals.txt"
@@ -1104,7 +1135,7 @@ for v in same upper; do
 done
 exits 0 tool standins --server "$SI/same"
 says "$OUT" "ok: the 514 stand-ins have the supertypes and the methods of the server's classes"
-says "$OUT" "ok: the game and the stand-ins give the same 23233 answers to the probe"
+says "$OUT" "ok: the game and the stand-ins give the same 23248 answers to the probe"
 says "$OUT" "no server, no world, no mod"
 no_file logs
 exits 1 tool standins --server "$SI/upper"
