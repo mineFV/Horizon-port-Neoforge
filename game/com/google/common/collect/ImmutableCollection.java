@@ -78,35 +78,4 @@ public abstract class ImmutableCollection<E> extends java.util.AbstractCollectio
 
         public abstract ImmutableCollection<E> build();
     }
-
-    /** The stand-in for ImmutableCollection.ArrayBasedBuilder: its elements in an array, null refused. */
-    abstract static class ArrayBasedBuilder<E> extends Builder<E> {
-        Object[] contents;
-        int size;
-
-        ArrayBasedBuilder(int initialCapacity) {
-            contents = new Object[initialCapacity];
-        }
-
-        @Override
-        public ArrayBasedBuilder<E> add(E element) {
-            java.util.Objects.requireNonNull(element);
-            if (size == contents.length) contents = java.util.Arrays.copyOf(contents, Math.max(4, size + (size >> 1) + 1));
-            contents[size++] = element;
-            return this;
-        }
-
-        @Override
-        @SuppressWarnings("unchecked")
-        public Builder<E> add(E... elements) {
-            for (E e : elements) add(e);
-            return this;
-        }
-
-        @Override
-        public Builder<E> addAll(Iterable<? extends E> elements) {
-            for (E e : elements) add(e);
-            return this;
-        }
-    }
 }

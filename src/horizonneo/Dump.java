@@ -267,7 +267,10 @@ final class Dump {
             "exporter/horizonneo/machines/MachinesExporter.java", "horizonneo/machines/MachinesExporter.java",
             "exporter/META-INF/neoforge.mods.toml", "META-INF/neoforge.mods.toml");
 
-    /** The jars the exporter compiles against: NeoForge's patched classes first, then the game's, then the rest. */
+    /**
+     * The jars the exporter compiles against: NeoForge's patched classes first, then the game's, then the rest: the
+     * libraries the server runs with, NeoForge's own jars among them.
+     */
     static List<Path> classpath(Path server) throws IOException {
         Path libraries = server.resolve("libraries");
         List<Path> all;
@@ -278,8 +281,33 @@ final class Dump {
         all.stream().filter(p -> p.getFileName().toString().matches("neoforge-.*-server\\.jar")).forEach(out::add);
         all.stream().filter(p -> p.getFileName().toString().matches("server-.*-srg\\.jar")).forEach(out::add);
         // The game's other jars there are the installer's inputs (obfuscated, or the vanilla bundler): not what runs.
-        Path game = libraries.resolve("net/minecraft/server");
-        all.stream().filter(p -> !out.contains(p) && !p.startsWith(game)).forEach(out::add);
+        Path game = libraries.resolve("net/minecraft/server"), neoforge = libraries.resolve("net/neoforged/neoforge");
+        // So are the installer's own libraries beside the server's (Guava 20 beside the game's 32, which sorts after it):
+        // where the server's launch arguments are, only the jars they name, and NeoForge's, which FML finds itself.
+        java.util.Set<Path> launched = launched(server, all);
+        all.stream().filter(p -> !out.contains(p) && !p.startsWith(game) && (launched == null || launched.contains(p) || p.startsWith(neoforge))).forEach(out::add);
+        return out;
+    }
+
+    /**
+     * The jars a server's launch arguments name (NeoForge's installer writes them in
+     * libraries/net/neoforged/neoforge/VERSION/unix_args.txt: the module path and the legacy class path), as found among
+     * all; null when there are none to read.
+     */
+    private static java.util.Set<Path> launched(Path server, List<Path> all) throws IOException {
+        Path args = null;
+        for (Path p : all) {
+            if (!p.getFileName().toString().matches("neoforge-.*-server\\.jar")) continue;
+            Path candidate = p.resolveSibling("unix_args.txt");
+            if (Files.isRegularFile(candidate)) args = candidate;
+        }
+        if (args == null) return null;
+        java.util.Set<Path> named = new java.util.HashSet<>();
+        for (String token : Files.readString(args, StandardCharsets.UTF_8).split("[\\s:=]+")) {
+            if (token.startsWith("libraries/") && token.endsWith(".jar")) named.add(server.resolve(token).normalize());
+        }
+        java.util.Set<Path> out = new java.util.HashSet<>();
+        for (Path p : all) if (named.contains(p.normalize())) out.add(p);
         return out;
     }
 

@@ -116,27 +116,34 @@ public abstract class ImmutableList<E> extends ImmutableCollection<E> implements
     }
 
     /** The stand-in for ImmutableList.Builder: its elements in order, null refused. */
-    public static final class Builder<E> extends ImmutableCollection.ArrayBasedBuilder<E> {
-        public Builder() {
-            super(4);
-        }
+    public static final class Builder<E> extends ImmutableCollection.Builder<E> {
+        private Object[] contents = new Object[4];
+        private int size;
+
+        public Builder() {}
 
         @Override
         public Builder<E> add(E element) {
-            super.add(element);
+            java.util.Objects.requireNonNull(element);
+            if (size == contents.length) contents = java.util.Arrays.copyOf(contents, Math.max(4, size + (size >> 1) + 1));
+            contents[size++] = element;
             return this;
         }
 
-        @Override
-        public Builder<E> addAll(Iterable<? extends E> elements) {
-            super.addAll(elements);
-            return this;
-        }
-
+        /** Observed: every element is checked before any is added, the first null refused by its index. */
         @Override
         @SuppressWarnings("unchecked")
         public Builder<E> add(E... elements) {
-            super.add(elements);
+            for (int i = 0; i < elements.length; i++) if (elements[i] == null) throw new NullPointerException("at index " + i);
+            for (E e : elements) add(e);
+            return this;
+        }
+
+        /** Observed: null refused first (no message); then each added, those before a null among them kept. */
+        @Override
+        public Builder<E> addAll(Iterable<? extends E> elements) {
+            java.util.Objects.requireNonNull(elements);
+            super.addAll(elements);
             return this;
         }
 

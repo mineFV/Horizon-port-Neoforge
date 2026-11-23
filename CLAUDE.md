@@ -326,6 +326,13 @@ The tool's commands: `metadata`, `license`, `analyze`, `port`, `check`, `pack`, 
   than the translation throws; and a class of the jar whose supertype isn't there (another mod's plugin) still isn't
   made.
 
+- **A server's libraries/ folder holds its installer's jars too** (NeoForge 21.1.266's: 94 jars, of which the server
+  runs 75 and the game's own): Guava 20 beside the game's Guava 32.1.2, a Gson 2.8.9, commons-lang3 3.8.1, ASM 9.3.
+  Read whole and sorted, Guava 20 came first: the probe ran the game as a library on it (NeoForge's ModelProperty
+  then failed: Guava 20's Predicate isn't Java's), the stand-ins of Guava's ImmutableList.Builder were made in its
+  shape, and `translate --server` read its supertypes. `Dump.classpath` now takes the jars the server's launch
+  arguments name (NeoForge's unix_args.txt) and NeoForge's own (2026-11-23).
+
 - **A ticker's method isn't readable at run time, but the JVM writes it down**: getTicker gives a lambda, whose class
   (`Owner$$Lambda/0x...`) only names where it was made. Mekanism makes all its tickers in one class, for four
   methods. `dump` passes `-Djdk.invoke.LambdaMetafactory.dumpProxyClassFiles=true` through JAVA_TOOL_OPTIONS (the

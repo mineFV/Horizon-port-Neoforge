@@ -46,6 +46,21 @@ final class GuavaProbe {
             }
         });
         p("guava list adds", () -> ImmutableList.<String>builder().add("a", "b").addAll(java.util.List.of("c", "d")).addAll(java.util.List.of("e").iterator()).build());
+        // Several elements at once are checked before any is added; one by one, those before a null are added.
+        p("guava list adds null", () -> {
+            ImmutableList.Builder<String> b = ImmutableList.builder();
+            StringBuilder r = new StringBuilder();
+            for (Runnable add : new Runnable[] {() -> b.add("a", null, "c"), () -> b.addAll(java.util.Arrays.asList("d", null, "f")),
+                    () -> b.addAll(java.util.Arrays.asList("g", null).iterator()), () -> b.addAll((Iterable<String>) null)}) {
+                try {
+                    add.run();
+                    r.append("added; ");
+                } catch (NullPointerException e) {
+                    r.append("NullPointerException ").append(e.getMessage() != null && e.getMessage().startsWith("Cannot ") ? "" : e.getMessage()).append("; ");
+                }
+            }
+            return r.append(b.build());
+        });
         tables();
     }
 

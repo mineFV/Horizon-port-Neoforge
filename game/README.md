@@ -113,7 +113,9 @@ NeoForge's common tags (net/neoforged/neoforge/common/Tags, 2026-11-23): the key
 ores and three of them, two fluids' and one entity types'), their ids and registries observed in a server, each the one
 key for its id. Not DamageTypes, whose type isn't modelled.
 
-Guava (com/google/common/collect, Guava 20, shipped with the game): ImmutableList and its builder (2026-11-20); Table
+Guava (com/google/common/collect, Guava 32.1.2, the one the server runs; its installer's Guava 20 beside it under
+libraries/ isn't loaded, though the probe ran on it until 2026-11-23): ImmutableList and its builder (2026-11-20, its
+builder Guava 32's since: several elements checked before any is added); Table
 (2026-11-23): HashBasedTable, rows and columns in the order they came, a row gone with its last cell, null keys and
 values refused and asked of with null answering nothing, its views (cellSet, values) made once and removing through
 their iterators, its cells (Tables.immutableCell), texts, equality and hash. Observed against Guava itself; each

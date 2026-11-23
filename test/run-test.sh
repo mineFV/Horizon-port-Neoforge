@@ -954,7 +954,7 @@ else
 fi
 says "$OUT" "Nothing was compiled or run"
 # The game's stand-ins (game/), translated with the mod where it reaches them.
-says "$OUT" "Stand-ins for the game: 514 classes, not checked against the game's (no --server)."
+says "$OUT" "Stand-ins for the game: 513 classes, not checked against the game's (no --server)."
 says "$TR/out/translation.md" '- `com.example.numbers.Places.keys(I)Ljava/lang/String;` as `places__keys`'
 says "$TR/out/translated.rs" '/// `net.minecraft.core.Vec3i.compareTo(Lnet/minecraft/core/Vec3i;)I`, translated from its bytecode.'
 says "$TR/out/translated.rs" 'pub fn numbers__collatz(mut l0: i64) -> JR<i64> {'
@@ -1024,8 +1024,23 @@ says "$TR/gamey-out/translation.md" '- `com.example.gamey.Tagged.screenArray(Z)I
 says "$TR/gamey-out/translation.md" '`com.example.gamey.Tagged.sounds()I`: it makes an array of a class whose supertype is the client'"'"'s, which a dedicated server doesn'"'"'t load: com.example.gamey.Tagged$Sound (net.minecraft.client.Soundish)' 
 # Each stand-in checked against the server's class: one whose interfaces differ, one that would inherit a method the
 # game's declares, are left out.
-says "$OUT" "Stand-ins for the game: 512 classes, checked against the game's."
+says "$OUT" "Stand-ins for the game: 511 classes, checked against the game's."
 says "$OUT" "- left out: net.minecraft.core.Vec3i: its superclass or interfaces aren't the game's"
+# The libraries a server runs with are those its launch arguments name (unix_args.txt), with NeoForge's own jars: the
+# installer's beside them (Guava 20 beside the game's 32, in a real server) aren't read.
+rm -rf "$TR/server-args" "$TR/lib-classes"
+mkdir -p "$TR/server-args/libraries/net/neoforged/neoforge/21.1.1" "$TR/server-args/libraries/org/example/lib/1.0" "$TR/server-args/libraries/org/example/lib/2.0" "$TR/lib-classes"
+cp "$TR/server/libraries/net/neoforged/neoforge/21.1.1/neoforge-21.1.1-server.jar" "$TR/server-args/libraries/net/neoforged/neoforge/21.1.1/"
+printf 'package org.example;\npublic class Thing {}\n' > "$TR/lib-classes/Thing.java"
+javac --release 21 -d "$TR/lib-classes" "$TR/lib-classes/Thing.java"
+jar --create --file "$TR/server-args/libraries/org/example/lib/1.0/lib-1.0.jar" -C "$TR/lib-classes" org
+jar --create --file "$TR/server-args/libraries/org/example/lib/2.0/lib-2.0.jar" -C "$TR/lib-classes" org
+printf -- '-p libraries/org/example/lib/2.0/lib-2.0.jar\n-DignoreList=lib-1.0.jar\ncpw.mods.bootstraplauncher.BootstrapLauncher\n' > "$TR/server-args/libraries/net/neoforged/neoforge/21.1.1/unix_args.txt"
+exits 0 tool translate "$B/jars/gamey.jar" --server "$TR/server-args" --out "$TR/gamey-args"
+says "$OUT" "Read: the supertypes of 6 classes of the game, NeoForge and their libraries, from 2 jars in"
+rm "$TR/server-args/libraries/net/neoforged/neoforge/21.1.1/unix_args.txt"
+exits 0 tool translate "$B/jars/gamey.jar" --server "$TR/server-args" --out "$TR/gamey-args"
+says "$OUT" "Read: the supertypes of 6 classes of the game, NeoForge and their libraries, from 3 jars in"
 says "$OUT" "- left out: net.minecraft.core.BlockPos: the game's class declares getX()I, which the stand-in would take from net.minecraft.core.Vec3i"
 says "$TR/gamey-out/translation.md" "- left out: net.minecraft.core.Vec3i"
 says "$TR/gamey-out/translation.md" '- `com.example.gamey.Tagged.size(I)I` as `tagged__size`'
@@ -1134,8 +1149,8 @@ for v in same upper; do
   jar --create --file "$SI/$v/libraries/net/neoforged/neoforge/21.1.1/neoforge-21.1.1-server.jar" -C "$SI/$v-classes" .
 done
 exits 0 tool standins --server "$SI/same"
-says "$OUT" "ok: the 514 stand-ins have the supertypes and the methods of the server's classes"
-says "$OUT" "ok: the game and the stand-ins give the same 23248 answers to the probe"
+says "$OUT" "ok: the 513 stand-ins have the supertypes and the methods of the server's classes"
+says "$OUT" "ok: the game and the stand-ins give the same 23249 answers to the probe"
 says "$OUT" "no server, no world, no mod"
 no_file logs
 exits 1 tool standins --server "$SI/upper"
