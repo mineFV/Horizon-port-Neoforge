@@ -931,7 +931,7 @@ cp "$TR/jar/META-INF/services/com.example.numbers.Services\$Greeter" "$TR/classe
 printf 'modLoader = "javafml"\nloaderVersion = "[4,)"\nlicense = "MIT"\n[[mods]]\nmodId = "numbers"\nversion = "1.0"\ndisplayName = "Numbers"\n' > "$TR/jar/META-INF/neoforge.mods.toml"
 jar --create --file "$B/jars/numbers.jar" -C "$TR/jar" . -C "$TR/classes" com
 exits 0 tool translate "$B/jars/numbers.jar" --out "$TR/out"
-says "$OUT" "numbers.jar: 508 of 509 methods translated from their bytecode"
+says "$OUT" "numbers.jar: 517 of 518 methods translated from their bytecode"
 # The server's side: a method whose client branches can't be translated is, those branches left out.
 says "$TR/out/translation.md" '- `com.example.numbers.Sides.side(Lnet/minecraft/world/level/Level;)Ljava/lang/String;` as `sides__side`'
 says "$TR/out/translation.md" '`com.example.numbers.Sides.client(Ljava/lang/String;)Ljava/lang/String;`: it splits a text by a regular expression' 
@@ -1037,12 +1037,29 @@ if command -v rustc > /dev/null; then
     lacks "$TR/rustc.txt" "warning"
     # HotSpot throws a JVM exception it raised often at one place without its message (OmitStackTraceInFastThrow):
     # the reference is the JVM's semantics, which give one.
-    java -XX:-OmitStackTraceInFastThrow -cp "$TR/classes:build/model" NumbersCheck > "$TR/java.txt"
+    java -Dstdout.encoding=UTF-8 -XX:-OmitStackTraceInFastThrow -cp "$TR/classes:build/model" NumbersCheck > "$TR/java.txt"
     if "$TR/check" > "$TR/rust.txt" && cmp -s "$TR/java.txt" "$TR/rust.txt"; then
       echo "  ok: Java and the translation give the same $(wc -l < "$TR/java.txt") results"
     else
       echo "  FAIL: Java and the translation differ:"; diff "$TR/java.txt" "$TR/rust.txt" | head -20; failures=$((failures + 1))
     fi
+    # NumberFormat's default locale (lib/README.md), in several environments: the JDK's texts and the model's alike,
+    # or the model refusing, which a machine's own setup may make it do (skipped then, saying why).
+    for setting in inherited "LANG=C" "LANG=POSIX" "LANG=C.UTF-8" "LANG=xx_YY.UTF-8" "LANG=C.UTF-8 LC_CTYPE=C" "LANG=C LC_MESSAGES=xx_YY.UTF-8" "LANG=C.UTF-8 LC_MESSAGES=C" "LANG=C.utf8 LC_PAPER=xx_YY.UTF-8"; do
+      if [ "$setting" = inherited ]; then prefix=(); else read -r -a prefix <<< "env -i PATH=$PATH $setting"; fi
+      ${prefix[@]+"${prefix[@]}"} "$TR/check" default > "$TR/rust-default.txt" 2>&1 || true
+      if grep -q "number format can't be told\|number format of the locale .* isn't in the model" "$TR/rust-default.txt"; then
+        echo "  (skipped: the default locale's number formats, $setting: $(grep -o "UnsupportedOperationException: [^|]*" "$TR/rust-default.txt" | head -1 | cut -d' ' -f2-))"
+        continue
+      fi
+      # The JVM writes in the locale's charset (ASCII for C): in UTF-8 here, as the translation does.
+      ${prefix[@]+"${prefix[@]}"} java -Dstdout.encoding=UTF-8 -XX:-OmitStackTraceInFastThrow -cp "$TR/classes:build/model" NumbersCheck default > "$TR/java-default.txt"
+      if cmp -s "$TR/java-default.txt" "$TR/rust-default.txt"; then
+        echo "  ok: the default locale's number formats alike ($setting, $(wc -l < "$TR/java-default.txt") results)"
+      else
+        echo "  FAIL: the default locale's number formats differ ($setting):"; diff "$TR/java-default.txt" "$TR/rust-default.txt" | head -10; failures=$((failures + 1))
+      fi
+    done
     # The stand-ins against Horizon's own answers (game/README.md): its test of the packed form, an offset that
     # wraps as Java's int does, a position's text and hash (a HashMap's order), north's opposite, normal and name.
     says "$TR/java.txt" "packed limits -> -9223371899415824384"

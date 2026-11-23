@@ -318,6 +318,55 @@ final class Library {
                         Ok(((Arc::as_ptr(o) as usize >> 3) as i32) & 0x7fffffff)
                     }
                     """)),
+            Map.entry("java/text/NumberFormat.jDefaultKey()Ljava/lang/String;", new Native("jnative_number_default_key", """
+                    /// NumberFormat's default locale (Locale.Category.FORMAT) as the JDK makes it from the environment on Linux,
+                    /// as "language_script_country"; "!" and why where it can't be told (lib/README.md).
+                    #[allow(dead_code)]
+                    fn jnative_number_default_key() -> JR<Ref> {
+                        static KEY: std::sync::OnceLock<String> = std::sync::OnceLock::new();
+                        Ok(jstring(KEY.get_or_init(|| match jnum_default() {
+                            Ok((language, script, country)) => format!("{}_{}_{}", language, script, country),
+                            Err(why) => format!("!{}", why),
+                        })))
+                    }
+                    """)),
+            Map.entry("java/text/NumberFormat.jData(Ljava/lang/String;)Ljava/lang/String;", new Native("jnative_number_data", """
+                    /// A locale's number formats (numbers.rs), its language's where the key isn't kept and its country is an ISO
+                    /// one; null where the model has none.
+                    #[allow(dead_code)]
+                    fn jnative_number_data(key: Ref) -> JR<Ref> {
+                        Ok(jnum_data(&jstring_text(&key)).map(jstring).unwrap_or(None))
+                    }
+                    """)),
+            Map.entry("java/text/DecimalFormat.jCompare(DJI)I", new Native("jnative_number_compare", """
+                    /// The exact value of a double (finite, not negative) against digits × 10^-scale: -1, 0 or 1; 2 where it
+                    /// can't be told in 128 bits.
+                    #[allow(dead_code)]
+                    fn jnative_number_compare(a: f64, digits: i64, scale: i32) -> JR<i32> {
+                        if !(a.is_finite() && a >= 0.0 && digits >= 0 && (0..=20).contains(&scale)) {
+                            return Ok(2);
+                        }
+                        let bits = a.to_bits();
+                        let biased = ((bits >> 52) & 0x7ff) as i32;
+                        let fraction = bits & ((1u64 << 52) - 1);
+                        let (m, e) = if biased == 0 { (fraction, -1074) } else { (fraction | (1u64 << 52), biased - 1075) };
+                        let ten = 10u128.pow(scale as u32);
+                        let shifted = |x: u128, by: i32| if by < 128 && (x.leading_zeros() as i32) > by { Some(x << by) } else { None };
+                        let (left, right) = if e >= 0 {
+                            (shifted(m as u128, e).and_then(|x| x.checked_mul(ten)), Some(digits as u128))
+                        } else {
+                            ((m as u128).checked_mul(ten), shifted(digits as u128, -e))
+                        };
+                        Ok(match (left, right) {
+                            (Some(l), Some(r)) => match l.cmp(&r) {
+                                std::cmp::Ordering::Less => -1,
+                                std::cmp::Ordering::Equal => 0,
+                                std::cmp::Ordering::Greater => 1,
+                            },
+                            _ => 2,
+                        })
+                    }
+                    """)),
             Map.entry("java/util/UUID.jRandom()J", new Native("jnative_uuid_random", """
                     /// 64 random bits for randomUUID: SipHash under the keys Rust draws from the system's randomness.
                     #[allow(dead_code)]
@@ -717,6 +766,247 @@ final class Library {
                             Ok(i) => jstring_of(t[i].1),
                             Err(_) => None,
                         }
+                    }
+                    """;
+        } catch (java.io.IOException e) {
+            throw new java.io.UncheckedIOException(e);
+        }
+    }
+
+    /** The natives that read the locales' number formats (`numbers.rs`, which build.sh writes from the JDK that builds the tool). */
+    static final java.util.Set<String> NUMBER_NATIVES = java.util.Set.of("jnative_number_default_key", "jnative_number_data");
+
+    /**
+     * The tables, how a key is looked up in them, and how the JDK's default format locale is made from the environment
+     * on Linux, as observed (2026-11-23, Java 21 and 25, glibc 2.44): every category glibc's setlocale(LC_ALL, "")
+     * sets must load, or all are "C"; the format locale is LC_CTYPE's, each of its parts LC_MESSAGES's where it has none.
+     */
+    static String numbersText() {
+        try (java.io.InputStream in = Library.class.getResourceAsStream("numbers.rs")) {
+            if (in == null) throw new IllegalStateException("the tool was built without its number formats (build.sh writes them)");
+            return new String(in.readAllBytes(), java.nio.charset.StandardCharsets.UTF_8) + """
+
+                    /// A key's record (JNUM_RECORDS); its language's where the key isn't kept, has no script and its country is
+                    /// an ISO one or none. None where the model has none (record 0).
+                    #[allow(dead_code)]
+                    fn jnum_data(key: &str) -> Option<&'static str> {
+                        let found = |k: &str| JNUM_LOCALES.binary_search_by(|e| e.0.cmp(k)).ok().map(|i| JNUM_RECORDS[JNUM_LOCALES[i].1 as usize]);
+                        let record = match found(key) {
+                            Some(r) => r,
+                            None => {
+                                let mut parts = key.splitn(3, '_');
+                                let (language, script, country) = (parts.next()?, parts.next()?, parts.next()?);
+                                if !script.is_empty() || (!country.is_empty() && JNUM_COUNTRIES.binary_search(&country).is_err()) {
+                                    return None;
+                                }
+                                found(&format!("{}__", language))?
+                            }
+                        };
+                        if record.is_empty() { None } else { Some(record) }
+                    }
+
+                    /// The categories glibc's setlocale(LC_ALL, "") sets.
+                    #[allow(dead_code)]
+                    const JNUM_CATEGORIES: [&str; 12] = ["LC_CTYPE", "LC_NUMERIC", "LC_TIME", "LC_COLLATE", "LC_MONETARY", "LC_MESSAGES",
+                        "LC_PAPER", "LC_NAME", "LC_ADDRESS", "LC_TELEPHONE", "LC_MEASUREMENT", "LC_IDENTIFICATION"];
+
+                    /// The JDK's format locale (language, script, country), or why it can't be told.
+                    #[allow(dead_code)]
+                    fn jnum_default() -> Result<(String, String, String), String> {
+                        if !cfg!(target_os = "linux") {
+                            return Err("the system's locale is read on Linux only".to_string());
+                        }
+                        if std::env::var_os("LOCPATH").is_some() {
+                            return Err("LOCPATH is set".to_string());
+                        }
+                        let var = |n: &str| -> Result<Option<String>, String> {
+                            match std::env::var_os(n) {
+                                None => Ok(None),
+                                Some(v) if v.is_empty() => Ok(None),
+                                Some(v) => v.into_string().map(Some).map_err(|_| format!("{} isn't UTF-8", n)),
+                            }
+                        };
+                        let name = |category: &str| -> Result<String, String> {
+                            Ok(var("LC_ALL")?.or(var(category)?).or(var("LANG")?).unwrap_or_else(|| "C".to_string()))
+                        };
+                        let archive = jnum_archive()?;
+                        let aliases = jnum_aliases();
+                        let mut loaded = true;
+                        for category in JNUM_CATEGORIES {
+                            if !jnum_loads(&name(category)?, &archive, &aliases)? {
+                                loaded = false;
+                                break;
+                            }
+                        }
+                        let (ctype, messages) = if loaded { (name("LC_CTYPE")?, name("LC_MESSAGES")?) } else { ("C".to_string(), "C".to_string()) };
+                        let (f, d) = (jnum_parse(&ctype)?, jnum_parse(&messages)?);
+                        let pick = |a: &str, b: &str| if a.is_empty() { b.to_string() } else { a.to_string() };
+                        Ok((pick(&f.0, &d.0), pick(&f.1, &d.1), pick(&f.2, &d.2)))
+                    }
+
+                    /// A locale name's parts: language and territory, codeset, modifier.
+                    #[allow(dead_code)]
+                    fn jnum_explode(name: &str) -> (&str, Option<&str>, Option<&str>) {
+                        let (base, modifier) = match name.split_once('@') {
+                            Some((b, m)) => (b, Some(m)),
+                            None => (name, None),
+                        };
+                        match base.split_once('.') {
+                            Some((lt, c)) => (lt, Some(c), modifier),
+                            None => (base, None, modifier),
+                        }
+                    }
+
+                    /// glibc's normalized codeset: its letters lowered and digits, "iso" before digits alone.
+                    #[allow(dead_code)]
+                    fn jnum_normalize(codeset: &str) -> String {
+                        let s: String = codeset.chars().filter(|c| c.is_ascii_alphanumeric()).map(|c| c.to_ascii_lowercase()).collect();
+                        if !s.is_empty() && s.chars().all(|c| c.is_ascii_digit()) { format!("iso{}", s) } else { s }
+                    }
+
+                    #[allow(dead_code)]
+                    fn jnum_join(lt: &str, codeset: Option<&str>, modifier: Option<&str>) -> String {
+                        let mut s = lt.to_string();
+                        if let Some(c) = codeset {
+                            s.push('.');
+                            s.push_str(c);
+                        }
+                        if let Some(m) = modifier {
+                            s.push('@');
+                            s.push_str(m);
+                        }
+                        s
+                    }
+
+                    /// Whether glibc loads a locale: in its archive (by the name with its codeset normalized) or a folder of
+                    /// /usr/lib/locale by that name. Where only a less precise one is installed, glibc would load it if its
+                    /// codeset matched, which isn't read here: why it can't be told.
+                    #[allow(dead_code)]
+                    fn jnum_loads(name: &str, archive: &[String], aliases: &[String]) -> Result<bool, String> {
+                        if name == "C" || name == "POSIX" {
+                            return Ok(true);
+                        }
+                        if name.contains('/') {
+                            return Err(format!("the locale {} is a path", name));
+                        }
+                        if aliases.iter().any(|a| a == name) {
+                            return Err(format!("the locale {} is an alias", name));
+                        }
+                        let (lt, codeset, modifier) = jnum_explode(name);
+                        let normalized = codeset.map(jnum_normalize);
+                        let installed = |n: &str| archive.iter().any(|a| a == n) || std::path::Path::new("/usr/lib/locale").join(n).is_dir();
+                        if installed(&jnum_join(lt, normalized.as_deref(), modifier)) || installed(name) {
+                            return Ok(true);
+                        }
+                        if lt == "C" || lt == "POSIX" {
+                            return Err(format!("whether glibc has {} built in can't be told", name));
+                        }
+                        let language = lt.split('_').next().unwrap_or(lt);
+                        for l in [lt, language] {
+                            for c in [codeset, normalized.as_deref(), None] {
+                                for m in [modifier, None] {
+                                    let less = jnum_join(l, c, m);
+                                    if less != name && installed(&less) {
+                                        return Err(format!("only {}, less precise than {}, is installed", less, name));
+                                    }
+                                }
+                            }
+                        }
+                        Ok(false)
+                    }
+
+                    /// The names in glibc's locale archive (its header, the names' hash table); none without one.
+                    #[allow(dead_code)]
+                    fn jnum_archive() -> Result<Vec<String>, String> {
+                        use std::io::{Read, Seek, SeekFrom};
+                        let Ok(mut file) = std::fs::File::open("/usr/lib/locale/locale-archive") else { return Ok(Vec::new()) };
+                        // Up to length bytes from offset (fewer at the end of the file).
+                        let mut read = |offset: u64, length: usize| -> Option<Vec<u8>> {
+                            let mut bytes = Vec::new();
+                            file.seek(SeekFrom::Start(offset)).ok()?;
+                            (&mut file).take(length as u64).read_to_end(&mut bytes).ok()?;
+                            Some(bytes)
+                        };
+                        let unreadable = || "glibc's locale archive isn't one this reads".to_string();
+                        let header = read(0, 56).filter(|h| h.len() == 56).ok_or_else(unreadable)?;
+                        let word = |b: &[u8], i: usize| u32::from_ne_bytes([b[i], b[i + 1], b[i + 2], b[i + 3]]);
+                        if word(&header, 0) != 0xde020109 {
+                            return Err(unreadable());
+                        }
+                        let (table, size) = (word(&header, 8) as u64, word(&header, 16) as usize);
+                        if size > 1 << 20 {
+                            return Err(unreadable());
+                        }
+                        let entries = read(table, size * 12).filter(|e| e.len() == size * 12).ok_or_else(unreadable)?;
+                        let mut names = Vec::new();
+                        for i in 0..size {
+                            let at = word(&entries, i * 12 + 4) as u64;
+                            if at == 0 {
+                                continue;
+                            }
+                            let text = read(at, 256).ok_or_else(unreadable)?;
+                            let end = text.iter().position(|&b| b == 0).ok_or_else(unreadable)?;
+                            names.push(String::from_utf8_lossy(&text[..end]).into_owned());
+                        }
+                        Ok(names)
+                    }
+
+                    /// The aliases glibc may read (locale.alias): a locale named by one isn't followed.
+                    #[allow(dead_code)]
+                    fn jnum_aliases() -> Vec<String> {
+                        let mut out = Vec::new();
+                        for path in ["/usr/share/locale/locale.alias", "/etc/locale.alias"] {
+                            if let Ok(text) = std::fs::read_to_string(path) {
+                                for line in text.lines() {
+                                    let line = line.trim();
+                                    if line.is_empty() || line.starts_with('#') {
+                                        continue;
+                                    }
+                                    if let Some(alias) = line.split_whitespace().next() {
+                                        out.push(alias.to_string());
+                                    }
+                                }
+                            }
+                        }
+                        out
+                    }
+
+                    /// The JDK's locale of a name setlocale gives (observed): "C" and "POSIX" are en_US, C.UTF-8 is English
+                    /// alone; else language_TERRITORY, the old codes iw, ji and in as Locale makes them, @latin the Latin
+                    /// script, @euro and @valencia nothing. Other names aren't followed.
+                    #[allow(dead_code)]
+                    fn jnum_parse(name: &str) -> Result<(String, String, String), String> {
+                        if name == "C" || name == "POSIX" {
+                            return Ok(("en".to_string(), String::new(), "US".to_string()));
+                        }
+                        let (lt, codeset, modifier) = jnum_explode(name);
+                        if lt == "C" {
+                            return if modifier.is_none() && codeset.map(jnum_normalize).as_deref() == Some("utf8") {
+                                Ok(("en".to_string(), String::new(), String::new()))
+                            } else {
+                                Err(format!("the JDK's locale for {} isn't known here", name))
+                            };
+                        }
+                        let unknown = || format!("the JDK's locale for {} isn't known here", name);
+                        let (language, territory) = lt.split_once('_').ok_or_else(unknown)?;
+                        if !(2..=3).contains(&language.len()) || !language.bytes().all(|b| b.is_ascii_lowercase()) {
+                            return Err(unknown());
+                        }
+                        if territory.len() != 2 || !territory.bytes().all(|b| b.is_ascii_uppercase()) {
+                            return Err(unknown());
+                        }
+                        let script = match modifier {
+                            None | Some("euro") | Some("valencia") => "",
+                            Some("latin") => "Latn",
+                            Some(_) => return Err(unknown()),
+                        };
+                        let language = match language {
+                            "iw" => "he",
+                            "ji" => "yi",
+                            "in" => "id",
+                            l => l,
+                        };
+                        Ok((language.to_string(), script.to_string(), territory.to_string()))
                     }
                     """;
         } catch (java.io.IOException e) {

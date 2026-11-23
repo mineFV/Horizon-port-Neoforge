@@ -21,6 +21,8 @@ javac --patch-module java.base=lib -d "$out/model" $(find lib game -name '*.java
 (cd "$out/model" && find . -name '*.class' | sed 's|^\./||' | sort) > "$out/model/index.txt"
 # Unicode's tables for the model's Character and String, from this JDK (data of its Unicode version, no code).
 java --add-opens java.base/java.lang=ALL-UNNAMED tools/UnicodeTables.java "$out/classes/horizonneo/unicode.rs"
+# Each locale's number formats for the model's NumberFormat, from this JDK (data of its CLDR version, no code).
+java tools/NumberFormats.java "$out/classes/horizonneo/numbers.rs"
 cp -r "$out/model/." "$out/classes/model/"
 # The machines exporter isn't compiled here (it needs NeoForge's jars): `dump` compiles it against a server's own.
 # The stand-ins' probe (probe/) isn't compiled here either: `standins` compiles it against a server's jars and the stand-ins.

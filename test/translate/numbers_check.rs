@@ -51,7 +51,50 @@ fn p(name: &str, args: String, result: String) {
     println!("{} {} -> {}", name, args, result);
 }
 
+/// NumberFormat's inputs, as NumbersCheck.formatDoubles makes them.
+fn format_doubles() -> Vec<f64> {
+    let mut out = vec![0.0, -0.0, 0.5, -0.5, 1.5, 2.5, -2.5, 3.5, 0.0005, -0.0005, 0.0015, 0.0025, 2.675, 1.0005, 9.9995, 999.9995,
+        -999.9995, 1234.5678, -1234567.891, 0.001, 0.1234567, 1e-9, 1e-300, 4.9e-324, 123456789012.345, 9.999999e15,
+        9.999999999999998e15, 0.49999999999999994, 1e15 + 0.5, f64::NAN, f64::INFINITY, f64::NEG_INFINITY];
+    let tens = [1e-4, 1e-3, 1e-2, 1e-1, 1.0, 1e1, 1e2, 1e3, 1e4, 1e5, 1e6, 1e7, 1e8, 1e9, 1e10, 1e11, 1e12, 1e13, 1e14, 1e15];
+    let mut x: i64 = 0x9E3779B97F4A7C15u64 as i64;
+    for i in 0..3000 {
+        x = x.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407);
+        let d = if i % 3 == 0 {
+            ((x as u64) >> 11) as f64 * (1.0 / 9007199254740992.0) * tens[(((x as u64) >> 3) % 20) as usize]
+        } else if i % 3 == 1 {
+            ((x >> 20) % 2000001) as f64 / 2000.0
+        } else {
+            ((x >> 20) % 20001) as f64 / 2.0 + ((x & 3) - 1) as f64 * 1e-12
+        };
+        out.push(if x & 4 != 0 { -d } else { d });
+    }
+    out
+}
+
+/// NumberFormat's long inputs, as NumbersCheck.formatLongs makes them.
+fn format_longs() -> Vec<i64> {
+    let mut out = vec![0, 1, -1, 7, 12, 123, 1234, -12345, 123456, -1234567, 9876543210, 1000, 999999, 1000000, i64::MAX, i64::MIN];
+    let mut x: i64 = 0x2545F4914F6CDD1D;
+    for i in 0..200 {
+        x = x.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407);
+        out.push(x >> (i % 64));
+    }
+    out
+}
+
 fn main() {
+    if std::env::args().nth(1).as_deref() == Some("default") {
+        // The default locale's number formats: run by the test in several environments (lib/README.md).
+        for (i, d0) in format_doubles().into_iter().enumerate() {
+            p("defaultFormat", i.to_string(), text(formats__default_double(d0)));
+        }
+        for (i, v) in format_longs().into_iter().enumerate() {
+            p("defaultLong", i.to_string(), text(formats__default_long(v)));
+        }
+        p("defaultFacts", String::new(), text(formats__default_facts()));
+        return;
+    }
     for &a in INTS.iter() {
         for &b in INTS.iter() {
             p("mix", format!("{} {}", a, b), show(numbers__mix(a, b)));
@@ -245,4 +288,11 @@ fn main() {
     p("sides", "server".to_string(), text(sides__server()));
     p("sides", "none".to_string(), text(sides__none()));
     p("logs", String::new(), text(sides__logs()));
+    for (i, d0) in format_doubles().into_iter().enumerate() {
+        p("formats", i.to_string(), text(formats__doubles(d0)));
+    }
+    for (i, v) in format_longs().into_iter().enumerate() {
+        p("formatLongs", i.to_string(), text(formats__longs(v)));
+    }
+    p("formatFacts", String::new(), text(formats__facts()));
 }

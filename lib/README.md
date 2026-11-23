@@ -54,6 +54,27 @@ A seeded Random gives the JDK's numbers (its generator is the one its specificat
 the JDK's order with it. An IdentityHashMap iterates in an order of its own: the JDK's comes from identity hashes,
 which change from run to run.
 
+NumberFormat (2026-11-23, the maintainer's decision: the system's locale, as a NeoForge server on the same machine
+formats): a locale's integer and number instances (DecimalFormat), their texts of a long and of a double, and their
+getters, equals, hashCode and clone, observed against the JDK. Their data (affixes, grouping, fraction digits,
+symbols) is the JDK's own for each locale (`tools/NumberFormats.java`, which build.sh runs: `numbers.rs`), checked
+by formatting numbers both ways; a language with a country the JDK has no locale for has its language's, as it has.
+Where Java 21 (NeoForge 1.21.1's) and Java 25 give other texts (20 languages whole, such as Arabic, and 12 keys,
+en_FR among them: observed over every locale and every language with every ISO country), the model refuses.
+A double's text is Double.toString's digits rounded half-even to the fraction digits, a 5 that is their last digit
+rounded by the double's exact value (observed: 6 million values, Java 21 and 25 alike); -0 and what rounds to zero
+below it keep their sign. From 1e16 up the JDK's digits aren't Double.toString's (it keeps an older algorithm's):
+refused. toString is Object's, as Java 21's is (Java 25 names the locale).
+The default locale is the JDK's FORMAT one, as it makes it from the environment on Linux (observed with locales
+compiled by localedef under LOCPATH): every category glibc's setlocale(LC_ALL, "") sets (LC_ALL, else LC_*, else
+LANG, else "C") must name an installed locale (in glibc's archive, by its name with the codeset normalized, or a
+folder of /usr/lib/locale), or all are "C"; the format locale is LC_CTYPE's, each of its parts LC_MESSAGES's where
+it has none (C.UTF-8 under LANG=de_DE gives en_DE). "C" and "POSIX" are en_US, C.UTF-8 English alone; @latin is the
+Latin script, @euro and @valencia nothing; iw, ji and in are he, yi and id. Refused, saying why, when it can't be
+told: another system than Linux, LOCPATH set, an alias, a path, another modifier, a locale whose less precise name
+alone is installed (glibc would check its codeset), C.UTF-8 not installed (glibc may have it built in).
+Not modelled: parsing, the setters, the currency and percent instances, the symbols' object, format(Object).
+
 A TreeMap (and TreeSet) is CLR's red-black tree, as the JDK's: the same keys put and removed in the same order make
 the same tree, and the comparator is asked about the same pairs (the test counts them). A TreeMap made from a
 sorted map is built one put at a time here, where the JDK builds it balanced at once: the same map, other pairs

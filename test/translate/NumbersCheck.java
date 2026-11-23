@@ -13,6 +13,21 @@ public final class NumbersCheck {
     static final double[] DOUBLES = {0d, -0d, 1.5, -2.5, 0.49999999999999994, 1e300, -3.75, 4.5e15, Double.NaN, Double.POSITIVE_INFINITY, Double.NEGATIVE_INFINITY, 9.2e18, -9.3e18};
 
     public static void main(String[] args) {
+        if (args.length > 0 && args[0].equals("default")) {
+            // The default locale's number formats: run by the test in several environments (lib/README.md).
+            double[] dd = formatDoubles();
+            for (int i = 0; i < dd.length; i++) {
+                double d = dd[i];
+                p("defaultFormat", i, () -> com.example.numbers.Formats.defaultDouble(d));
+            }
+            long[] ll = formatLongs();
+            for (int i = 0; i < ll.length; i++) {
+                long v = ll[i];
+                p("defaultLong", i, () -> com.example.numbers.Formats.defaultLong(v));
+            }
+            p("defaultFacts", "", com.example.numbers.Formats::defaultFacts);
+            return;
+        }
         for (int a : INTS) {
             for (int b : INTS) {
                 p("mix", a + " " + b, () -> Numbers.mix(a, b));
@@ -177,6 +192,53 @@ public final class NumbersCheck {
         p("sides", "server", com.example.numbers.Sides::server);
         p("sides", "none", com.example.numbers.Sides::none);
         p("logs", "", com.example.numbers.Sides::logs);
+        // NumberFormat of the model's locales (lib/README.md).
+        double[] dd = formatDoubles();
+        for (int i = 0; i < dd.length; i++) {
+            double d = dd[i];
+            p("formats", i, () -> com.example.numbers.Formats.doubles(d));
+        }
+        long[] ll = formatLongs();
+        for (int i = 0; i < ll.length; i++) {
+            long v = ll[i];
+            p("formatLongs", i, () -> com.example.numbers.Formats.longs(v));
+        }
+        p("formatFacts", "", com.example.numbers.Formats::facts);
+    }
+
+    /**
+     * NumberFormat's inputs, the same on both sides and below 1e16: edges, values of every size, multiples of 0.0005
+     * (the number instance's ties) and of 0.5 (the integer instance's), and values just off them.
+     */
+    static double[] formatDoubles() {
+        double[] edges = {0.0, -0.0, 0.5, -0.5, 1.5, 2.5, -2.5, 3.5, 0.0005, -0.0005, 0.0015, 0.0025, 2.675, 1.0005, 9.9995, 999.9995,
+            -999.9995, 1234.5678, -1234567.891, 0.001, 0.1234567, 1e-9, 1e-300, 4.9e-324, 123456789012.345, 9.999999e15,
+            9.999999999999998e15, 0.49999999999999994, 1e15 + 0.5, Double.NaN, Double.POSITIVE_INFINITY, Double.NEGATIVE_INFINITY};
+        double[] tens = {1e-4, 1e-3, 1e-2, 1e-1, 1, 1e1, 1e2, 1e3, 1e4, 1e5, 1e6, 1e7, 1e8, 1e9, 1e10, 1e11, 1e12, 1e13, 1e14, 1e15};
+        double[] out = new double[edges.length + 3000];
+        System.arraycopy(edges, 0, out, 0, edges.length);
+        long x = 0x9E3779B97F4A7C15L;
+        for (int i = 0; i < 3000; i++) {
+            x = x * 6364136223846793005L + 1442695040888963407L;
+            double d;
+            if (i % 3 == 0) d = (x >>> 11) * 0x1.0p-53 * tens[(int) ((x >>> 3) % tens.length)];
+            else if (i % 3 == 1) d = ((x >> 20) % 2000001) / 2000.0;
+            else d = ((x >> 20) % 20001) / 2.0 + ((x & 3) - 1) * 1e-12;
+            out[edges.length + i] = (x & 4) != 0 ? -d : d;
+        }
+        return out;
+    }
+
+    static long[] formatLongs() {
+        long[] edges = {0, 1, -1, 7, 12, 123, 1234, -12345, 123456, -1234567, 9876543210L, 1000, 999999, 1000000, Long.MAX_VALUE, Long.MIN_VALUE};
+        long[] out = new long[edges.length + 200];
+        System.arraycopy(edges, 0, out, 0, edges.length);
+        long x = 0x2545F4914F6CDD1DL;
+        for (int i = 0; i < 200; i++) {
+            x = x * 6364136223846793005L + 1442695040888963407L;
+            out[edges.length + i] = x >> (i % 64);
+        }
+        return out;
     }
 
     static int[] range(int from, int to) {

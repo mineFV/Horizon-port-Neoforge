@@ -822,6 +822,7 @@ final class JarRust {
             }
             if (natives.contains("jnative_float_text") || natives.contains("jnative_double_text")) nativeText.append(Library.NUMBER_TEXT);
             if (natives.stream().anyMatch(Library.UNICODE_NATIVES::contains)) nativeText.append('\n').append(Library.unicodeText());
+            if (natives.stream().anyMatch(Library.NUMBER_NATIVES::contains)) nativeText.append('\n').append(Library.numbersText());
 
             parts.append("// The mod's methods translated from their bytecode by horizon-port-neoforge's own translator, with Java's\n");
             parts.append("// semantics: wrapping int arithmetic, shifts modulo the width, saturating float casts, NaN as each comparison\n");
