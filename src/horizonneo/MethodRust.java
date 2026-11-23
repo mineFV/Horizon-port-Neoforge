@@ -40,7 +40,9 @@ final class MethodRust {
     /**
      * What a method needs of the rest of the translation. kind: "call" (id is called directly), "dispatch" (a
      * virtual or interface call: type, name, descriptor), "new" (an object of type is made: a class or an array
-     * descriptor), "init" (class type is initialized first), "lambda" (the site type, running id), "test" (a cast
+     * descriptor), "init" (class type is initialized first), "lambda" (the site type, running id), "body" and "bodyinit"
+     * (what a lambda runs and initializes when it runs: made all the same where they aren't translated, it refuses then),
+     * "test" (a cast
      * or instanceof against type).
      */
     record Need(String kind, JarRust.Id id, String type, String name, String descriptor) {}
@@ -411,12 +413,13 @@ final class MethodRust {
                         String hidden = world.unknownSupertype(site.owner());
                         if (hidden != null) return unknownWhy(site.owner(), hidden);
                         needs.add(new Need("new", null, site.owner(), null, null));
-                        needs.add(new Need("init", null, site.owner(), null, null));
-                        needs.add(new Need("call", impl, null, null, null));
+                        // What the lambda runs, when it runs: made all the same where it isn't translated, it refuses then.
+                        needs.add(new Need("bodyinit", null, site.owner(), null, null));
+                        needs.add(new Need("body", impl, null, null, null));
                     }
                     default -> {
-                        needs.add(new Need("call", impl, null, null, null));
-                        if (site.kind() == 6 && needsInit(owner, site.owner(), world)) needs.add(new Need("init", null, site.owner(), null, null));
+                        needs.add(new Need("body", impl, null, null, null));
+                        if (site.kind() == 6 && needsInit(owner, site.owner(), world)) needs.add(new Need("bodyinit", null, site.owner(), null, null));
                     }
                 }
                 return null;

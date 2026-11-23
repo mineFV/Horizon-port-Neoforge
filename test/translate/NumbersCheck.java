@@ -219,6 +219,7 @@ public final class NumbersCheck {
             }
         }
         p("pathErrors", "", com.example.numbers.Folders::errors);
+        p("lazy", "", com.example.numbers.Lazy::made);
         String made = System.getenv("HORIZONNEO_MADE");
         if (made != null) p("made", "", () -> com.example.numbers.Folders.made(made));
     }

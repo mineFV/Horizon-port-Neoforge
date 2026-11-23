@@ -43,9 +43,10 @@ final class JarRust {
     /**
      * What came out. methods: how many methods have a body. translated: the Rust name of each one translated.
      * why: why each other one isn't. rust: the module's text. functions: every method written (the model's too), by
-     * its function's name in rust.
+     * its function's name in rust. refusing: the methods of lambdas made whose method isn't translated (they refuse
+     * when run), with why.
      */
-    record Result(int methods, Map<Id, String> translated, Map<Id, String> why, String rust, Map<Id, String> functions) {
+    record Result(int methods, Map<Id, String> translated, Map<Id, String> why, String rust, Map<Id, String> functions, Map<Id, String> refusing) {
         /** How many methods each reason keeps out, the most first. */
         Map<String, Integer> reasons() {
             Map<String, Integer> counts = new HashMap<>();
@@ -173,6 +174,7 @@ final class JarRust {
 
         Map<Id, String> translated = new TreeMap<>();
         Map<Id, String> functionNames = Map.of();
+        Map<Id, String> refusing = new TreeMap<>();
         String rust;
         // Every method that checks, for revive: settle drops methods for good.
         Map<Id, List<Need>> pool = new TreeMap<>(needs);
@@ -221,12 +223,13 @@ final class JarRust {
             if (again) continue;
             functions.append(exports(world, w, names));
             rust = w.module(translated.size(), methods, fromModel, helpers, functions.toString());
+            for (Id id : w.refusing) refusing.put(id, why.getOrDefault(id, "it isn't written: no translated method reaches it"));
             break;
         }
         // The model's own methods aren't the mod's: only the mod's are reported.
         // HORIZONNEO_ALL_REASONS (a diagnostic): keep the reasons of the model's and the bridge's methods too.
         if (System.getenv("HORIZONNEO_ALL_REASONS") == null) why.keySet().removeIf(id -> !world.jar.contains(id.owner()));
-        return new Result(methods, translated, why, rust, functionNames);
+        return new Result(methods, translated, why, rust, functionNames, refusing);
     }
 
     static final String MOD = "Lnet/neoforged/fml/common/Mod;", BUS = "Lnet/neoforged/bus/api/IEventBus;";
@@ -286,7 +289,7 @@ final class JarRust {
             if (!needs.containsKey(id) || !out.add(id)) continue;
             for (Need n : needs.get(id)) {
                 switch (n.kind()) {
-                    case "call", "lambda" -> {
+                    case "call", "lambda", "body" -> {
                         todo.add(n.id());
                         todo.addAll(Library.callsOf(n.id()));
                     }
@@ -299,7 +302,7 @@ final class JarRust {
                             for (String c : world.initOrder(p)) if (world.declared(c, "<clinit>", "()V") != null) todo.add(new Id(c, "<clinit>", "()V"));
                         }
                     }
-                    case "init" -> {
+                    case "init", "bodyinit" -> {
                         for (String c : world.initOrder(n.type())) if (world.declared(c, "<clinit>", "()V") != null) todo.add(new Id(c, "<clinit>", "()V"));
                     }
                     case "dispatch" -> {
@@ -695,6 +698,8 @@ final class JarRust {
         final Map<String, String> tests = new LinkedHashMap<>();
         final Map<String, Integer> classIndex = new TreeMap<>();
         final Set<String> inits = new TreeSet<>(), statics = new TreeSet<>(), lambdaNews = new TreeSet<>();
+        /** The methods of the lambdas written whose method (or its class's initializer) isn't: they refuse when run. */
+        final Set<Id> refusing = new TreeSet<>();
 
         Writing(JavaWorld world, Map<Id, List<Need>> needs, Map<Id, String> functions) {
             this.world = world;
@@ -1395,16 +1400,23 @@ final class JarRust {
             int id = world.id(key);
             List<String> captured = ClassData.parameters(site.site());
             List<String> sam = ClassData.parameters(site.erased());
+            Id impl = new Id(site.owner(), site.name(), site.descriptor());
+            // A private method (an interface's own lambda body among them) isn't selected: it is called as it is.
+            ClassData.Method target = world.declared(site.owner(), site.name(), site.descriptor());
+            boolean direct = target != null && (target.access() & 0x0002) != 0;
+            int kind = direct && (site.kind() == 5 || site.kind() == 9) ? 7 : site.kind();
+            boolean runs = runs(site, kind, impl);
             StringBuilder layout = new StringBuilder();
             for (String c : captured) layout.append(JavaWorld.kind(c));
-            StringBuilder b = new StringBuilder("\n/// A lambda of `" + JavaWorld.type(ClassData.returns(site.site())).replace('/', '.') + "` that runs `"
-                    + site.owner().replace('/', '.') + "." + site.name() + site.descriptor() + "`.\n");
+            StringBuilder b = new StringBuilder("\n/// A lambda of `" + JavaWorld.type(ClassData.returns(site.site())).replace('/', '.')
+                    + (runs ? "` that runs `" : "` that would run `") + site.owner().replace('/', '.') + "." + site.name() + site.descriptor()
+                    + (runs ? "`.\n" : "`, which isn't translated: it refuses when run.\n"));
             b.append("#[allow(dead_code, non_snake_case, unused_parens)]\nfn jlambda_").append(id).append("_new(");
             for (int k = 0; k < captured.size(); k++) b.append(k == 0 ? "" : ", ").append("c").append(k).append(": ").append(MethodRust.rust(captured.get(k)));
             b.append(") -> Ref {\n    let o = jnew(").append(id).append(", b\"").append(layout).append("\");\n");
             for (int k = 0; k < captured.size(); k++) {
-                char kind = JavaWorld.kind(captured.get(k));
-                b.append("    jset(&o, ").append(k).append(", ").append(MethodRust.wrap(kind, fromEdge(captured.get(k), "c" + k))).append(");\n");
+                char held = JavaWorld.kind(captured.get(k));
+                b.append("    jset(&o, ").append(k).append(", ").append(MethodRust.wrap(held, fromEdge(captured.get(k), "c" + k))).append(");\n");
             }
             b.append("    o\n}\n");
 
@@ -1412,11 +1424,18 @@ final class JarRust {
             b.append("#[allow(dead_code, non_snake_case, unused_variables, unused_parens)]\nfn jlambda_").append(id).append("_call(this: Ref");
             for (int k = 0; k < sam.size(); k++) b.append(", a").append(k).append(": ").append(MethodRust.rust(sam.get(k)));
             b.append(") -> JR<").append(r.equals("V") ? "()" : MethodRust.rust(r)).append("> {\n");
+            if (!runs) {
+                // Made all the same, it refuses when run, naming what it would run.
+                refusing.add(impl);
+                b.append("    Err(jexception(JID_UNSUPPORTED, Some(").append(MethodRust.rustText("a lambda's method isn't translated: "
+                        + impl.display() + " (horizon-port-neoforge)")).append(")))\n}\n");
+                return b.toString();
+            }
             List<String> given = new ArrayList<>(), types = new ArrayList<>();
             for (int k = 0; k < captured.size(); k++) {
-                char kind = JavaWorld.kind(captured.get(k));
+                char held = JavaWorld.kind(captured.get(k));
                 b.append("    let c").append(k).append(": ").append(MethodRust.rust(captured.get(k))).append(" = ")
-                        .append(toEdge(captured.get(k), MethodRust.getter(kind) + "(jget(&this, " + k + ")?)")).append(";\n");
+                        .append(toEdge(captured.get(k), MethodRust.getter(held) + "(jget(&this, " + k + ")?)")).append(";\n");
                 given.add("c" + k);
                 types.add(captured.get(k));
             }
@@ -1430,11 +1449,7 @@ final class JarRust {
             List<String> args = new ArrayList<>();
             for (int k = 0; k < given.size(); k++) args.add(adapt(given.get(k), types.get(k), taken.get(k)));
             String call;
-            Id impl = new Id(site.owner(), site.name(), site.descriptor());
-            // A private method (an interface's own lambda body among them) isn't selected: it is called as it is.
-            ClassData.Method target = world.declared(site.owner(), site.name(), site.descriptor());
-            boolean direct = target != null && (target.access() & 0x0002) != 0;
-            switch (direct && (site.kind() == 5 || site.kind() == 9) ? 7 : site.kind()) {
+            switch (kind) {
                 case 5, 9 -> call = dispatcher(site.owner(), site.name(), site.descriptor()) + "(" + String.join(", ", args) + ")?";
                 case 8 -> {
                     b.append("    ").append(init(site.owner())).append("()?;\n");
@@ -1451,6 +1466,22 @@ final class JarRust {
             else b.append("    Ok(").append(adapt(call, ir, r)).append(")\n");
             b.append("}\n");
             return b.toString();
+        }
+
+        /**
+         * Whether a lambda's method runs here: translated, and for a constructor's reference its class's initializers
+         * too (the lambda initializes the class first). A method another one dispatches to has its own need.
+         */
+        private boolean runs(ClassData.LambdaSite site, int kind, Id impl) {
+            if (kind == 5 || kind == 9) return true;
+            if (Library.nativeOf(impl) == null && !functions.containsKey(impl)) return false;
+            if (kind == 8) {
+                if (world.initLeaves(site.owner())) return false;
+                for (String c : world.initOrder(site.owner())) {
+                    if (world.declared(c, "<clinit>", "()V") != null && !functions.containsKey(new Id(c, "<clinit>", "()V"))) return false;
+                }
+            }
+            return true;
         }
 
         /**
@@ -1906,6 +1937,8 @@ final class JarRust {
         r.translated().forEach((id, name) -> b.append("- `").append(id.display()).append("` as `").append(name).append("`\n"));
         b.append("\n## Not translated\n\n");
         r.why().forEach((id, w) -> b.append("- `").append(id.display()).append("`: ").append(w).append('\n'));
+        b.append("\n## Lambdas made whose method isn't translated\n\nEach is made all the same, and refuses when run (an UnsupportedOperationException naming its method).\n\n");
+        r.refusing().forEach((id, w) -> b.append("- `").append(id.display()).append("`: ").append(w).append('\n'));
         return b.toString();
     }
 }

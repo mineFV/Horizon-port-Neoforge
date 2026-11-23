@@ -931,7 +931,11 @@ cp "$TR/jar/META-INF/services/com.example.numbers.Services\$Greeter" "$TR/classe
 printf 'modLoader = "javafml"\nloaderVersion = "[4,)"\nlicense = "MIT"\n[[mods]]\nmodId = "numbers"\nversion = "1.0"\ndisplayName = "Numbers"\n' > "$TR/jar/META-INF/neoforge.mods.toml"
 jar --create --file "$B/jars/numbers.jar" -C "$TR/jar" . -C "$TR/classes" com
 exits 0 tool translate "$B/jars/numbers.jar" --out "$TR/out"
-says "$OUT" "numbers.jar: 527 of 528 methods translated from their bytecode"
+says "$OUT" "numbers.jar: 531 of 533 methods translated from their bytecode"
+# A lambda whose method isn't translated is made all the same (its class initializer is translated), and refuses when run.
+says "$TR/out/translation.md" '- `com.example.numbers.Lazy.<clinit>()V` as `lazy__clinit`'
+says "$TR/out/translation.md" '## Lambdas made whose method isn'"'"'t translated'
+says "$TR/out/translation.md" '- `com.example.numbers.Lazy.lambda$static$0()Ljava/lang/String;`: it splits a text by a regular expression'
 # The server's side: a method whose client branches can't be translated is, those branches left out.
 says "$TR/out/translation.md" '- `com.example.numbers.Sides.side(Lnet/minecraft/world/level/Level;)Ljava/lang/String;` as `sides__side`'
 says "$TR/out/translation.md" '`com.example.numbers.Sides.client(Ljava/lang/String;)Ljava/lang/String;`: it splits a text by a regular expression' 
@@ -1045,6 +1049,9 @@ if command -v rustc > /dev/null; then
     else
       echo "  FAIL: Java and the translation differ:"; diff "$TR/java.txt" "$TR/rust.txt" | head -20; failures=$((failures + 1))
     fi
+    # What the translation alone runs (Java runs the lambda): a lambda whose method isn't translated refuses, saying so.
+    "$TR/check" refusals > "$TR/rust-refusals.txt"
+    says "$TR/rust-refusals.txt" 'lazyRun  -> refused: a lambda'"'"'s method isn'"'"'t translated: com.example.numbers.Lazy.lambda$static$0()Ljava/lang/String; (horizon-port-neoforge)'
     # NumberFormat's default locale (lib/README.md), in several environments: the JDK's texts and the model's alike,
     # or the model refusing, which a machine's own setup may make it do (skipped then, saying why).
     # And paths that aren't ASCII, which depend on the system's charset (LC_CTYPE's).

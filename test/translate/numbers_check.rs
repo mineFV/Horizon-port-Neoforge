@@ -84,6 +84,11 @@ fn format_longs() -> Vec<i64> {
 }
 
 fn main() {
+    if std::env::args().nth(1).as_deref() == Some("refusals") {
+        // What the translation alone runs: a lambda whose method isn't translated refuses (Java runs it).
+        p("lazyRun", String::new(), text(lazy__run()));
+        return;
+    }
     if std::env::args().nth(1).as_deref() == Some("paths") {
         // Paths that aren't ASCII, which depend on the system's charset: run by the test in several environments.
         p("unicodePaths", String::new(), text(folders__unicode()));
@@ -308,6 +313,7 @@ fn main() {
         }
     }
     p("pathErrors", String::new(), text(folders__errors()));
+    p("lazy", String::new(), text(lazy__made()));
     if let Ok(made) = std::env::var("HORIZONNEO_MADE") {
         p("made", String::new(), text(folders__made(jstring(&made))));
     }
