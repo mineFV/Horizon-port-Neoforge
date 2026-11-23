@@ -109,6 +109,10 @@ game folder is by default: GAMEDIR the current directory, MODSDIR, CONFIGDIR and
 getOrCreateGameRelativePath making a folder there, observed in a server. DimensionType's height limits (MAX_Y, MIN_Y
 and the others), observed in a server; not a dimension's own type.
 
+NeoForge's common tags (net/neoforged/neoforge/common/Tags, 2026-11-23): the keys of those a mod names (Mekanism's:
+ores and three of them, two fluids' and one entity types'), their ids and registries observed in a server, each the one
+key for its id. Not DamageTypes, whose type isn't modelled.
+
 What isn't here, and what it costs: BlockPos's getCenter, betweenClosed and codecs, Direction's getRotation and
 codecs, MutableBlockPos's other setters, NBT's codecs (NbtOps), its readers and writers (DataOutput, visitors),
 TagType, ResourceLocation's codecs and its readers (StringReader), ByIdMap.sparse. A call to one isn't translated; and when a virtual call through a wider type (Object, List...) may reach

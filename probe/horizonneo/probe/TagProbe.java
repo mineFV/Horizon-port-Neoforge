@@ -44,6 +44,19 @@ final class TagProbe {
     static void run() {
         given();
         holders();
+        // NeoForge's common tags a mod names: their ids, registries, and that each is the one key for them.
+        p("neoforge tags", () -> {
+            StringBuilder b = new StringBuilder();
+            java.util.List<TagKey<?>> keys = java.util.List.of(net.neoforged.neoforge.common.Tags.Items.ORES, net.neoforged.neoforge.common.Tags.Items.ORES_COPPER,
+                    net.neoforged.neoforge.common.Tags.Items.ORES_GOLD, net.neoforged.neoforge.common.Tags.Items.ORES_IRON,
+                    net.neoforged.neoforge.common.Tags.Fluids.GASEOUS, net.neoforged.neoforge.common.Tags.Fluids.HIDDEN_FROM_RECIPE_VIEWERS,
+                    net.neoforged.neoforge.common.Tags.EntityTypes.TELEPORTING_NOT_SUPPORTED);
+            for (TagKey<?> k : keys) {
+                b.append(k).append(' ').append(k.location()).append(' ').append(k.registry()).append(' ')
+                        .append(k == TagKey.create(k.registry(), k.location())).append("; ");
+            }
+            return b;
+        });
         TagKey<Item> probed = ItemTags.create(ResourceLocation.parse("horizonprobe:probed"));
         TagKey<Item> diamonds = ItemTags.create(ResourceLocation.parse("c:gems/diamond"));
         TagKey<Item> payment = ItemTags.create(ResourceLocation.withDefaultNamespace("beacon_payment_items"));
