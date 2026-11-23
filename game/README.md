@@ -104,6 +104,11 @@ stack of its item; NeoForge's, with a hit and a player, running the block's own)
 of the probe's that record what they are given: code that asks whether a chunk is loaded reaches them, and while one
 was missing every maker of a block or a state dropped.
 
+The game's folders (net/neoforged/fml/loading/FMLPaths, 2026-11-23): under the one the server runs in, as Horizon's
+game folder is by default: GAMEDIR the current directory, MODSDIR, CONFIGDIR and FMLCONFIG under it, and
+getOrCreateGameRelativePath making a folder there, observed in a server. DimensionType's height limits (MAX_Y, MIN_Y
+and the others), observed in a server; not a dimension's own type.
+
 What isn't here, and what it costs: BlockPos's getCenter, betweenClosed and codecs, Direction's getRotation and
 codecs, MutableBlockPos's other setters, NBT's codecs (NbtOps), its readers and writers (DataOutput, visitors),
 TagType, ResourceLocation's codecs and its readers (StringReader), ByIdMap.sparse. A call to one isn't translated; and when a virtual call through a wider type (Object, List...) may reach

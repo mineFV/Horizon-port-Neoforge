@@ -84,6 +84,11 @@ fn format_longs() -> Vec<i64> {
 }
 
 fn main() {
+    if std::env::args().nth(1).as_deref() == Some("paths") {
+        // Paths that aren't ASCII, which depend on the system's charset: run by the test in several environments.
+        p("unicodePaths", String::new(), text(folders__unicode()));
+        return;
+    }
     if std::env::args().nth(1).as_deref() == Some("default") {
         // The default locale's number formats: run by the test in several environments (lib/README.md).
         for (i, d0) in format_doubles().into_iter().enumerate() {
@@ -295,4 +300,15 @@ fn main() {
         p("formatLongs", i.to_string(), text(formats__longs(v)));
     }
     p("formatFacts", String::new(), text(formats__facts()));
+    let count = folders__count().unwrap();
+    for i in 0..count {
+        p("pathParts", i.to_string(), text(folders__parts(i)));
+        for j in 0..count {
+            p("pathPair", format!("{} {}", i, j), text(folders__pair(i, j)));
+        }
+    }
+    p("pathErrors", String::new(), text(folders__errors()));
+    if let Ok(made) = std::env::var("HORIZONNEO_MADE") {
+        p("made", String::new(), text(folders__made(jstring(&made))));
+    }
 }

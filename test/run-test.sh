@@ -931,7 +931,7 @@ cp "$TR/jar/META-INF/services/com.example.numbers.Services\$Greeter" "$TR/classe
 printf 'modLoader = "javafml"\nloaderVersion = "[4,)"\nlicense = "MIT"\n[[mods]]\nmodId = "numbers"\nversion = "1.0"\ndisplayName = "Numbers"\n' > "$TR/jar/META-INF/neoforge.mods.toml"
 jar --create --file "$B/jars/numbers.jar" -C "$TR/jar" . -C "$TR/classes" com
 exits 0 tool translate "$B/jars/numbers.jar" --out "$TR/out"
-says "$OUT" "numbers.jar: 517 of 518 methods translated from their bytecode"
+says "$OUT" "numbers.jar: 527 of 528 methods translated from their bytecode"
 # The server's side: a method whose client branches can't be translated is, those branches left out.
 says "$TR/out/translation.md" '- `com.example.numbers.Sides.side(Lnet/minecraft/world/level/Level;)Ljava/lang/String;` as `sides__side`'
 says "$TR/out/translation.md" '`com.example.numbers.Sides.client(Ljava/lang/String;)Ljava/lang/String;`: it splits a text by a regular expression' 
@@ -950,7 +950,7 @@ else
 fi
 says "$OUT" "Nothing was compiled or run"
 # The game's stand-ins (game/), translated with the mod where it reaches them.
-says "$OUT" "Stand-ins for the game: 477 classes, not checked against the game's (no --server)."
+says "$OUT" "Stand-ins for the game: 479 classes, not checked against the game's (no --server)."
 says "$TR/out/translation.md" '- `com.example.numbers.Places.keys(I)Ljava/lang/String;` as `places__keys`'
 says "$TR/out/translated.rs" '/// `net.minecraft.core.Vec3i.compareTo(Lnet/minecraft/core/Vec3i;)I`, translated from its bytecode.'
 says "$TR/out/translated.rs" 'pub fn numbers__collatz(mut l0: i64) -> JR<i64> {'
@@ -1020,7 +1020,7 @@ says "$TR/gamey-out/translation.md" '- `com.example.gamey.Tagged.screenArray(Z)I
 says "$TR/gamey-out/translation.md" '`com.example.gamey.Tagged.sounds()I`: it makes an array of a class whose supertype is the client'"'"'s, which a dedicated server doesn'"'"'t load: com.example.gamey.Tagged$Sound (net.minecraft.client.Soundish)' 
 # Each stand-in checked against the server's class: one whose interfaces differ, one that would inherit a method the
 # game's declares, are left out.
-says "$OUT" "Stand-ins for the game: 475 classes, checked against the game's."
+says "$OUT" "Stand-ins for the game: 477 classes, checked against the game's."
 says "$OUT" "- left out: net.minecraft.core.Vec3i: its superclass or interfaces aren't the game's"
 says "$OUT" "- left out: net.minecraft.core.BlockPos: the game's class declares getX()I, which the stand-in would take from net.minecraft.core.Vec3i"
 says "$TR/gamey-out/translation.md" "- left out: net.minecraft.core.Vec3i"
@@ -1037,28 +1037,34 @@ if command -v rustc > /dev/null; then
     lacks "$TR/rustc.txt" "warning"
     # HotSpot throws a JVM exception it raised often at one place without its message (OmitStackTraceInFastThrow):
     # the reference is the JVM's semantics, which give one.
-    java -Dstdout.encoding=UTF-8 -XX:-OmitStackTraceInFastThrow -cp "$TR/classes:build/model" NumbersCheck > "$TR/java.txt"
-    if "$TR/check" > "$TR/rust.txt" && cmp -s "$TR/java.txt" "$TR/rust.txt"; then
+    # Each side makes its folders under a folder of its own, which isn't there yet (Folders.made).
+    rm -rf "$TR/made-java" "$TR/made-rust"
+    HORIZONNEO_MADE="$PWD/$TR/made-java" java -Dstdout.encoding=UTF-8 -XX:-OmitStackTraceInFastThrow -cp "$TR/classes:build/model" NumbersCheck > "$TR/java.txt"
+    if HORIZONNEO_MADE="$PWD/$TR/made-rust" "$TR/check" > "$TR/rust.txt" && cmp -s "$TR/java.txt" "$TR/rust.txt"; then
       echo "  ok: Java and the translation give the same $(wc -l < "$TR/java.txt") results"
     else
       echo "  FAIL: Java and the translation differ:"; diff "$TR/java.txt" "$TR/rust.txt" | head -20; failures=$((failures + 1))
     fi
     # NumberFormat's default locale (lib/README.md), in several environments: the JDK's texts and the model's alike,
     # or the model refusing, which a machine's own setup may make it do (skipped then, saying why).
+    # And paths that aren't ASCII, which depend on the system's charset (LC_CTYPE's).
     for setting in inherited "LANG=C" "LANG=POSIX" "LANG=C.UTF-8" "LANG=xx_YY.UTF-8" "LANG=C.UTF-8 LC_CTYPE=C" "LANG=C LC_MESSAGES=xx_YY.UTF-8" "LANG=C.UTF-8 LC_MESSAGES=C" "LANG=C.utf8 LC_PAPER=xx_YY.UTF-8"; do
       if [ "$setting" = inherited ]; then prefix=(); else read -r -a prefix <<< "env -i PATH=$PATH $setting"; fi
-      ${prefix[@]+"${prefix[@]}"} "$TR/check" default > "$TR/rust-default.txt" 2>&1 || true
-      if grep -q "number format can't be told\|number format of the locale .* isn't in the model" "$TR/rust-default.txt"; then
-        echo "  (skipped: the default locale's number formats, $setting: $(grep -o "UnsupportedOperationException: [^|]*" "$TR/rust-default.txt" | head -1 | cut -d' ' -f2-))"
-        continue
-      fi
-      # The JVM writes in the locale's charset (ASCII for C): in UTF-8 here, as the translation does.
-      ${prefix[@]+"${prefix[@]}"} java -Dstdout.encoding=UTF-8 -XX:-OmitStackTraceInFastThrow -cp "$TR/classes:build/model" NumbersCheck default > "$TR/java-default.txt"
-      if cmp -s "$TR/java-default.txt" "$TR/rust-default.txt"; then
-        echo "  ok: the default locale's number formats alike ($setting, $(wc -l < "$TR/java-default.txt") results)"
-      else
-        echo "  FAIL: the default locale's number formats differ ($setting):"; diff "$TR/java-default.txt" "$TR/rust-default.txt" | head -10; failures=$((failures + 1))
-      fi
+      for mode in default paths; do
+        what=$([ "$mode" = default ] && echo "the default locale's number formats" || echo "paths that aren't ASCII")
+        ${prefix[@]+"${prefix[@]}"} "$TR/check" "$mode" > "$TR/rust-$mode.txt" 2>&1 || true
+        if grep -q "(horizon-port-neoforge)" "$TR/rust-$mode.txt"; then
+          echo "  (skipped: $what, $setting: the model refuses: $(grep -o "UnsupportedOperationException: [^|;]*" "$TR/rust-$mode.txt" | head -1 | cut -d' ' -f2-))"
+          continue
+        fi
+        # The JVM writes in the locale's charset (ASCII for C): in UTF-8 here, as the translation does.
+        ${prefix[@]+"${prefix[@]}"} java -Dstdout.encoding=UTF-8 -XX:-OmitStackTraceInFastThrow -cp "$TR/classes:build/model" NumbersCheck "$mode" > "$TR/java-$mode.txt"
+        if cmp -s "$TR/java-$mode.txt" "$TR/rust-$mode.txt"; then
+          echo "  ok: $what alike ($setting, $(wc -l < "$TR/java-$mode.txt") results)"
+        else
+          echo "  FAIL: $what differ ($setting):"; diff "$TR/java-$mode.txt" "$TR/rust-$mode.txt" | head -10; failures=$((failures + 1))
+        fi
+      done
     done
     # The stand-ins against Horizon's own answers (game/README.md): its test of the packed form, an offset that
     # wraps as Java's int does, a position's text and hash (a HashMap's order), north's opposite, normal and name.
@@ -1090,7 +1096,7 @@ for v in same upper; do
   jar --create --file "$SI/$v/libraries/net/neoforged/neoforge/21.1.1/neoforge-21.1.1-server.jar" -C "$SI/$v-classes" .
 done
 exits 0 tool standins --server "$SI/same"
-says "$OUT" "ok: the 477 stand-ins have the supertypes and the methods of the server's classes"
+says "$OUT" "ok: the 479 stand-ins have the supertypes and the methods of the server's classes"
 says "$OUT" "ok: the game and the stand-ins give the same 21879 answers to the probe"
 says "$OUT" "no server, no world, no mod"
 no_file logs

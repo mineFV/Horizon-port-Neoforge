@@ -494,7 +494,7 @@ final class JarRust {
         // The model's own classes too (java.*), but those the runtime makes itself (no method of it is their maker): a
         // ServiceLoader's iterator whose next can't be translated otherwise kept every Iterator.next out (Mekanism:
         // 9528 methods against 11964).
-        return owner.startsWith("java/") && world.cls(owner) != null && !instance.startsWith("[") && !Library.thrownClasses().contains(owner)
+        return Library.library(owner) && world.cls(owner) != null && !instance.startsWith("[") && !Library.thrownClasses().contains(owner)
                 && !owner.equals(MethodRust.STRING) && !owner.equals(MethodRust.CLASS);
     }
 

@@ -35,7 +35,15 @@ final class Library {
 
     /** Whether a class of the model stands in for the game's (game/), not for Java's library (lib/). */
     static boolean standIn(String name) {
-        return !name.startsWith("java/") && !bridge(name);
+        return !library(name) && !bridge(name);
+    }
+
+    /**
+     * Whether a class is Java's library's: java.*, and the JDK's own packages a model class may have to be in, as a
+     * program sees its class's name (sun.nio.fs.UnixPath, a Path's on Linux).
+     */
+    static boolean library(String name) {
+        return name.startsWith("java/") || name.startsWith("javax/") || name.startsWith("jdk/") || name.startsWith("sun/");
     }
 
     /**
@@ -44,7 +52,7 @@ final class Library {
      */
     static boolean bridge(String name) {
         String simple = name.substring(name.lastIndexOf('/') + 1);
-        return !name.startsWith("java/") && simple.startsWith("Horizon");
+        return !library(name) && simple.startsWith("Horizon");
     }
 
     /**
@@ -364,6 +372,51 @@ final class Library {
                                 std::cmp::Ordering::Greater => 1,
                             },
                             _ => 2,
+                        })
+                    }
+                    """)),
+            Map.entry("sun/nio/fs/UnixPath.jUnix()Z", new Native("jnative_path_unix", """
+                    /// Whether paths are the JDK's UnixPath here (Linux, macOS).
+                    #[allow(dead_code)]
+                    fn jnative_path_unix() -> JR<bool> {
+                        Ok(cfg!(unix))
+                    }
+                    """)),
+            Map.entry("sun/nio/fs/UnixPath.jCharset()I", new Native("jnative_path_charset", """
+                    /// The charset the JDK gives a path's bytes (sun.jnu.encoding: LC_CTYPE's codeset on Linux, UTF-8 on macOS):
+                    /// 1 for UTF-8, 0 for another, 2 where it can't be told.
+                    #[allow(dead_code)]
+                    fn jnative_path_charset() -> JR<i32> {
+                        static CHARSET: std::sync::OnceLock<i32> = std::sync::OnceLock::new();
+                        Ok(*CHARSET.get_or_init(jnum_charset))
+                    }
+                    """)),
+            Map.entry("sun/nio/fs/UnixPath.jCurrentDirectory()Ljava/lang/String;", new Native("jnative_path_current_directory", """
+                    /// The current directory (the JDK's user.dir), as a UTF-8 text; null where it isn't one.
+                    #[allow(dead_code)]
+                    fn jnative_path_current_directory() -> JR<Ref> {
+                        Ok(match std::env::current_dir().ok().and_then(|d| d.to_str().map(str::to_string)) {
+                            Some(d) => jstring(&d),
+                            None => None,
+                        })
+                    }
+                    """)),
+            Map.entry("java/nio/file/Files.jIsDirectory(Ljava/lang/String;Z)Z", new Native("jnative_files_is_directory", """
+                    /// Files.isDirectory: the link itself with NOFOLLOW_LINKS, else what it leads to.
+                    #[allow(dead_code)]
+                    fn jnative_files_is_directory(path: Ref, no_follow: bool) -> JR<bool> {
+                        let path = jstring_text(&path);
+                        let meta = if no_follow { std::fs::symlink_metadata(&path) } else { std::fs::metadata(&path) };
+                        Ok(meta.map(|m| m.is_dir()).unwrap_or(false))
+                    }
+                    """)),
+            Map.entry("java/nio/file/Files.jCreateDirectories(Ljava/lang/String;)Ljava/lang/String;", new Native("jnative_files_create_directories", """
+                    /// Files.createDirectories: null once the directory is there (made with its parents), else why not.
+                    #[allow(dead_code)]
+                    fn jnative_files_create_directories(path: Ref) -> JR<Ref> {
+                        Ok(match std::fs::create_dir_all(jstring_text(&path)) {
+                            Ok(()) => None,
+                            Err(e) => jstring(&e.to_string()),
                         })
                     }
                     """)),
@@ -774,7 +827,7 @@ final class Library {
     }
 
     /** The natives that read the locales' number formats (`numbers.rs`, which build.sh writes from the JDK that builds the tool). */
-    static final java.util.Set<String> NUMBER_NATIVES = java.util.Set.of("jnative_number_default_key", "jnative_number_data");
+    static final java.util.Set<String> NUMBER_NATIVES = java.util.Set.of("jnative_number_default_key", "jnative_number_data", "jnative_path_charset");
 
     /**
      * The tables, how a key is looked up in them, and how the JDK's default format locale is made from the environment
@@ -810,9 +863,37 @@ final class Library {
                     const JNUM_CATEGORIES: [&str; 12] = ["LC_CTYPE", "LC_NUMERIC", "LC_TIME", "LC_COLLATE", "LC_MONETARY", "LC_MESSAGES",
                         "LC_PAPER", "LC_NAME", "LC_ADDRESS", "LC_TELEPHONE", "LC_MEASUREMENT", "LC_IDENTIFICATION"];
 
+                    /// The charset the JDK gives a path's bytes: 1 for UTF-8, 0 for another, 2 where it can't be told. On Linux,
+                    /// LC_CTYPE's codeset as glibc loads it ("C" and "POSIX" ASCII; a name without its codeset can't be told).
+                    #[allow(dead_code)]
+                    fn jnum_charset() -> i32 {
+                        if cfg!(target_os = "macos") {
+                            return 1;
+                        }
+                        let Ok((ctype, _)) = jnum_names() else { return 2 };
+                        if ctype == "C" || ctype == "POSIX" {
+                            return 0;
+                        }
+                        match jnum_explode(&ctype).1.map(jnum_normalize).as_deref() {
+                            Some("utf8") => 1,
+                            Some(_) => 0,
+                            None => 2,
+                        }
+                    }
+
                     /// The JDK's format locale (language, script, country), or why it can't be told.
                     #[allow(dead_code)]
                     fn jnum_default() -> Result<(String, String, String), String> {
+                        let (ctype, messages) = jnum_names()?;
+                        let (f, d) = (jnum_parse(&ctype)?, jnum_parse(&messages)?);
+                        let pick = |a: &str, b: &str| if a.is_empty() { b.to_string() } else { a.to_string() };
+                        Ok((pick(&f.0, &d.0), pick(&f.1, &d.1), pick(&f.2, &d.2)))
+                    }
+
+                    /// The names setlocale gives LC_CTYPE and LC_MESSAGES on Linux: the environment's where every category's
+                    /// locale loads, else "C" both; or why it can't be told.
+                    #[allow(dead_code)]
+                    fn jnum_names() -> Result<(String, String), String> {
                         if !cfg!(target_os = "linux") {
                             return Err("the system's locale is read on Linux only".to_string());
                         }
@@ -838,10 +919,7 @@ final class Library {
                                 break;
                             }
                         }
-                        let (ctype, messages) = if loaded { (name("LC_CTYPE")?, name("LC_MESSAGES")?) } else { ("C".to_string(), "C".to_string()) };
-                        let (f, d) = (jnum_parse(&ctype)?, jnum_parse(&messages)?);
-                        let pick = |a: &str, b: &str| if a.is_empty() { b.to_string() } else { a.to_string() };
-                        Ok((pick(&f.0, &d.0), pick(&f.1, &d.1), pick(&f.2, &d.2)))
+                        Ok(if loaded { (name("LC_CTYPE")?, name("LC_MESSAGES")?) } else { ("C".to_string(), "C".to_string()) })
                     }
 
                     /// A locale name's parts: language and territory, codeset, modifier.

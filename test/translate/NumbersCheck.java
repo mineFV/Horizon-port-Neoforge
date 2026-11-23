@@ -13,6 +13,11 @@ public final class NumbersCheck {
     static final double[] DOUBLES = {0d, -0d, 1.5, -2.5, 0.49999999999999994, 1e300, -3.75, 4.5e15, Double.NaN, Double.POSITIVE_INFINITY, Double.NEGATIVE_INFINITY, 9.2e18, -9.3e18};
 
     public static void main(String[] args) {
+        if (args.length > 0 && args[0].equals("paths")) {
+            // Paths that aren't ASCII, which depend on the system's charset: run by the test in several environments.
+            p("unicodePaths", "", com.example.numbers.Folders::unicode);
+            return;
+        }
         if (args.length > 0 && args[0].equals("default")) {
             // The default locale's number formats: run by the test in several environments (lib/README.md).
             double[] dd = formatDoubles();
@@ -204,6 +209,18 @@ public final class NumbersCheck {
             p("formatLongs", i, () -> com.example.numbers.Formats.longs(v));
         }
         p("formatFacts", "", com.example.numbers.Formats::facts);
+        // Paths, and a folder made under the one the test gives (HORIZONNEO_MADE: each side its own).
+        for (int i = 0; i < com.example.numbers.Folders.count(); i++) {
+            int a = i;
+            p("pathParts", i, () -> com.example.numbers.Folders.parts(a));
+            for (int j = 0; j < com.example.numbers.Folders.count(); j++) {
+                int b = j;
+                p("pathPair", i + " " + j, () -> com.example.numbers.Folders.pair(a, b));
+            }
+        }
+        p("pathErrors", "", com.example.numbers.Folders::errors);
+        String made = System.getenv("HORIZONNEO_MADE");
+        if (made != null) p("made", "", () -> com.example.numbers.Folders.made(made));
     }
 
     /**

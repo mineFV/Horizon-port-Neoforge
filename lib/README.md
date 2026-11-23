@@ -75,6 +75,15 @@ told: another system than Linux, LOCPATH set, an alias, a path, another modifier
 alone is installed (glibc would check its codeset), C.UTF-8 not installed (glibc may have it built in).
 Not modelled: parsing, the setters, the currency and percent instances, the symbols' object, format(Object).
 
+A Path (2026-11-23) is the JDK's on Linux and macOS, sun.nio.fs.UnixPath, observed: its text with each run of
+slashes one and no slash at the end but the root's, its names, parent, root and file name by the slashes (the empty
+path one name, the root none), normalize, resolve, toAbsolutePath against the current directory, InvalidPathException
+for a NUL, its order byte by byte and its hash over its bytes. Those bytes are its text in the system's charset
+(LC_CTYPE's codeset, as glibc loads it): a text that isn't ASCII is followed where that charset is UTF-8, refused
+where it isn't or can't be told, as another system than a Unix one is. Files: isDirectory, and createDirectories,
+refused where the system refuses (the JDK's exceptions aren't made). Not modelled: the rest of Files, the file system,
+subpath, startsWith, endsWith, relativize, URIs, File.
+
 A TreeMap (and TreeSet) is CLR's red-black tree, as the JDK's: the same keys put and removed in the same order make
 the same tree, and the comparator is asked about the same pairs (the test counts them). A TreeMap made from a
 sorted map is built one put at a time here, where the JDK builds it balanced at once: the same map, other pairs
