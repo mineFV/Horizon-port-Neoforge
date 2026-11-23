@@ -105,6 +105,7 @@ final class FastutilProbe {
             return added + " " + s + " " + c + " " + a + " " + skipped + " " + s.equals(new java.util.HashSet<>(s)) + " " + s.isEmpty();
         });
         maps();
+        references();
         p("set bad", () -> new ObjectOpenHashSet<String>(4, 1.5f));
         p("set bad size", () -> new ObjectOpenHashSet<String>(-1));
         p("set big", () -> {
@@ -165,6 +166,157 @@ final class FastutilProbe {
 
     static void p(String key, Supplier<Object> call) {
         GameProbe.p(key, call);
+    }
+
+    /**
+     * A key whose hash is another object's identity hash, equal only to a key of the same object: the reference map's
+     * keys as the object map sees them. Identity hashes change from run to run, so the reference map is observed by
+     * what it shares with the object map on these keys (orders, texts, hashes), and by what no hash decides.
+     */
+    record Same(Object o) {
+        static Same of(Object o) {
+            return new Same(o);
+        }
+
+        @Override
+        public int hashCode() {
+            return System.identityHashCode(o);
+        }
+
+        @Override
+        public boolean equals(Object x) {
+            return x instanceof Same s && s.o == o;
+        }
+
+        @Override
+        public String toString() {
+            return String.valueOf(o);
+        }
+    }
+
+    /** The object map's key for a reference map's: null as it is. */
+    static Object same(Object k) {
+        return k == null ? null : Same.of(k);
+    }
+
+    /** Whether the two maps read the same: text, order of keys, values and entries, hash, size. */
+    static String alike(it.unimi.dsi.fastutil.objects.Reference2ObjectOpenHashMap<Object, String> r, it.unimi.dsi.fastutil.objects.Object2ObjectOpenHashMap<Object, String> o) {
+        StringBuilder rk = new StringBuilder(), ok = new StringBuilder(), re = new StringBuilder(), oe = new StringBuilder();
+        r.forEach((k, v) -> rk.append(k).append('|'));
+        o.forEach((k, v) -> ok.append(k).append('|'));
+        for (var e : r.reference2ObjectEntrySet()) re.append(e).append(e.hashCode() == (System.identityHashCode(e.getKey()) ^ java.util.Objects.hashCode(e.getValue()))).append('|');
+        for (var e : o.object2ObjectEntrySet()) oe.append(e).append(true).append('|');
+        return r.toString().equals(o.toString()) + " " + r.keySet().toString().equals(o.keySet().toString()) + " " + r.values().toString().equals(o.values().toString()) + " "
+                + rk.toString().equals(ok.toString()) + " " + re.toString().equals(oe.toString()) + " " + (r.hashCode() == o.hashCode()) + " " + (r.keySet().hashCode() == o.keySet().hashCode()) + " "
+                + r.size() + " " + o.size();
+    }
+
+    /** fastutil's map by identity: orders, growing and shrinking, removals while iterating, null, defaults, views. */
+    static void references() {
+        for (int n : new int[] {0, 1, 5, 13, 25, 100, 300}) {
+            p("reference map " + n, () -> {
+                it.unimi.dsi.fastutil.objects.Reference2ObjectOpenHashMap<Object, String> r = new it.unimi.dsi.fastutil.objects.Reference2ObjectOpenHashMap<>();
+                it.unimi.dsi.fastutil.objects.Object2ObjectOpenHashMap<Object, String> o = new it.unimi.dsi.fastutil.objects.Object2ObjectOpenHashMap<>();
+                Object[] keys = new Object[n];
+                StringBuilder b = new StringBuilder();
+                for (int i = 0; i < n; i++) {
+                    keys[i] = new String("k" + i % 7);
+                    b.append(r.put(keys[i], "v" + i)).append(o.put(same(keys[i]), "v" + i));
+                }
+                b.append(' ').append(alike(r, o));
+                for (int i = 0; i < n; i += 3) b.append(r.remove(keys[i])).append(o.remove(same(keys[i])));
+                b.append(' ').append(alike(r, o)).append(' ').append(r.get(new String("k1"))).append(r.containsKey(new String("k1"))).append(r.containsValue("v1"));
+                if (n > 2) b.append(r.get(keys[2])).append(r.containsKey(keys[2])).append(r.keySet().contains(keys[2])).append(r.keySet().contains(new String("k2")));
+                return b;
+            });
+        }
+        p("reference map shrink", () -> {
+            it.unimi.dsi.fastutil.objects.Reference2ObjectOpenHashMap<Object, String> r = new it.unimi.dsi.fastutil.objects.Reference2ObjectOpenHashMap<>(4);
+            it.unimi.dsi.fastutil.objects.Object2ObjectOpenHashMap<Object, String> o = new it.unimi.dsi.fastutil.objects.Object2ObjectOpenHashMap<>(4);
+            Object[] keys = new Object[200];
+            for (int i = 0; i < keys.length; i++) {
+                keys[i] = new Object();
+                r.put(keys[i], "v" + i);
+                o.put(same(keys[i]), "v" + i);
+            }
+            String grown = alike(r, o);
+            for (int i = 0; i < keys.length - 3; i++) {
+                r.remove(keys[i]);
+                o.remove(same(keys[i]));
+            }
+            String shrunk = alike(r, o);
+            r.trim();
+            o.trim();
+            return grown + " | " + shrunk + " | " + alike(r, o);
+        });
+        p("reference map null and defaults", () -> {
+            it.unimi.dsi.fastutil.objects.Reference2ObjectOpenHashMap<Object, String> m = new it.unimi.dsi.fastutil.objects.Reference2ObjectOpenHashMap<>();
+            Object a = new String("a"), b2 = new String("b"), c = new String("c"), d = new String("d"), e = new String("e");
+            m.defaultReturnValue("none");
+            StringBuilder b = new StringBuilder();
+            b.append(m.put(a, "1")).append(' ').append(m.put(null, "n")).append(' ').append(m.put(a, "2")).append(' ').append(m.get(new String("a"))).append(' ').append(m.get(null));
+            b.append(' ').append(m.getOrDefault(new String("a"), "d")).append(' ').append(m.putIfAbsent(a, "3")).append(' ').append(m.putIfAbsent(b2, "4")).append(' ').append(m.size());
+            b.append(' ').append(m.remove(new String("b"))).append(' ').append(m.remove(null)).append(' ').append(m.remove(b2, "x")).append(' ').append(m.replace(a, "2", "5")).append(' ').append(m.replace(c, "6"));
+            b.append(' ').append(m.computeIfAbsent(c, k -> k + "!")).append(' ').append(m.computeIfPresent(a, (k, v) -> null)).append(' ').append(m.compute(d, (k, v) -> k + v));
+            b.append(' ').append(m.merge(d, "+", String::concat)).append(' ').append(m.merge(e, "e", String::concat)).append(' ').append(m.size()).append(' ').append(m.defaultReturnValue());
+            b.append(' ').append(m.get(c)).append(m.get(d)).append(m.get(e)).append(m.get(a)).append(' ').append(m.containsKey(null)).append(m.containsValue("b"));
+            return b;
+        });
+        p("reference map views", () -> {
+            it.unimi.dsi.fastutil.objects.Reference2ObjectOpenHashMap<Object, String> r = new it.unimi.dsi.fastutil.objects.Reference2ObjectOpenHashMap<>();
+            it.unimi.dsi.fastutil.objects.Object2ObjectOpenHashMap<Object, String> o = new it.unimi.dsi.fastutil.objects.Object2ObjectOpenHashMap<>();
+            Object[] keys = new Object[40];
+            for (int i = 0; i < keys.length; i++) {
+                keys[i] = i % 10 == 0 ? null : new String("k" + i % 9);
+                r.put(keys[i], "v" + i);
+                o.put(same(keys[i]), "v" + i);
+            }
+            StringBuilder b = new StringBuilder(alike(r, o));
+            StringBuilder rs = new StringBuilder(), os = new StringBuilder();
+            int k = 0;
+            for (var it = r.reference2ObjectEntrySet().iterator(); it.hasNext();) {
+                var e = it.next();
+                rs.append(e).append(',');
+                if (k++ % 3 == 0) it.remove();
+                else e.setValue(e.getValue() + "*");
+            }
+            k = 0;
+            for (var it = o.object2ObjectEntrySet().iterator(); it.hasNext();) {
+                var e = it.next();
+                os.append(e).append(',');
+                if (k++ % 3 == 0) it.remove();
+                else e.setValue(e.getValue() + "*");
+            }
+            b.append(' ').append(rs.toString().equals(os.toString())).append(' ').append(alike(r, o));
+            rs.setLength(0);
+            os.setLength(0);
+            k = 0;
+            for (var it = r.keySet().iterator(); it.hasNext();) {
+                rs.append(it.next()).append(',');
+                if (k++ % 2 == 1) it.remove();
+            }
+            k = 0;
+            for (var it = o.keySet().iterator(); it.hasNext();) {
+                os.append(it.next()).append(',');
+                if (k++ % 2 == 1) it.remove();
+            }
+            b.append(' ').append(rs.toString().equals(os.toString())).append(' ').append(alike(r, o));
+            // Which entries are left depends on the order, so on the identity hashes: only what they share is asked.
+            java.util.IdentityHashMap<Object, String> id = new java.util.IdentityHashMap<>(r);
+            int sum = 0;
+            for (var e : id.entrySet()) sum += System.identityHashCode(e.getKey()) ^ java.util.Objects.hashCode(e.getValue());
+            b.append(' ').append(r.equals(id)).append(id.equals(r)).append(r.hashCode() == sum).append(r.equals(new java.util.HashMap<>(java.util.Map.of(new String("k1"), "x"))));
+            b.append(' ').append(r.keySet().equals(id.keySet())).append(r.keySet().equals(java.util.Set.of(new String("k1")))).append(r.values().contains(r.values().iterator().next()))
+                    .append(r.values().contains("absent")).append(r.isEmpty());
+            var first = r.reference2ObjectEntrySet().iterator().next();
+            var basic = new it.unimi.dsi.fastutil.objects.AbstractReference2ObjectMap.BasicEntry<Object, String>(first.getKey(), first.getValue());
+            b.append(' ').append(basic.equals(first)).append(first.equals(basic)).append(basic.equals(java.util.Map.entry(new String(String.valueOf(first.getKey())), first.getValue())));
+            b.append(basic.hashCode() == first.hashCode()).append(' ').append(basic.toString().equals(first.getKey() + "->" + first.getValue()));
+            var c = r.clone();
+            c.put(new Object(), "new");
+            b.append(' ').append(r.size()).append(' ').append(c.size()).append(' ').append(c.containsKey(first.getKey())).append(' ').append(r.reference2ObjectEntrySet().contains(java.util.Map.entry(new String("x"), "y")));
+            return b;
+        });
     }
 
     /** fastutil's char sets and maps: orders, '\\0', growth, removals, texts, hashes, boxed methods. */

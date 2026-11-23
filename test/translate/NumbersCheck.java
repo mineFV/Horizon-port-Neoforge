@@ -220,6 +220,9 @@ public final class NumbersCheck {
         }
         p("pathErrors", "", com.example.numbers.Folders::errors);
         p("lazy", "", com.example.numbers.Lazy::made);
+        // The game's libraries: fastutil's int list and map by identity.
+        for (int n : new int[] {0, 1, 2, 5, 12, 40}) p("slots", n, () -> com.example.numbers.Turns.slots(n));
+        for (int n : new int[] {0, 1, 7, 30}) p("identity", n, () -> com.example.numbers.Turns.identity(n));
         String made = System.getenv("HORIZONNEO_MADE");
         if (made != null) p("made", "", () -> com.example.numbers.Folders.made(made));
     }

@@ -83,8 +83,27 @@ hash tables as fastutil's (each key at its mixed hash or the next free slot, rem
 shrinking at its load factor), gone through from the last slot to the first, the null key first, and a removal while
 iterating as fastutil's; their texts, hashes, views and Object2ObjectMap's defaults. Observed against fastutil itself.
 The same for chars (CharOpenHashSet, and Char2ObjectArrayMap's array) and longs (LongOpenHashSet,
-Long2ObjectOpenHashMap, the key 0 kept apart as fastutil keeps it). Its other collections (other primitive keys,
-lists, linked and sorted ones) aren't here yet.
+Long2ObjectOpenHashMap, the key 0 kept apart as fastutil keeps it), and for keys by identity (Reference2ObjectOpenHashMap,
+2026-11-24: ==, and System.identityHashCode where the object map takes hashCode). Identity hashes change from run to
+run, and a translated program's are its own: the probe observes the map by identity against the object map on keys
+whose hash is their identity's (same texts, orders, hashes, removals while iterating), and by what no hash decides.
+
+IntArrayList (2026-11-24): fastutil's list of ints and what it is made of (AbstractIntList, AbstractIntCollection,
+IntList, IntCollection, IntIterable, IntStack, their iterators and spliterator, Stack, BidirectionalIterator), as a
+List of Integers too: its array growing by half (a list made without a capacity starts at 10, fastutil's two empty
+arrays told apart), errors and their texts, boxed methods (an Object that isn't an Integer is a ClassCastException,
+null is in no list), its list iterator (fastutil 8.5.12's back(n), which measures how far it may go from the end:
+at the end it goes back to the start and says 0, near the start it goes before it), its late-binding spliterator
+splitting in halves, texts, hashes, equality and order with any list, stable sorts. Observed against fastutil, with
+the JDK's own ListIterator, PrimitiveIterator and Spliterator.OfInt, which the model now has too (lib/README.md).
+What differs: a part of a list as a view (subList) refuses but for the whole list (which fastutil gives as the list
+itself); sorting with a comparator gives fastutil's result (any stable sort does, for a consistent comparator), but
+not its pairs compared, and a comparator that throws leaves the list as it was; a subclass's clone refuses; fastutil's
+own AbstractIntList's iterator, for a list of a mod's that extends it, isn't fastutil's class. Not here: the elements
+in bulk (getElements, setElements...), IntComparator, IntConsumer and IntPredicate of fastutil's, replaceAll and
+unstableSort of its own, other kinds of lists.
+
+Its other collections (other primitive keys, linked and sorted ones) aren't here yet.
 
 Random numbers (net/minecraft/util/RandomSource, net/minecraft/world/level/levelgen, 2026-11-22): the Java generator
 (LegacyRandomSource, BitRandomSource's draws), after Horizon's `horizon_core::random`, and RandomSource.create's

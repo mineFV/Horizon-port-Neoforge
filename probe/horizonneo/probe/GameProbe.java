@@ -74,6 +74,7 @@ public final class GameProbe {
         ShapeProbe.run();
         AbsentProbe.run();
         ListProbe.run();
+        IntListProbe.run();
         // What needs the game started: in a server only (InServer gives "server").
         if (args.length > 0 && args[0].equals("server")) {
             ItemProbe.run();

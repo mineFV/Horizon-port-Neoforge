@@ -33,7 +33,9 @@ element for tryAdvance, after all for forEachRemaining). What differs, and why:
 
 - a parallel stream runs one element after another: one of the runs a parallel stream allows;
 - the spliterators don't split (trySplit gives null, which the API allows), and an IntStream's or LongStream's
-  iterator and spliterator are of boxes (PrimitiveIterator and Spliterator.OfInt aren't modelled);
+  iterator and spliterator are of boxes: PrimitiveIterator (OfInt, OfLong, OfDouble), Spliterator.OfInt and
+  ListIterator are modelled as interfaces with the API's defaults, for the game's libraries' int lists (fastutil's),
+  but the model's own streams and lists don't give them (List.listIterator isn't modelled);
 - a stream's stages have classes of the model's (getClass names them differently);
 - Collectors.toUnmodifiableSet keeps Set.of's order (see above).
 

@@ -314,6 +314,12 @@ fn main() {
     }
     p("pathErrors", String::new(), text(folders__errors()));
     p("lazy", String::new(), text(lazy__made()));
+    for n in [0, 1, 2, 5, 12, 40] {
+        p("slots", n.to_string(), text(turns__slots(n)));
+    }
+    for n in [0, 1, 7, 30] {
+        p("identity", n.to_string(), text(turns__identity(n)));
+    }
     if let Ok(made) = std::env::var("HORIZONNEO_MADE") {
         p("made", String::new(), text(folders__made(jstring(&made))));
     }
