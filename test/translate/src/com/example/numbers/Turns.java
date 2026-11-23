@@ -6,10 +6,12 @@ import it.unimi.dsi.fastutil.ints.IntListIterator;
 import it.unimi.dsi.fastutil.objects.Reference2ObjectOpenHashMap;
 import java.util.List;
 import java.util.Map;
+import net.minecraft.util.Mth;
+import net.minecraft.world.phys.Vec3;
 
 /**
- * The game's libraries as a mod uses them: fastutil's list of ints (kept, then gone through, as a mod's transfers do)
- * and its map by identity.
+ * The game's libraries and arithmetic as a mod uses them: fastutil's list of ints (kept, then gone through, as a mod's
+ * transfers do), its map by identity, the game's sine table and a point turned about each axis.
  */
 public final class Turns {
     private Turns() {}
@@ -46,5 +48,22 @@ public final class Turns {
         for (int i = 0; i < n; i++) if (asMap.get(keys[i]) != null) found++;
         String removed = n > 0 ? m.remove(keys[0]) : "-";
         return m.size() + " " + found + " " + asMap.get("k1") + " " + m.containsKey(new String("k0")) + " " + removed + " " + m.size() + " " + asMap.containsValue("v1");
+    }
+
+    /** The game's sine and cosine at the middle of each entry of the table from one to another, as a hash. */
+    public static int sines(int from, int to) {
+        int h = 1;
+        for (int i = from; i < to; i++) {
+            float f = (float) ((i + 0.5) / 10430.378350470453);
+            h = 31 * h + Float.floatToRawIntBits(Mth.sin(f));
+            h = 31 * h + Float.floatToRawIntBits(Mth.cos(f));
+        }
+        return h;
+    }
+
+    /** A point turned about each axis by the angle. */
+    public static String turned(double x, double y, double z, float angle) {
+        Vec3 v = new Vec3(x, y, z);
+        return v.xRot(angle) + " " + v.yRot(angle) + " " + v.zRot(angle);
     }
 }

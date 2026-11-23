@@ -220,9 +220,16 @@ public final class NumbersCheck {
         }
         p("pathErrors", "", com.example.numbers.Folders::errors);
         p("lazy", "", com.example.numbers.Lazy::made);
-        // The game's libraries: fastutil's int list and map by identity.
+        // The game's libraries and arithmetic: fastutil's int list and map by identity, the sine table, turned points.
         for (int n : new int[] {0, 1, 2, 5, 12, 40}) p("slots", n, () -> com.example.numbers.Turns.slots(n));
         for (int n : new int[] {0, 1, 7, 30}) p("identity", n, () -> com.example.numbers.Turns.identity(n));
+        for (int from = 0; from < 65536; from += 8192) {
+            int a = from;
+            p("sines", from, () -> com.example.numbers.Turns.sines(a, a + 8192));
+        }
+        for (float angle : new float[] {0f, -0f, 1.5707964f, 3.1415927f, -1.5707964f, 0.1f, 123.456f, 1e9f, Float.NaN, Float.POSITIVE_INFINITY}) {
+            p("turned", f(angle), () -> com.example.numbers.Turns.turned(1.0, 2.0, 3.0, angle) + " " + com.example.numbers.Turns.turned(-0.5, 0.0, 1e10, angle));
+        }
         String made = System.getenv("HORIZONNEO_MADE");
         if (made != null) p("made", "", () -> com.example.numbers.Folders.made(made));
     }

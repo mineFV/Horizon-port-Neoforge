@@ -3,11 +3,13 @@ package net.minecraft.world.phys;
 import net.minecraft.core.Direction;
 import net.minecraft.core.Position;
 import net.minecraft.core.Vec3i;
+import net.minecraft.util.Mth;
 
 /**
  * The stand-in for the game's Vec3: a point in doubles, observed (`standins`, probe/VecProbe.java): every method
  * gives a new Vec3, equality compares each coordinate as Double.compare does (0.0 and -0.0 differ, NaN equals NaN).
- * xRot, yRot and zRot aren't here: they use the game's sine, which Mth's stand-in leaves out.
+ * xRot, yRot and zRot turn it about an axis with Mth's float sine and cosine widened, as Horizon's
+ * horizon_core::geometry Vec3 does (MIT), observed.
  */
 public class Vec3 implements Position {
     public static final Vec3 ZERO = new Vec3(0.0, 0.0, 0.0);
@@ -106,6 +108,24 @@ public class Vec3 implements Position {
     /** Observed: its coordinates as floats. */
     public org.joml.Vector3f toVector3f() {
         return new org.joml.Vector3f((float) x, (float) y, (float) z);
+    }
+
+    /** About the x axis: y and z turned by the angle's float cosine and sine. */
+    public Vec3 xRot(float angle) {
+        double c = Mth.cos(angle), s = Mth.sin(angle);
+        return new Vec3(x, y * c + z * s, z * c - y * s);
+    }
+
+    /** About the y axis: x and z turned. */
+    public Vec3 yRot(float angle) {
+        double c = Mth.cos(angle), s = Mth.sin(angle);
+        return new Vec3(x * c + z * s, y, z * c - x * s);
+    }
+
+    /** About the z axis: x and y turned. */
+    public Vec3 zRot(float angle) {
+        double c = Mth.cos(angle), s = Mth.sin(angle);
+        return new Vec3(x * c + y * s, y * c - x * s, z);
     }
 
     public Vec3 scale(double f) {

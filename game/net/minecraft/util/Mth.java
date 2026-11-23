@@ -2,14 +2,28 @@ package net.minecraft.util;
 
 /**
  * The stand-in for the game's Mth: what Mekanism uses of it, observed (`standins`, probe/MthProbe.java) on numbers
- * chosen to pin it down (zeros of both signs, halves, the ints' bounds, NaN, infinities). Its sine, cosine and
- * atan2 aren't here: the game reads them from tables built with Math.sin and Math.asin, whose last bit Rust's
- * functions don't promise.
+ * chosen to pin it down (zeros of both signs, halves, the ints' bounds, NaN, infinities). Its sine and cosine read the
+ * game's table (HorizonSine) as Horizon does; its atan2 isn't here: the game reads it from tables built with
+ * Math.asin and Math.cos, whose last bit Rust's functions don't promise.
  */
 public class Mth {
     public static final float SQRT_OF_TWO = (float) Math.sqrt(2.0);
 
     public Mth() {}
+
+    /**
+     * The game's table at the angle's index: the angle times 10430.378 (65536 / 2π) in floats, cut to an int, its low 16
+     * bits. Observed (`standins`): every entry, the angles on either side of every entry's edge, past the ints' range, NaN
+     * and the infinities. Not Horizon's (Minecraft 26.3's, in doubles cut to a long), which picks other entries there.
+     */
+    public static float sin(float value) {
+        return HorizonSine.TABLE[(int) (value * 10430.378F) & 65535];
+    }
+
+    /** The sine a quarter turn on: the index plus 16384, added in floats too. */
+    public static float cos(float value) {
+        return HorizonSine.TABLE[(int) (value * 10430.378F + 16384.0F) & 65535];
+    }
 
     /** Observed: the int cast, one less when the cast went up (below MIN it wraps to MAX). */
     /** Observed (`standins`): start, plus the floor of delta times the distance. */

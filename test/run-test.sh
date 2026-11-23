@@ -931,7 +931,7 @@ cp "$TR/jar/META-INF/services/com.example.numbers.Services\$Greeter" "$TR/classe
 printf 'modLoader = "javafml"\nloaderVersion = "[4,)"\nlicense = "MIT"\n[[mods]]\nmodId = "numbers"\nversion = "1.0"\ndisplayName = "Numbers"\n' > "$TR/jar/META-INF/neoforge.mods.toml"
 jar --create --file "$B/jars/numbers.jar" -C "$TR/jar" . -C "$TR/classes" com
 exits 0 tool translate "$B/jars/numbers.jar" --out "$TR/out"
-says "$OUT" "numbers.jar: 535 of 537 methods translated from their bytecode"
+says "$OUT" "numbers.jar: 537 of 539 methods translated from their bytecode"
 # A lambda whose method isn't translated is made all the same (its class initializer is translated), and refuses when run.
 says "$TR/out/translation.md" '- `com.example.numbers.Lazy.<clinit>()V` as `lazy__clinit`'
 says "$TR/out/translation.md" '## Lambdas made whose method isn'"'"'t translated'
@@ -1150,7 +1150,7 @@ for v in same upper; do
 done
 exits 0 tool standins --server "$SI/same"
 says "$OUT" "ok: the 557 stand-ins have the supertypes and the methods of the server's classes"
-says "$OUT" "ok: the game and the stand-ins give the same 23286 answers to the probe"
+says "$OUT" "ok: the game and the stand-ins give the same 23430 answers to the probe"
 says "$OUT" "no server, no world, no mod"
 no_file logs
 exits 1 tool standins --server "$SI/upper"

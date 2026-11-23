@@ -33,8 +33,19 @@ NullPointerException's message isn't compared: the JVM builds it from the byteco
 What is here: positions and directions (net/minecraft/core: Vec3i, BlockPos and its MutableBlockPos, Direction
 with Axis and AxisDirection) and NBT (net/minecraft/nbt: the tags of numbers, texts, lists, arrays and compounds,
 and NbtUtils' positions), ids (net/minecraft/resources/ResourceLocation, with its exception), ByIdMap's continuous
-maps equipment slots (net/minecraft/world/entity/EquipmentSlot, but limit), points in doubles (net/minecraft/world/phys/Vec3, but xRot, yRot and zRot, and Position) and Mth's arithmetic (not its sine, cosine and atan2, which the game reads from tables built with Math.sin
-and Math.asin, nor its random numbers). They cover what Mekanism calls of them, but for the members below.
+maps equipment slots (net/minecraft/world/entity/EquipmentSlot, but limit), points in doubles (net/minecraft/world/phys/Vec3, and Position) and Mth's arithmetic (not its atan2, which the game reads from tables built with Math.asin
+and Math.cos, nor its random numbers). They cover what Mekanism calls of them, but for the members below.
+
+The game's sine (Mth.sin and Mth.cos, 2026-11-24) and the points turned about an axis with it (Vec3's xRot, yRot,
+zRot): its table, each of the 65536 entries the sine of i / 10430.378350470453 rounded to a double then a float, as
+Horizon builds it (horizon_core::geometry::trig, MIT), the sine Horizon's correctly rounded one
+(horizon_core::jmath::exact, MIT) in Java's arithmetic (net/minecraft/util/HorizonSine), so that the JVM and the
+translation make the same table; observed equal to the game's, entry by entry (HotSpot's Math.sin, which the game
+builds it with, is off by a bit of a double for a few arguments in a thousand, which a float doesn't keep). Which
+entry an angle reads isn't Horizon's: 1.21.1 multiplies the float angle by 10430.378F in floats and cuts it to an
+int (Minecraft 26.3, which Horizon follows, does it in doubles cut to a long), observed on the angles on either side
+of every entry's edge, past the ints' range, NaN, infinities and 700 000 angles at random. A rotation widens the float
+cosine and sine as Horizon's Vec3 does, observed.
 
 Items' data components (net/minecraft/core/component, 2026-11-17): their types (those every item has, and an item's
 durability), maps, patches, a stack's and an item's (from its properties), set, taken out and compared as a server does,

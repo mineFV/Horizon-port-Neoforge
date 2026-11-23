@@ -320,6 +320,13 @@ fn main() {
     for n in [0, 1, 7, 30] {
         p("identity", n.to_string(), text(turns__identity(n)));
     }
+    for from in (0..65536).step_by(8192) {
+        p("sines", from.to_string(), show(turns__sines(from, from + 8192)));
+    }
+    for angle in [0.0f32, -0.0, 1.5707964, 3.1415927, -1.5707964, 0.1, 123.456, 1e9, f32::NAN, f32::INFINITY] {
+        let both = format!("{} {}", text(turns__turned(1.0, 2.0, 3.0, angle)), text(turns__turned(-0.5, 0.0, 1e10, angle)));
+        p("turned", f(angle), both);
+    }
     if let Ok(made) = std::env::var("HORIZONNEO_MADE") {
         p("made", String::new(), text(folders__made(jstring(&made))));
     }

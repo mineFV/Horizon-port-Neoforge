@@ -12,6 +12,7 @@ final class MthProbe {
     static final int[] I = {0, 1, -1, 2, 3, 7, 10, -10, 100, Integer.MAX_VALUE, Integer.MIN_VALUE};
 
     static void run() {
+        sines();
         p("mth sqrt2", () -> Float.floatToIntBits(Mth.SQRT_OF_TWO));
         for (double a : D) {
             float f = (float) a;
@@ -43,6 +44,79 @@ final class MthProbe {
                 for (int c : I) p("mthi " + a + " " + b + " " + c, () -> Mth.clamp(a, b, c));
                 p("mthi " + a + " " + b + " ceilDiv", () -> Mth.positiveCeilDiv(a, b));
                 for (double t : some) p("mthi " + a + " " + b + " discrete " + t, () -> Mth.lerpDiscrete((float) t, a, b));
+            }
+        }
+    }
+
+    /** 65536 / 2π, rounded to a double: the table's entries are a turn's 65536ths. */
+    static final double SCALE = 10430.378350470453;
+
+    /** A hash of the sine's and cosine's bits over the angles. */
+    static String hashed(float[] angles) {
+        int hs = 1, hc = 1;
+        for (float f : angles) {
+            hs = 31 * hs + Float.floatToRawIntBits(Mth.sin(f));
+            hc = 31 * hc + Float.floatToRawIntBits(Mth.cos(f));
+        }
+        return hs + " " + hc;
+    }
+
+    /**
+     * The game's sine table and how an angle picks its entry: every entry by the angle at its middle (in blocks of 4096,
+     * hashed), the angles on either side of the entries' edges, angles past the ints' range, NaN, infinities, and floats
+     * at random, of any bits.
+     */
+    static void sines() {
+        for (int block = 0; block < 16; block++) {
+            int from = block * 4096;
+            p("mth sine table " + from, () -> {
+                float[] a = new float[4096];
+                for (int i = 0; i < a.length; i++) a[i] = (float) ((from + i + 0.5) / SCALE);
+                return hashed(a);
+            });
+        }
+        for (int block = 0; block < 16; block++) {
+            int from = block * 4096;
+            p("mth sine edges " + from, () -> {
+                float[] a = new float[3 * 4096];
+                for (int i = 0; i < 4096; i++) {
+                    float f = (float) ((from + i) / SCALE);
+                    a[3 * i] = Math.nextDown(f);
+                    a[3 * i + 1] = f;
+                    a[3 * i + 2] = Math.nextUp(f);
+                }
+                return hashed(a);
+            });
+        }
+        float[] extremes = {0f, -0f, 1e-30f, Float.MIN_VALUE, -Float.MIN_VALUE, 1f, -1f, (float) Math.PI, (float) -Math.PI, (float) (Math.PI / 2), (float) (2 * Math.PI), 100f, -100f,
+            1e4f, 2e5f, 205887.4f, 205888f, -205888f, 3e5f, -3e5f, 1e6f, 1e7f, 1e9f, -1e9f, 8.8e14f, 1e15f, -1e15f, 1e18f, 1e20f, Float.MAX_VALUE, -Float.MAX_VALUE, Float.NaN,
+            Float.intBitsToFloat(0x7f800001), Float.intBitsToFloat(0xffc00000), Float.POSITIVE_INFINITY, Float.NEGATIVE_INFINITY};
+        for (float f : extremes) {
+            p("mth sine of " + Float.floatToRawIntBits(f), () -> Float.floatToRawIntBits(Mth.sin(f)) + " " + Float.floatToRawIntBits(Mth.cos(f)));
+        }
+        float[] ranges = {1f, 10f, 1e3f, 1e5f, 1e7f};
+        for (float range : ranges) {
+            p("mth sine random " + range, () -> {
+                java.util.Random r = new java.util.Random(Float.floatToRawIntBits(range));
+                float[] a = new float[100000];
+                for (int i = 0; i < a.length; i++) a[i] = (r.nextFloat() * 2 - 1) * range;
+                return hashed(a);
+            });
+        }
+        p("mth sine any bits", () -> {
+            java.util.Random r = new java.util.Random(7);
+            float[] a = new float[200000];
+            for (int i = 0; i < a.length; i++) a[i] = Float.intBitsToFloat(r.nextInt());
+            return hashed(a);
+        });
+        net.minecraft.world.phys.Vec3[] vectors = {new net.minecraft.world.phys.Vec3(1, 2, 3), new net.minecraft.world.phys.Vec3(-0.5, 0, 0.25),
+            new net.minecraft.world.phys.Vec3(1e10, -1e-10, 0), new net.minecraft.world.phys.Vec3(0.0625, 0.9375, -0.0), new net.minecraft.world.phys.Vec3(Double.NaN, 1, Double.POSITIVE_INFINITY)};
+        float[] angles = {0f, -0f, (float) (Math.PI / 2), (float) Math.PI, (float) (-Math.PI / 2), (float) (3 * Math.PI / 2), (float) Math.toRadians(90), (float) Math.toRadians(-270), 1f, 0.1f,
+            123.456f, -7.5f, 1e9f, Float.NaN};
+        for (int v = 0; v < vectors.length; v++) {
+            net.minecraft.world.phys.Vec3 vec = vectors[v];
+            for (float angle : angles) {
+                p("vec rot " + v + " " + Float.floatToRawIntBits(angle), () -> vec.xRot(angle) + " " + vec.yRot(angle) + " " + vec.zRot(angle));
             }
         }
     }
