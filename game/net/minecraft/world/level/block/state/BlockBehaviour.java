@@ -52,6 +52,51 @@ public abstract class BlockBehaviour implements FeatureElement {
         net.minecraft.world.level.block.state.properties.NoteBlockInstrument instrument;
         net.minecraft.world.level.material.PushReaction pushReaction;
         boolean noCollission, noOcclusion, noLootTable, liquid, replaceable, dynamicShape, requiresCorrectToolForDrops, isAir;
+        net.minecraft.world.level.block.SoundType soundType;
+        /** The block of the game's whose properties these copy, which aren't known: its states refuse what they'd tell. */
+        String horizonUnknown;
+
+        public Properties sound(net.minecraft.world.level.block.SoundType soundType) {
+            this.soundType = soundType;
+            return this;
+        }
+
+        /**
+         * Observed (probe/BlockItemProbe.java, legacy): a copy of a block's properties, which its states answer as the
+         * block's do. A block of the game's (but air) has properties that aren't known: so has the copy.
+         */
+        public static Properties ofLegacyCopy(BlockBehaviour block) {
+            Properties from = block.properties;
+            if (block instanceof net.minecraft.world.level.block.Block b && b.horizonOther()) {
+                if (!BlockStateBase.AIR.contains(String.valueOf(b.horizonId()))) {
+                    Properties unknown = new Properties();
+                    unknown.horizonUnknown = String.valueOf(b);
+                    return unknown;
+                }
+                from = BlockStateBase.AIR_PROPERTIES;
+            }
+            Properties copy = new Properties();
+            copy.destroyTime = from.destroyTime;
+            copy.explosionResistance = from.explosionResistance;
+            copy.mapColor = from.mapColor;
+            copy.isValidSpawn = from.isValidSpawn;
+            copy.isSuffocating = from.isSuffocating;
+            copy.isViewBlocking = from.isViewBlocking;
+            copy.lightEmission = from.lightEmission;
+            copy.instrument = from.instrument;
+            copy.pushReaction = from.pushReaction;
+            copy.noCollission = from.noCollission;
+            copy.noOcclusion = from.noOcclusion;
+            copy.noLootTable = from.noLootTable;
+            copy.liquid = from.liquid;
+            copy.replaceable = from.replaceable;
+            copy.dynamicShape = from.dynamicShape;
+            copy.requiresCorrectToolForDrops = from.requiresCorrectToolForDrops;
+            copy.isAir = from.isAir;
+            copy.soundType = from.soundType;
+            copy.horizonUnknown = from.horizonUnknown;
+            return copy;
+        }
 
         public Properties air() {
             isAir = true;
@@ -196,11 +241,15 @@ public abstract class BlockBehaviour implements FeatureElement {
                 if (AIR.contains(String.valueOf(owner.horizonId()))) return AIR_PROPERTIES;
                 throw new UnsupportedOperationException(what + " of " + owner + " isn't known: a block of the game's or of another mod's (horizon-port-neoforge)");
             }
+            if (owner.properties.horizonUnknown != null) {
+                throw new UnsupportedOperationException(what + " of " + owner + " isn't known: its properties copy those of " + owner.properties.horizonUnknown
+                        + ", a block of the game's (horizon-port-neoforge)");
+            }
             return owner.properties;
         }
 
-        private static final java.util.Set<String> AIR = java.util.Set.of("minecraft:air", "minecraft:cave_air", "minecraft:void_air");
-        private static final Properties AIR_PROPERTIES = Properties.of().noCollission().noLootTable().air().replaceable();
+        static final java.util.Set<String> AIR = java.util.Set.of("minecraft:air", "minecraft:cave_air", "minecraft:void_air");
+        static final Properties AIR_PROPERTIES = Properties.of().noCollission().noLootTable().air().replaceable();
 
         /** Observed: its block's say; a block of the game's other than air isn't known, refused. */
         public net.minecraft.world.level.material.FluidState getFluidState() {

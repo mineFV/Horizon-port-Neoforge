@@ -59,10 +59,19 @@ final class BlockItemProbe {
             NEIGHBORED.add("change " + level + " " + pos + " " + (state == defaultBlockState()) + " " + neighbor);
         }
     });
+    /** Blocks made with a copy of another's properties (ofLegacyCopy): their states answer as the other's. */
+    static final DeferredBlock<Block> LEGACY_HARD = BLOCKS.register("legacy_hard", () -> new Block(BlockBehaviour.Properties.ofLegacyCopy(HARD.get())));
+    static final DeferredBlock<Block> LEGACY_CLEAR = BLOCKS.register("legacy_clear", () -> new Block(BlockBehaviour.Properties.ofLegacyCopy(CLEAR.get())));
+    static final DeferredBlock<Block> LEGACY_GRASSY = BLOCKS.register("legacy_grassy", () -> new Block(BlockBehaviour.Properties.ofLegacyCopy(GRASSY.get())));
+    static final DeferredBlock<Block> LEGACY_FLUID = BLOCKS.register("legacy_fluid", () -> new Block(BlockBehaviour.Properties.ofLegacyCopy(FLUID.get())));
+    static final DeferredBlock<Block> LEGACY_AIRY = BLOCKS.register("legacy_airy", () -> new Block(BlockBehaviour.Properties.ofLegacyCopy(AIRY.get())));
+    static final DeferredBlock<Block> LEGACY_GHOST = BLOCKS.register("legacy_ghost", () -> new Block(BlockBehaviour.Properties.ofLegacyCopy(GHOST.get())
+            .sound(net.minecraft.world.level.block.SoundType.SAND)));
     static final DeferredHolder<Item, BlockItem> ITEM = ITEMS.register("with_item", () -> new BlockItem(WITH.get(), new Item.Properties()));
 
     static void run() {
-        java.util.List<DeferredBlock<Block>> blocks = java.util.List.of(WITH, AIRY, FLUID, CLEAR, GHOST, GRASSY, HARD, WET, CapabilityProbe.BLOCK);
+        java.util.List<DeferredBlock<Block>> blocks = java.util.List.of(WITH, AIRY, FLUID, CLEAR, GHOST, GRASSY, HARD, WET, CapabilityProbe.BLOCK,
+                LEGACY_HARD, LEGACY_CLEAR, LEGACY_GRASSY, LEGACY_FLUID, LEGACY_AIRY, LEGACY_GHOST);
         net.minecraft.world.level.material.Fluid[] fluids = {net.minecraft.world.level.material.Fluids.EMPTY, net.minecraft.world.level.material.Fluids.WATER, net.minecraft.world.level.material.Fluids.LAVA};
         for (net.minecraft.world.level.material.Fluid f : fluids) {
             p("fluid state " + f, () -> {

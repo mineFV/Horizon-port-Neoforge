@@ -120,6 +120,16 @@ their iterators, its cells (Tables.immutableCell), texts, equality and hash. Obs
 class has Guava's name, supertypes and declared methods (AbstractTable, StandardTable, their views, TransformedIterator),
 as the check against the server's classes asks. A row's view refuses; Tables' other tables aren't here.
 
+Particles (net/minecraft/core/particles, 2026-11-23): the kinds a mod names (Mekanism's: smoke, portal and redstone's
+dust), one object each, whether they ignore the particle limit, dust's color and its scale clamped between its bounds,
+observed in a server. Not their codecs, nor the particle registry.
+
+Blocks' sounds and stats (2026-11-23): the sound types a mod names (Mekanism's: sand, grass, deepslate), their volume,
+pitch and sounds (SoundEvents': ids, ranges, one object each), Properties.sound kept, and the custom stats' ids
+(opening a chest, a barrel), observed in a server. Properties.ofLegacyCopy: a copy of a block's properties, whose
+states answer as the block's do (observed with the probe's blocks); a copy of a block of the game's (but air) isn't
+known either, and its states refuse.
+
 What isn't here, and what it costs: BlockPos's getCenter, betweenClosed and codecs, Direction's getRotation and
 codecs, MutableBlockPos's other setters, NBT's codecs (NbtOps), its readers and writers (DataOutput, visitors),
 TagType, ResourceLocation's codecs and its readers (StringReader), ByIdMap.sparse. A call to one isn't translated; and when a virtual call through a wider type (Object, List...) may reach
