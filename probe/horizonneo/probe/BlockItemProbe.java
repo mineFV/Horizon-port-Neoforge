@@ -44,6 +44,16 @@ final class BlockItemProbe {
             return new net.minecraft.world.item.ItemStack(Items.DIAMOND, 3);
         }
     });
+    /** What PROGRESS's own getDestroyProgress was given, each time it ran. */
+    static final java.util.List<String> PROGRESSED = new java.util.ArrayList<>();
+    static final DeferredBlock<Block> PROGRESS = BLOCKS.register("progress", () -> new Block(BlockBehaviour.Properties.of()) {
+        @Override
+        protected float getDestroyProgress(net.minecraft.world.level.block.state.BlockState state, net.minecraft.world.entity.player.Player player,
+                net.minecraft.world.level.BlockGetter level, net.minecraft.core.BlockPos pos) {
+            PROGRESSED.add(player + " " + level + " " + pos + " " + (state == defaultBlockState()));
+            return 0.25F;
+        }
+    });
     /** What NEIGHBOR's own neighborChanged was given, each time it ran. */
     static final java.util.List<String> NEIGHBORED = new java.util.ArrayList<>();
     static final DeferredBlock<Block> NEIGHBOR = BLOCKS.register("neighbor", () -> new Block(BlockBehaviour.Properties.of()) {
@@ -102,6 +112,7 @@ final class BlockItemProbe {
         }
         clones();
         neighbours();
+        progress();
         p("block item", () -> WITH.get().asItem() + " " + (WITH.get().asItem() == ITEM.get()) + " " + ITEM.get().getBlock() + " " + ITEM.get().getDescriptionId()
                 + " " + ITEM.get().getDescription() + " " + WITH.asItem() + " " + WITHOUT.get().asItem() + " " + Item.byBlock(WITHOUT.get()) + " " + Block.byItem(ITEM.get())
                 + " " + Block.byItem(Items.DIAMOND) + " " + Item.BY_BLOCK.get(WITH.get()) + " " + Item.BY_BLOCK.get(WITHOUT.get()));
@@ -111,6 +122,15 @@ final class BlockItemProbe {
             return (Items.STONE instanceof BlockItem) + " " + ((BlockItem) Items.STONE).getBlock() + " " + (((BlockItem) Items.STONE).getBlock() == stone) + " "
                     + Items.STONE.getDescriptionId() + " " + (Items.DIAMOND instanceof BlockItem) + " " + (Items.AIR instanceof BlockItem) + " " + stone.asItem()
                     + " " + (stone.asItem() == Items.STONE) + " " + air.asItem() + " " + (Block.byItem(Items.STONE) == stone) + " " + Block.byItem(Items.AIR) + " " + (Block.byItem(Items.AIR) == air);
+        });
+    }
+
+    /** A state's getDestroyProgress: its block's, a block's own (the game's needs a player in a world: not asked). */
+    static void progress() {
+        p("block destroy progress", () -> {
+            PROGRESSED.clear();
+            float f = PROGRESS.get().defaultBlockState().getDestroyProgress(null, null, new net.minecraft.core.BlockPos(4, 5, 6));
+            return f + " " + PROGRESSED;
         });
     }
 

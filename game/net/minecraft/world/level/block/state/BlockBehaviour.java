@@ -20,6 +20,14 @@ public abstract class BlockBehaviour implements FeatureElement {
      */
     protected void neighborChanged(BlockState state, net.minecraft.world.level.Level level, net.minecraft.core.BlockPos pos, net.minecraft.world.level.block.Block neighborBlock, net.minecraft.core.BlockPos neighborPos, boolean movedByPiston) {}
 
+    /**
+     * How far one hit of a player takes the block's breaking: a player's mining is Horizon's (its tools, effects and the
+     * block's hardness in the world), so the game's own answer refuses; a block's own override runs.
+     */
+    protected float getDestroyProgress(BlockState state, net.minecraft.world.entity.player.Player player, net.minecraft.world.level.BlockGetter level, net.minecraft.core.BlockPos pos) {
+        throw new UnsupportedOperationException("a player's mining of a block (its destroy progress) isn't modelled (horizon-port-neoforge)");
+    }
+
     /** Its states' fluid: none, unless the block says otherwise (observed). */
     protected net.minecraft.world.level.material.FluidState getFluidState(BlockState state) {
         return net.minecraft.world.level.material.Fluids.EMPTY.defaultFluidState();
@@ -217,6 +225,11 @@ public abstract class BlockBehaviour implements FeatureElement {
 
         public boolean is(Block block) {
             return owner == block;
+        }
+
+        /** Observed (probe/BlockItemProbe.java, progress): its block's getDestroyProgress, given this state and the rest as they come. */
+        public float getDestroyProgress(net.minecraft.world.entity.player.Player player, net.minecraft.world.level.BlockGetter level, net.minecraft.core.BlockPos pos) {
+            return getBlock().getDestroyProgress((BlockState) this, player, level, pos);
         }
 
         /** Observed (probe/BlockItemProbe.java, neighbours): its block's neighborChanged, given this state and the rest as they come. */

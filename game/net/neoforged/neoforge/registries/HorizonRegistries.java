@@ -304,6 +304,7 @@ public final class HorizonRegistries {
         if (value instanceof net.minecraft.world.level.block.Block block) return block.horizonId();
         if (value instanceof net.minecraft.world.level.material.Fluid fluid) return fluid.horizonId();
         if (value instanceof net.minecraft.core.component.DataComponentType<?> type) return net.minecraft.core.component.DataComponentType.horizonId(type);
+        if (value instanceof net.minecraft.world.item.crafting.RecipeType<?>) return net.minecraft.world.item.crafting.HorizonRecipeTypes.idOf(value);
         return null;
     }
 

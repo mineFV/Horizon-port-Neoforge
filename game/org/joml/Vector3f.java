@@ -179,6 +179,16 @@ public class Vector3f implements java.io.Externalizable, Cloneable, Vector3fc {
                 && Float.floatToIntBits(z) == Float.floatToIntBits(other.z);
     }
 
+    /** Turned by a quaternion: JOML's quaternions aren't modelled (a client's renderers turn vectors so), so it refuses. */
+    public Vector3f rotate(Quaternionfc quat) {
+        throw new UnsupportedOperationException("turning a Vector3f by a quaternion isn't modelled (horizon-port-neoforge)");
+    }
+
+    /** As rotate(quat), into dest: refused. */
+    public Vector3f rotate(Quaternionfc quat, Vector3f dest) {
+        throw new UnsupportedOperationException("turning a Vector3f by a quaternion isn't modelled (horizon-port-neoforge)");
+    }
+
     /** JOML writes it with a NumberFormat: not modelled. */
     @Override
     public String toString() {

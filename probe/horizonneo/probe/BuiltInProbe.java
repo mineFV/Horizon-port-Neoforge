@@ -22,6 +22,7 @@ final class BuiltInProbe {
     static final net.neoforged.neoforge.registries.DeferredHolder<String, String> NONE = WORD_ENTRIES.register("none", () -> "none-value");
 
     static void run() {
+        recipeTypes();
         ResourceLocation diamond = ResourceLocation.withDefaultNamespace("diamond"), nope = ResourceLocation.withDefaultNamespace("nope");
         ResourceLocation plain = ResourceLocation.parse("horizonprobe:plain");
         p("registry item", () -> BuiltInRegistries.ITEM.getKey(Items.DIAMOND) + " " + (BuiltInRegistries.ITEM.get(diamond) == Items.DIAMOND) + " " + BuiltInRegistries.ITEM.get(nope)
@@ -48,6 +49,30 @@ final class BuiltInProbe {
         p("registry components", () -> (BuiltInRegistries.DATA_COMPONENT_TYPE.get(ResourceLocation.withDefaultNamespace("max_stack_size")) == DataComponents.MAX_STACK_SIZE) + " "
                 + BuiltInRegistries.DATA_COMPONENT_TYPE.getKey(DataComponents.DAMAGE) + " " + BuiltInRegistries.DATA_COMPONENT_TYPE.get(nope) + " " + BuiltInRegistries.DATA_COMPONENT_TYPE
                 + " " + BuiltInRegistries.DATA_COMPONENT_TYPE.containsKey(nope) + " " + BuiltInRegistries.DATA_COMPONENT_TYPE.getOptional(nope));
+    }
+
+    /**
+     * The game's recipe types: their texts and classes, one object each, and the registry's ids for them; a kind of the
+     * probe's own, not registered, has none.
+     */
+    @SuppressWarnings({"rawtypes", "unchecked"})
+    static void recipeTypes() {
+        net.minecraft.world.item.crafting.RecipeType[] types = {net.minecraft.world.item.crafting.RecipeType.CRAFTING, net.minecraft.world.item.crafting.RecipeType.SMELTING,
+            net.minecraft.world.item.crafting.RecipeType.BLASTING, net.minecraft.world.item.crafting.RecipeType.SMOKING, net.minecraft.world.item.crafting.RecipeType.CAMPFIRE_COOKING,
+            net.minecraft.world.item.crafting.RecipeType.STONECUTTING, net.minecraft.world.item.crafting.RecipeType.SMITHING};
+        net.minecraft.core.Registry registry = BuiltInRegistries.RECIPE_TYPE;
+        for (net.minecraft.world.item.crafting.RecipeType t : types) {
+            p("recipe type " + t, () -> t.getClass().getName() + " " + registry.getKey(t) + " " + (registry.get(registry.getKey(t)) == t) + " " + registry.containsKey(registry.getKey(t))
+                    + " " + registry.getResourceKey(t) + " " + registry.containsValue(t) + " " + t.equals(types[0]) + " " + (t.hashCode() == System.identityHashCode(t)));
+        }
+        net.minecraft.world.item.crafting.RecipeType own = new net.minecraft.world.item.crafting.RecipeType() {
+            @Override
+            public String toString() {
+                return "own";
+            }
+        };
+        p("recipe type own", () -> registry.getKey(own) + " " + registry.getResourceKey(own) + " " + registry.containsValue(own) + " " + registry.get(ResourceLocation.withDefaultNamespace("nope"))
+                + " " + registry.containsKey(ResourceLocation.withDefaultNamespace("nope")) + " " + registry.getOptional(ResourceLocation.withDefaultNamespace("crafting")).isPresent());
     }
 
     static void p(String key, Supplier<Object> call) {

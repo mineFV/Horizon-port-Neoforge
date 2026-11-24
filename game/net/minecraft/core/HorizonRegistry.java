@@ -7,7 +7,7 @@ import net.neoforged.neoforge.registries.HorizonRegistries;
 
 /**
  * Not the game's: a registry of BuiltInRegistries. An id's value is the mod's registration, else the game's (items,
- * blocks, fluids and component types, as given: HorizonRegistries); a value's id the one it was registered under. A
+ * blocks, fluids and component types, as given: HorizonRegistries; the game's seven recipe types); a value's id the one it was registered under. A
  * defaulted registry gives its default for an unknown id and value. The game's values of the other registries (entity
  * types, menus...) aren't modelled, nor the whole of a registry (its keys, entries, size, numbers): asking says so. A
  * registry the mod made holds its registrations alone (another mod registering in it isn't modelled).
@@ -66,6 +66,7 @@ public final class HorizonRegistry<T> implements DefaultedRegistry<T> {
             case "block" -> HorizonRegistries.knownBlock(text);
             case "fluid" -> HorizonRegistries.knownFluid(text);
             case "data_component_type" -> net.minecraft.core.component.HorizonComponentCodecs.type(id);
+            case "recipe_type" -> net.minecraft.world.item.crafting.HorizonRecipeTypes.byId(text);
             default -> throw new UnsupportedOperationException("the game's values of the registry " + key.location() + " aren't modelled (horizon-port-neoforge)");
         };
     }

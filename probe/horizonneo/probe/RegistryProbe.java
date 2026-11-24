@@ -11,6 +11,7 @@ final class RegistryProbe {
     // Raw types: the game's keys are typed by its Registry, which the stand-ins leave out; the calls are the same.
     @SuppressWarnings({"rawtypes", "unchecked"})
     static void run() {
+        enchantments();
         ResourceLocation stone = ResourceLocation.withDefaultNamespace("stone"), counter = ResourceLocation.fromNamespaceAndPath("counter", "counter");
         ResourceKey block = Registries.BLOCK, type = Registries.BLOCK_ENTITY_TYPE;
         p("key registries", () -> block + " " + type + " " + Registries.ITEM + " " + Registries.ROOT_REGISTRY_NAME + " " + block.location() + " " + block.registry());
@@ -35,6 +36,19 @@ final class RegistryProbe {
                 + " " + four.getValue("up") + " " + all.equals(four) + " " + four.equals(some) + " " + four.equals(listed) + " " + (four.hashCode() == some.hashCode()) + " " + all.getPossibleValues().getClass().getSimpleName().isEmpty());
         // A property's hash starts from its class object's, which changes from run to run: only differences are asked.
         p("property hash", () -> (lit.generateHashCode() - net.minecraft.world.level.block.state.properties.BooleanProperty.create("x").generateHashCode()) + " " + (lit.generateHashCode() == made.generateHashCode()));
+    }
+
+    /** The game's enchantments' keys: texts, one object each, made as ResourceKey.create makes them. */
+    @SuppressWarnings({"rawtypes", "unchecked"})
+    static void enchantments() {
+        Object[] keys = {net.minecraft.world.item.enchantment.Enchantments.PROTECTION, net.minecraft.world.item.enchantment.Enchantments.FIRE_PROTECTION, net.minecraft.world.item.enchantment.Enchantments.FEATHER_FALLING, net.minecraft.world.item.enchantment.Enchantments.BLAST_PROTECTION, net.minecraft.world.item.enchantment.Enchantments.PROJECTILE_PROTECTION, net.minecraft.world.item.enchantment.Enchantments.RESPIRATION, net.minecraft.world.item.enchantment.Enchantments.AQUA_AFFINITY, net.minecraft.world.item.enchantment.Enchantments.THORNS, net.minecraft.world.item.enchantment.Enchantments.DEPTH_STRIDER, net.minecraft.world.item.enchantment.Enchantments.FROST_WALKER, net.minecraft.world.item.enchantment.Enchantments.BINDING_CURSE, net.minecraft.world.item.enchantment.Enchantments.SOUL_SPEED, net.minecraft.world.item.enchantment.Enchantments.SWIFT_SNEAK, net.minecraft.world.item.enchantment.Enchantments.SHARPNESS, net.minecraft.world.item.enchantment.Enchantments.SMITE, net.minecraft.world.item.enchantment.Enchantments.BANE_OF_ARTHROPODS, net.minecraft.world.item.enchantment.Enchantments.KNOCKBACK, net.minecraft.world.item.enchantment.Enchantments.FIRE_ASPECT, net.minecraft.world.item.enchantment.Enchantments.LOOTING, net.minecraft.world.item.enchantment.Enchantments.SWEEPING_EDGE, net.minecraft.world.item.enchantment.Enchantments.EFFICIENCY, net.minecraft.world.item.enchantment.Enchantments.SILK_TOUCH, net.minecraft.world.item.enchantment.Enchantments.UNBREAKING, net.minecraft.world.item.enchantment.Enchantments.FORTUNE, net.minecraft.world.item.enchantment.Enchantments.POWER, net.minecraft.world.item.enchantment.Enchantments.PUNCH, net.minecraft.world.item.enchantment.Enchantments.FLAME, net.minecraft.world.item.enchantment.Enchantments.INFINITY, net.minecraft.world.item.enchantment.Enchantments.LUCK_OF_THE_SEA, net.minecraft.world.item.enchantment.Enchantments.LURE, net.minecraft.world.item.enchantment.Enchantments.LOYALTY, net.minecraft.world.item.enchantment.Enchantments.IMPALING, net.minecraft.world.item.enchantment.Enchantments.RIPTIDE, net.minecraft.world.item.enchantment.Enchantments.CHANNELING, net.minecraft.world.item.enchantment.Enchantments.MULTISHOT, net.minecraft.world.item.enchantment.Enchantments.QUICK_CHARGE, net.minecraft.world.item.enchantment.Enchantments.PIERCING, net.minecraft.world.item.enchantment.Enchantments.DENSITY, net.minecraft.world.item.enchantment.Enchantments.BREACH, net.minecraft.world.item.enchantment.Enchantments.WIND_BURST, net.minecraft.world.item.enchantment.Enchantments.MENDING, net.minecraft.world.item.enchantment.Enchantments.VANISHING_CURSE};
+        p("enchantment keys", () -> {
+            StringBuilder b = new StringBuilder();
+            for (Object k : keys) b.append(k).append(' ');
+            ResourceKey silk = net.minecraft.world.item.enchantment.Enchantments.SILK_TOUCH;
+            return b.append(silk == ResourceKey.create(Registries.ENCHANTMENT, ResourceLocation.withDefaultNamespace("silk_touch"))).append(' ').append(Registries.ENCHANTMENT)
+                    .append(' ').append(silk.location()).append(' ').append(silk.registry()).append(' ').append(silk.isFor(Registries.ENCHANTMENT)).append(' ').append(new net.minecraft.world.item.enchantment.Enchantments() != null);
+        });
     }
 
     static void p(String key, java.util.function.Supplier<Object> call) {

@@ -114,6 +114,14 @@ own AbstractIntList's iterator, for a list of a mod's that extends it, isn't fas
 in bulk (getElements, setElements...), IntComparator, IntConsumer and IntPredicate of fastutil's, replaceAll and
 unstableSort of its own, other kinds of lists.
 
+Object2ObjectArrayMap (2026-11-24): keys and values in two arrays (protected, as fastutil's: a mod's subclass reads
+them, Mekanism's CustomObjectToObjectArrayMap), in the order they were put, a key looked for from the last one back,
+the arrays doubling when full, a removal (from the map, a view or an iterator) moving the following ones down; its
+views made once, the fast iterator's entry reused; fastutil's empty set (ObjectSets.emptySet: equal to any empty set,
+changes refused) and empty iterator. Observed against fastutil, the arrays' growth through a subclass. A subclass's
+clone refuses (Object.clone of an object isn't translated); the views' spliterators are Java's defaults (their
+characteristics aren't fastutil's).
+
 Its other collections (other primitive keys, linked and sorted ones) aren't here yet.
 
 Random numbers (net/minecraft/util/RandomSource, net/minecraft/world/level/levelgen, 2026-11-22): the Java generator
@@ -184,6 +192,15 @@ one). Observed, as a library and in a server.
 Bows (2026-11-23): BowItem and ProjectileWeaponItem as items made from their properties, their constructors adding
 nothing to them (observed in a server: a bow's components are a plain item's with the same properties). Using them
 (drawing, shooting) isn't here.
+
+The game's enchantments' keys and recipe types (2026-11-24): Enchantments' 42 keys (each its field's name in lower case,
+observed); RecipeType's seven, each an object of the game's anonymous class whose text is its name, held by
+BuiltInRegistries.RECIPE_TYPE under the game's namespace (observed in a server: their ids, keys, and none for a kind
+not registered). Enchantments themselves (the game's data) aren't here, nor recipes.
+
+A block's destroy progress (2026-11-24): a state's getDestroyProgress is its block's, given this state (observed with a
+block of the probe's); the game's own refuses, a player's mining being Horizon's. JOML's quaternions aren't modelled:
+turning a Vector3f by one refuses (only a client's renderers do it in Mekanism), and Quaternionfc is a type alone.
 
 A capability's cache at a position (2026-11-23): BlockCapabilityCache made as NeoForge makes it, what it is given kept
 (the position as an immutable copy), null refused; observed in a server's overworld. Asking it refuses: a level's

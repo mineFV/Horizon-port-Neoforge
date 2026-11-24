@@ -106,6 +106,7 @@ final class FastutilProbe {
         });
         maps();
         references();
+        arrayMaps();
         p("set bad", () -> new ObjectOpenHashSet<String>(4, 1.5f));
         p("set bad size", () -> new ObjectOpenHashSet<String>(-1));
         p("set big", () -> {
@@ -192,6 +193,149 @@ final class FastutilProbe {
         public String toString() {
             return String.valueOf(o);
         }
+    }
+
+    /** A subclass that reads the arrays, as Mekanism's does (CustomObjectToObjectArrayMap): its capacity, its own forEach. */
+    static final class Peeked extends it.unimi.dsi.fastutil.objects.Object2ObjectArrayMap<Object, String> {
+        Peeked() {}
+
+        Peeked(java.util.Map<Object, String> m) {
+            super(m);
+        }
+
+        int capacity() {
+            return key.length;
+        }
+
+        String direct() {
+            StringBuilder b = new StringBuilder();
+            for (int i = 0; i < size; i++) b.append(key[i]).append('=').append(value[i]).append(';');
+            return b.toString();
+        }
+
+        @Override
+        public it.unimi.dsi.fastutil.objects.ObjectSet<Object> keySet() {
+            return size == 0 ? it.unimi.dsi.fastutil.objects.ObjectSets.emptySet() : super.keySet();
+        }
+    }
+
+    /** What running call gives, or the class and message of what it throws (a NullPointerException's message isn't compared). */
+    static String t(Supplier<Object> call) {
+        try {
+            return String.valueOf(call.get());
+        } catch (NullPointerException e) {
+            return e.getClass().getName();
+        } catch (RuntimeException e) {
+            return e.getClass().getName() + ": " + e.getMessage();
+        }
+    }
+
+    /** fastutil's array map: its order, removals through the map, its views and their iterators, its arrays; the empty set. */
+    static void arrayMaps() {
+        p("array map made", () -> {
+            Peeked p = new Peeked();
+            StringBuilder b = new StringBuilder().append(p.capacity()).append(' ');
+            for (int i = 0; i < 9; i++) {
+                p.put("k" + i, "v" + i);
+                b.append(p.capacity()).append(',');
+            }
+            Peeked q = new Peeked(new java.util.TreeMap<>(java.util.Map.of("b", "2", "a", "1", "c", "3")));
+            b.append(' ').append(q).append(q.capacity()).append(' ').append(new it.unimi.dsi.fastutil.objects.Object2ObjectArrayMap<Object, String>(5)).append(' ')
+                    .append(new it.unimi.dsi.fastutil.objects.Object2ObjectArrayMap<Object, String>(new Object[] {"x", "y"}, new Object[] {"1", "2"})).append(' ')
+                    .append(new it.unimi.dsi.fastutil.objects.Object2ObjectArrayMap<Object, String>(new Object[] {"x", "y", "z"}, new Object[] {"1", "2", "3"}, 2)).append(' ')
+                    .append(t(() -> new it.unimi.dsi.fastutil.objects.Object2ObjectArrayMap<Object, String>(new Object[] {"x"}, new Object[] {"1", "2"}))).append(' ')
+                    .append(t(() -> new it.unimi.dsi.fastutil.objects.Object2ObjectArrayMap<Object, String>(new Object[] {"x"}, new Object[] {"1"}, 2))).append(' ')
+                    .append(t(() -> new it.unimi.dsi.fastutil.objects.Object2ObjectArrayMap<Object, String>(-1)));
+            return b;
+        });
+        p("array map ops", () -> {
+            Peeked m = new Peeked();
+            m.defaultReturnValue("none");
+            StringBuilder b = new StringBuilder();
+            b.append(m.put("a", "1")).append(m.put(null, "n")).append(m.put("b", null)).append(m.put(new String("a"), "2")).append(' ').append(m).append(' ');
+            b.append(m.get("a")).append(m.get(null)).append(m.get("b")).append(m.get("z")).append(m.containsKey("b")).append(m.containsKey("z")).append(m.containsValue(null)).append(m.containsValue("2"));
+            b.append(' ').append(m.remove("a")).append(m.remove("a")).append(' ').append(m).append(m.size()).append(m.direct()).append(' ').append(m.getOrDefault("z", "d")).append(m.putIfAbsent("c", "3"));
+            b.append(' ').append(m.hashCode()).append(' ').append(m.equals(new java.util.HashMap<>(m))).append(new java.util.HashMap<>(m).equals(m)).append(' ').append(m.keySet() == m.keySet()).append(m.values() == m.values())
+                    .append(m.object2ObjectEntrySet() == m.object2ObjectEntrySet()).append(' ').append(m.keySet()).append(m.values()).append(m.object2ObjectEntrySet());
+            m.clear();
+            b.append(' ').append(m).append(m.size()).append(m.isEmpty()).append(m.capacity()).append(m.keySet()).append(m.keySet().getClass().getName());
+            return b;
+        });
+        p("array map views", () -> {
+            Peeked m = new Peeked();
+            for (int i = 0; i < 12; i++) m.put("k" + i, "v" + i);
+            StringBuilder b = new StringBuilder();
+            var entries = m.object2ObjectEntrySet().iterator();
+            int k = 0;
+            while (entries.hasNext()) {
+                var e = entries.next();
+                if (k++ % 3 == 0) entries.remove();
+                b.append(e.getKey());
+            }
+            b.append(' ').append(t(() -> {
+                var it = m.object2ObjectEntrySet().iterator();
+                it.next();
+                it.remove();
+                it.remove();
+                return "no";
+            })).append(' ').append(m).append(' ');
+            var keys = m.keySet().iterator();
+            keys.next();
+            keys.next();
+            keys.remove();
+            keys.remove();
+            b.append(m.keySet()).append(' ').append(t(() -> {
+                m.keySet().iterator().remove();
+                return "no";
+            })).append(' ');
+            var values = m.values().iterator();
+            values.next();
+            values.remove();
+            b.append(m.values()).append(' ').append(m.keySet().remove("k5")).append(m.keySet().remove("k5")).append(m.object2ObjectEntrySet().remove(java.util.Map.entry("k7", "v7")))
+                    .append(m.object2ObjectEntrySet().remove(java.util.Map.entry("k8", "x"))).append(m.object2ObjectEntrySet().contains(java.util.Map.entry("k8", "v8")))
+                    .append(m.object2ObjectEntrySet().contains("k8")).append(m.keySet().contains("k8")).append(m.values().contains("v8")).append(' ').append(m).append(' ');
+            var fast = m.object2ObjectEntrySet().fastIterator();
+            var first = fast.next();
+            var second = fast.next();
+            b.append(first == second).append(first).append(' ');
+            StringBuilder each = new StringBuilder();
+            m.object2ObjectEntrySet().fastForEach(e -> each.append(e.getKey()).append(e.getValue()));
+            m.object2ObjectEntrySet().forEach(e -> each.append(e));
+            m.keySet().forEach(each::append);
+            m.values().forEach(each::append);
+            m.forEach((x, y) -> each.append(x).append(y));
+            b.append(each).append(' ').append(m.keySet().hashCode()).append(m.keySet().equals(java.util.Set.copyOf(m.keySet()))).append(' ').append(m.direct());
+            var plain = new it.unimi.dsi.fastutil.objects.Object2ObjectArrayMap<Object, String>(m);
+            var c = plain.clone();
+            c.put("new", "n");
+            b.append(' ').append(plain.size()).append(c.size()).append(c.getClass().getName()).append(c.keySet() != plain.keySet()).append(c.equals(plain));
+            return b;
+        });
+        p("array map empty set", () -> {
+            Peeked m = new Peeked();
+            var s = m.keySet();
+            var i = s.iterator();
+            StringBuilder b = new StringBuilder();
+            b.append(s).append(s.size()).append(s.isEmpty()).append(s.contains("a")).append(s.contains(null)).append(s.hashCode()).append(' ').append(s.equals(java.util.Set.of())).append(s.equals(java.util.List.of()))
+                    .append(s.equals(new java.util.HashSet<>())).append(new java.util.HashSet<>().equals(s)).append(s.equals(java.util.Set.of(1))).append(' ').append(i.hasNext()).append(' ').append(t(() -> i.next()))
+                    .append(' ').append(t(() -> {
+                        i.remove();
+                        return "no";
+                    })).append(' ').append(s.toArray() == s.toArray()).append(s.toArray().length);
+            Object[] arr = {"x", "y"};
+            b.append(' ').append(s.toArray(arr) == arr).append(arr[0]).append(arr[1]).append(' ').append(s.containsAll(java.util.List.of())).append(s.containsAll(java.util.List.of(1)))
+                    .append(' ').append(t(() -> s.add("q"))).append(' ').append(t(() -> s.remove("q"))).append(' ').append(t(() -> s.addAll(java.util.List.of("q")))).append(' ')
+                    .append(t(() -> s.removeAll(java.util.List.of()))).append(' ').append(t(() -> s.removeIf(null))).append(' ').append(s.removeIf(x -> true)).append(' ').append(s.stream().count());
+            s.clear();
+            b.append(' ').append(s == it.unimi.dsi.fastutil.objects.ObjectSets.emptySet()).append(s.getClass().getName()).append(i.getClass().getName());
+            var e = it.unimi.dsi.fastutil.objects.ObjectIterators.EMPTY_ITERATOR;
+            b.append(' ').append(e.hasPrevious()).append(e.nextIndex()).append(e.previousIndex()).append(e.skip(3)).append(e.back(3)).append(' ').append(t(() -> e.previous())).append(' ')
+                    .append(t(() -> {
+                        e.set("x");
+                        return "no";
+                    })).append(' ').append(e.clone() == e).append(it.unimi.dsi.fastutil.objects.ObjectIterators.emptyIterator() == e);
+            return b;
+        });
     }
 
     /** The object map's key for a reference map's: null as it is. */

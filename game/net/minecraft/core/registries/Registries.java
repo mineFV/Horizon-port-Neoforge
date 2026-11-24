@@ -17,6 +17,7 @@ public class Registries {
     public static final ResourceKey<?> MENU = ResourceKey.createRegistryKey(ResourceLocation.withDefaultNamespace("menu"));
     public static final ResourceKey<?> RECIPE_TYPE = ResourceKey.createRegistryKey(ResourceLocation.withDefaultNamespace("recipe_type"));
     public static final ResourceKey<?> BLOCK_ENTITY_TYPE = ResourceKey.createRegistryKey(ResourceLocation.withDefaultNamespace("block_entity_type"));
+    public static final ResourceKey<?> ENCHANTMENT = ResourceKey.createRegistryKey(ResourceLocation.withDefaultNamespace("enchantment"));
 
     private Registries() {}
 }
