@@ -202,6 +202,24 @@ A block's destroy progress (2026-11-24): a state's getDestroyProgress is its blo
 block of the probe's); the game's own refuses, a player's mining being Horizon's. JOML's quaternions aren't modelled:
 turning a Vector3f by one refuses (only a client's renderers do it in Mekanism), and Quaternionfc is a type alone.
 
+Chunk positions (net/minecraft/world/level/ChunkPos, 2026-11-24): packed in a long (x in the low 32 bits) and a block
+position's chunk (its coordinates shifted by 4), as Horizon's horizon_core::position::ChunkPos (MIT); their hash, text,
+bounds, regions, distances and INVALID_CHUNK_POS observed on coordinates at the ints' bounds and 20 000 pairs at random.
+What an interaction came to (InteractionResult), a two-block block's halves (DoubleBlockHalf) and a bed's parts
+(BedPart), with BlockStateProperties' OPEN, DOUBLE_BLOCK_HALF and BED_PART (in a server: it needs the game's
+registries), fastutil's BooleanConsumer: observed. The game's items a mod names, given from `dump`'s facts as the others
+(the totem, bucket, furnace, fire charge, crafting table, cobblestone): their ids and the registry's objects observed in a
+server, their classes not the game's (a plain item, or a block's).
+
+A bucket (BucketItem, 2026-11-24): an item of a fluid (`content`, public in NeoForge's patched class), its constructor
+adding nothing to its properties (observed in a server); using, emptying or filling it in the world isn't here.
+DeferredRegister.addAlias changes nothing: observed in a server, the registry's lookups don't follow an alias (the old id
+gives the default, and nothing else); what NeoForge does with one (the ids of saved data) is Horizon's.
+
+Refused, as world questions are until Horizon answers them: the biome at a position (LevelReader.getBiome; Biome a type,
+its getTemperature public as Mekanism's access transformer makes it), whether a block passes weak redstone power on
+(IBlockExtension.shouldCheckWeakPower; a block's own override runs).
+
 A capability's cache at a position (2026-11-23): BlockCapabilityCache made as NeoForge makes it, what it is given kept
 (the position as an immutable copy), null refused; observed in a server's overworld. Asking it refuses: a level's
 capabilities at a position (its block entities) aren't modelled, nor when they change.

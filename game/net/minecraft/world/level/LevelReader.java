@@ -10,4 +10,9 @@ public interface LevelReader extends net.minecraft.world.level.BlockAndTintGette
     net.minecraft.world.level.chunk.ChunkAccess getChunk(int x, int z, net.minecraft.world.level.chunk.status.ChunkStatus status, boolean create);
 
     boolean hasChunk(int x, int z);
+
+    /** The biome at a position: Horizon's world's, not asked yet, so it refuses. */
+    default net.minecraft.core.Holder<net.minecraft.world.level.biome.Biome> getBiome(net.minecraft.core.BlockPos pos) {
+        throw new UnsupportedOperationException("the biome at a position isn't modelled (horizon-port-neoforge)");
+    }
 }

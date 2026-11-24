@@ -56,6 +56,13 @@ public class DeferredRegister<T> {
 
     public void register(IEventBus bus) {}
 
+    /**
+     * An old id for a new one: observed in a server (probe/BlockItemProbe.java, aliases), the registry's lookups don't
+     * follow it (the old id gives a defaulted registry's default, and nothing else); what NeoForge does with it (the
+     * ids of saved data) is Horizon's, so it changes nothing here.
+     */
+    public void addAlias(ResourceLocation from, ResourceLocation to) {}
+
     /** Observed: what it registered, in that order, as a set that can't be changed: the same view each time. */
     public java.util.Collection<DeferredHolder<T, ? extends T>> getEntries() {
         return entriesView;

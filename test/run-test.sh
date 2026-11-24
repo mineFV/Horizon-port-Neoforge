@@ -954,7 +954,7 @@ else
 fi
 says "$OUT" "Nothing was compiled or run"
 # The game's stand-ins (game/), translated with the mod where it reaches them.
-says "$OUT" "Stand-ins for the game: 576 classes, not checked against the game's (no --server)."
+says "$OUT" "Stand-ins for the game: 585 classes, not checked against the game's (no --server)."
 says "$TR/out/translation.md" '- `com.example.numbers.Places.keys(I)Ljava/lang/String;` as `places__keys`'
 says "$TR/out/translated.rs" '/// `net.minecraft.core.Vec3i.compareTo(Lnet/minecraft/core/Vec3i;)I`, translated from its bytecode.'
 says "$TR/out/translated.rs" 'pub fn numbers__collatz(mut l0: i64) -> JR<i64> {'
@@ -1024,7 +1024,7 @@ says "$TR/gamey-out/translation.md" '- `com.example.gamey.Tagged.screenArray(Z)I
 says "$TR/gamey-out/translation.md" '`com.example.gamey.Tagged.sounds()I`: it makes an array of a class whose supertype is the client'"'"'s, which a dedicated server doesn'"'"'t load: com.example.gamey.Tagged$Sound (net.minecraft.client.Soundish)' 
 # Each stand-in checked against the server's class: one whose interfaces differ, one that would inherit a method the
 # game's declares, are left out.
-says "$OUT" "Stand-ins for the game: 574 classes, checked against the game's."
+says "$OUT" "Stand-ins for the game: 583 classes, checked against the game's."
 says "$OUT" "- left out: net.minecraft.core.Vec3i: its superclass or interfaces aren't the game's"
 # The libraries a server runs with are those its launch arguments name (unix_args.txt), with NeoForge's own jars: the
 # installer's beside them (Guava 20 beside the game's 32, in a real server) aren't read.
@@ -1151,8 +1151,8 @@ for v in same upper; do
   jar --create --file "$SI/$v/libraries/net/neoforged/neoforge/21.1.1/neoforge-21.1.1-server.jar" -C "$SI/$v-classes" .
 done
 exits 0 tool standins --server "$SI/same"
-says "$OUT" "ok: the 576 stand-ins have the supertypes and the methods of the server's classes"
-says "$OUT" "ok: the game and the stand-ins give the same 23435 answers to the probe"
+says "$OUT" "ok: the 585 stand-ins have the supertypes and the methods of the server's classes"
+says "$OUT" "ok: the game and the stand-ins give the same 23456 answers to the probe"
 says "$OUT" "no server, no world, no mod"
 no_file logs
 exits 1 tool standins --server "$SI/upper"

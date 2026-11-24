@@ -21,6 +21,15 @@ final class BlockItemProbe {
 
     static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBlocks("horizonprobe");
     static final DeferredRegister<Item> ITEMS = DeferredRegister.create(Registries.ITEM, "horizonprobe");
+
+    /** Old ids for the items' registry (NeoForge's aliases): one, again to another, to itself, through another, to nothing. */
+    static {
+        ITEMS.addAlias(ResourceLocation.parse("horizonprobe:old_item"), ResourceLocation.parse("horizonprobe:with_item"));
+        ITEMS.addAlias(ResourceLocation.parse("horizonprobe:old_item"), ResourceLocation.parse("horizonprobe:other_item"));
+        ITEMS.addAlias(ResourceLocation.parse("horizonprobe:same_item"), ResourceLocation.parse("horizonprobe:same_item"));
+        ITEMS.addAlias(ResourceLocation.parse("horizonprobe:older_item"), ResourceLocation.parse("horizonprobe:old_item"));
+        ITEMS.addAlias(ResourceLocation.parse("horizonprobe:lost_item"), ResourceLocation.parse("horizonprobe:missing_item"));
+    }
     static final DeferredBlock<Block> WITH = BLOCKS.register("with_item", () -> new Block(BlockBehaviour.Properties.of()));
     static final DeferredBlock<Block> WITHOUT = BLOCKS.register("without_item", () -> new Block(BlockBehaviour.Properties.of()));
     static final DeferredBlock<Block> AIRY = BLOCKS.register("airy", () -> new Block(BlockBehaviour.Properties.of().air()));
@@ -113,6 +122,7 @@ final class BlockItemProbe {
         clones();
         neighbours();
         progress();
+        aliases();
         p("block item", () -> WITH.get().asItem() + " " + (WITH.get().asItem() == ITEM.get()) + " " + ITEM.get().getBlock() + " " + ITEM.get().getDescriptionId()
                 + " " + ITEM.get().getDescription() + " " + WITH.asItem() + " " + WITHOUT.get().asItem() + " " + Item.byBlock(WITHOUT.get()) + " " + Block.byItem(ITEM.get())
                 + " " + Block.byItem(Items.DIAMOND) + " " + Item.BY_BLOCK.get(WITH.get()) + " " + Item.BY_BLOCK.get(WITHOUT.get()));
@@ -123,6 +133,21 @@ final class BlockItemProbe {
                     + Items.STONE.getDescriptionId() + " " + (Items.DIAMOND instanceof BlockItem) + " " + (Items.AIR instanceof BlockItem) + " " + stone.asItem()
                     + " " + (stone.asItem() == Items.STONE) + " " + air.asItem() + " " + (Block.byItem(Items.STONE) == stone) + " " + Block.byItem(Items.AIR) + " " + (Block.byItem(Items.AIR) == air);
         });
+    }
+
+    /** Looking items up by their old ids (aliases): what the registry finds, says it holds, and the keys it gives. */
+    @SuppressWarnings({"rawtypes", "unchecked"})
+    static void aliases() {
+        net.minecraft.core.Registry items = BuiltInRegistries.ITEM;
+        for (String old : new String[] {"old_item", "older_item", "same_item", "lost_item", "with_item"}) {
+            ResourceLocation id = ResourceLocation.parse("horizonprobe:" + old);
+            p("item alias " + old, () -> {
+                Object found = items.get(id);
+                return found + " " + (found == ITEM.get()) + " " + items.containsKey(id) + " " + items.getOptional(id).isPresent() + " "
+                        + items.get(net.minecraft.resources.ResourceKey.create(Registries.ITEM, id)) + " " + items.containsKey(net.minecraft.resources.ResourceKey.create(Registries.ITEM, id))
+                        + " " + items.getHolder(id).map(h -> ((net.minecraft.core.Holder.Reference) h).key()).orElse(null) + " " + items.getKey(found);
+            });
+        }
     }
 
     /** A state's getDestroyProgress: its block's, a block's own (the game's needs a player in a world: not asked). */
