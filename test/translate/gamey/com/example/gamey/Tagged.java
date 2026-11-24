@@ -33,6 +33,26 @@ public final class Tagged {
         return new Badge().weight();
     }
 
+    /** The mod's interface over the game's, overriding its default: the mod's is the one a call selects (JVMS 5.4.3.3). */
+    interface Heavy extends Named {
+        @Override
+        default int weight() {
+            return 10;
+        }
+    }
+
+    static final class Anvil implements Heavy {
+        @Override
+        public String name() {
+            return "anvil";
+        }
+    }
+
+    /** Runs the mod's default, not the game's it overrides: translated. */
+    public static int heavier() {
+        return new Anvil().weight();
+    }
+
     /** An enum whose initializer calls the game: its values() isn't translated, nor its valueOf. */
     enum Stuck {
         A;

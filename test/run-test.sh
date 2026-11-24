@@ -1045,6 +1045,8 @@ says "$OUT" "- left out: net.minecraft.core.BlockPos: the game's class declares 
 says "$TR/gamey-out/translation.md" "- left out: net.minecraft.core.Vec3i"
 says "$TR/gamey-out/translation.md" '- `com.example.gamey.Tagged.size(I)I` as `tagged__size`'
 says "$TR/gamey-out/translation.md" '`com.example.gamey.Tagged.weight()I`: it makes an object of com.example.gamey.Tagged$Badge that a virtual call may reach, and a virtual call isn'"'"'t certain: com.example.gamey.Tagged$Badge.weight on com.example.gamey.Tagged$Badge it is a default method of net.minecraft.world.Named, outside the jar'
+# The mod's interface overriding that default: the mod's runs, not the game's it hides.
+says "$TR/gamey-out/translation.md" '- `com.example.gamey.Tagged.heavier()I` as `tagged__heavier`'
 exits 2 tool translate "$B/jars/gamey.jar" --server "$TR/game"
 says "$ERR" "isn't a NeoForge server: it has no libraries/ folder"
 exits 2 tool translate "$B/jars/fabric.jar"

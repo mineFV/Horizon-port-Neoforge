@@ -326,6 +326,13 @@ The tool's commands: `metadata`, `license`, `analyze`, `port`, `check`, `pack`, 
   than the translation throws; and a class of the jar whose supertype isn't there (another mod's plugin) still isn't
   made.
 
+- **A default method of the game's that a mod's interface overrides isn't the one a call selects** (2026-11-24): the
+  translator stopped at the first interface read from outside declaring the default (NeoForge's
+  TranslatableEnum.getTranslatedName) and refused the call, though Mekanism's IHasEnumNameTranslationKey, a
+  subinterface, overrides it: the JVM selects the maximally-specific default (JVMS 5.4.3.3), the mod's. A default read
+  from outside is a candidate like the others, refused only when it is the one left. It held Mekanism's Upgrade back,
+  and with it MekanismBlockTypes.
+
 - **Horizon follows Minecraft 26.3, and 1.21.1 doesn't always compute as it does** (2026-11-24): Horizon's sine
   table (horizon_core::geometry::trig) is 1.21.1's, all 65536 entries, but which entry an angle reads isn't: 26.3 takes
   a double angle, multiplies in doubles and cuts to a long; 1.21.1's `Mth.sin(float)` multiplies by 10430.378F in

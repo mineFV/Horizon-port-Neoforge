@@ -447,14 +447,11 @@ final class JavaWorld {
             if (data == null) return new Selected(null, "on " + r.replace('/', '.') + " it may be a default method of " + i.replace('/', '.') + ", outside the jar");
             ClassData.Method m = null;
             for (ClassData.Method d : data.methods) if (d.name().equals(name) && d.descriptor().equals(descriptor)) m = d;
-            if (m != null && !m.isStatic() && (m.access() & (ClassData.ABSTRACT | 0x0002)) == 0) {
-                // An interface read from outside (the JDK's, the game's) declares this default: running it isn't translated.
-                if (!classes.containsKey(i)) return new Selected(null, "on " + r.replace('/', '.') + " it is a default method of " + i.replace('/', '.') + ", outside the jar");
-                found.add(new JarRust.Id(i, name, descriptor));
-            }
+            if (m != null && !m.isStatic() && (m.access() & (ClassData.ABSTRACT | 0x0002)) == 0) found.add(new JarRust.Id(i, name, descriptor));
             todo.addAll(data.interfaces);
         }
-        // The maximally-specific ones (JVMS 5.4.3.3): a default an interface overrides in a subinterface isn't one.
+        // The maximally-specific ones (JVMS 5.4.3.3): a default an interface overrides in a subinterface isn't one, though
+        // it be an interface's read from outside (the game's TranslatableEnum, under a mod's interface that overrides it).
         List<JarRust.Id> specific = new ArrayList<>();
         for (JarRust.Id f : found) {
             boolean overridden = false;
@@ -462,6 +459,10 @@ final class JavaWorld {
             if (!overridden) specific.add(f);
         }
         found = specific;
+        for (JarRust.Id f : found) {
+            // An interface read from outside (the JDK's, the game's) declares the default that may run: it isn't translated.
+            if (!classes.containsKey(f.owner())) return new Selected(null, "on " + r.replace('/', '.') + " it is a default method of " + f.owner().replace('/', '.') + ", outside the jar");
+        }
         if (found.size() == 1) return new Selected(found.get(0), null);
         if (declared(OBJECT, name, descriptor) == null && objectMethod(name, descriptor)) return new Selected(null, "it is java.lang.Object's own " + name);
         return new Selected(null, found.isEmpty() ? "nothing implements " + name + descriptor + " on " + r.replace('/', '.') : "several default methods could be " + name);
